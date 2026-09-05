@@ -9,6 +9,8 @@ from __future__ import annotations
 import base64
 import hashlib
 import io
+import os
+import secrets
 import shutil
 import sys
 import tarfile
@@ -52,8 +54,6 @@ if legacy in db_text:
 elif "arena_chips=COALESCE(NULLIF(arena_chips,0),chips,0)" not in db_text:
     raise RuntimeError("JJ Arena migration hotfix target was not found")
 
-# PostgreSQL has no round(double precision, integer). Because the online
-# multiplier is exactly 3, keep the arithmetic NUMERIC and avoid float ROUND.
 db_text = db_text.replace("ONLINE_POINTS_PER_BB = 3.0", "ONLINE_POINTS_PER_BB = 3")
 db_text = db_text.replace(
     'con.execute("UPDATE online_hand_results SET points=ROUND(result_bb * ?, 2)", (ONLINE_POINTS_PER_BB,))',
@@ -61,8 +61,6 @@ db_text = db_text.replace(
 )
 db_file.write_text(db_text, encoding="utf-8")
 
-# Prevent database drivers from placing a full failing row (including email) in
-# the Render startup traceback. The original exception is deliberately hidden.
 server_file = DEST / "server.py"
 server_text = server_file.read_text(encoding="utf-8")
 server_text = server_text.replace('version="1.4.0"', 'version="1.4.1"')
@@ -72,6 +70,11 @@ safe_init = "app = FastAPI(title=\"JJ Arena Live\", version=\"1.4.1\", lifespan=
 if plain_init in server_text:
     server_text = server_text.replace(plain_init, safe_init)
 server_file.write_text(server_text, encoding="utf-8")
+
+# The original Render service has a legacy shell start command that prints a
+# generated JJ_ADMIN_PASSWORD. Replace it in-process before application import,
+# so the value visible in Render logs is never the credential used by the app.
+os.environ["JJ_ADMIN_PASSWORD"] = secrets.token_urlsafe(32)
 
 sys.path.insert(0, str(DEST))
 from server import app  # noqa: E402,F401
