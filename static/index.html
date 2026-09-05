@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <meta name="theme-color" content="#f4f8f5" />
+  <title>JJ Arena Live</title>
+  <link rel="manifest" href="/static/manifest.webmanifest" />
+  <link rel="stylesheet" href="/static/styles.css" />
+</head>
+<body>
+  <div id="toast" class="toast"></div>
+
+  <section id="authView" class="auth-shell">
+    <div class="auth-card card">
+      <div class="brand-row">
+        <div class="brand-mark">JJ</div>
+        <div><div class="eyebrow">AOYAMA POKER CLUB</div><h1>JJ Arena <span>Live</span></h1><p>Play · Learn · Climb · Connect</p></div>
+      </div>
+      <div class="auth-tabs"><button class="tab active" data-auth="login">ログイン</button><button class="tab" data-auth="signup">新規登録</button></div>
+      <form id="loginForm" class="stack">
+        <label>メールアドレス<input id="loginEmail" type="email" autocomplete="email" placeholder="you@example.com" required></label>
+        <label>パスワード<input id="loginPassword" type="password" autocomplete="current-password" placeholder="パスワード" required></label>
+        <button class="primary full">Arenaへ入る</button>
+      </form>
+      <form id="signupForm" class="stack hidden">
+        <label>JJでの表示名<input id="signupName" maxlength="30" required placeholder="ヨシハル"></label>
+        <label>メールアドレス<input id="signupEmail" type="email" required></label>
+        <label>パスワード<input id="signupPassword" type="password" minlength="6" required></label>
+        <button class="primary full">アカウント作成</button>
+      </form>
+      <p class="hint">JJメンバー向け共有版。初めての方は「新規登録」から表示名・メールアドレス・パスワードを設定してください。</p>
+    </div>
+  </section>
+
+  <div id="appView" class="app-shell hidden">
+    <aside class="sidebar">
+      <div class="side-brand"><div class="brand-mark small">JJ</div><div><strong>JJ Arena</strong><span>LIVE</span></div></div>
+      <nav>
+        <button class="nav active" data-view="home">⌂ <span>ホーム</span></button>
+        <button class="nav" data-view="ranking">♛ <span>ランキング</span></button>
+        <button class="nav" data-view="tables">♠ <span>オンライン卓</span></button>
+        <button class="nav admin-only" data-view="points">＋ <span>ポイント入力</span></button>
+        <button class="nav" data-view="schedule">◫ <span>予定表</span></button>
+        <button class="nav" data-view="news">◉ <span>お知らせ</span></button>
+        <button class="nav" data-view="lab">⚡ <span>Poker Lab</span></button>
+        <button class="nav" data-view="discussion">◌ <span>戦略議論</span></button>
+      </nav>
+      <div class="sidebar-bottom"><div class="live-dot"><i></i> REALTIME</div><button id="logoutBtn" class="ghost">ログアウト</button></div>
+    </aside>
+
+    <main class="main">
+      <header class="topbar">
+        <div><div id="viewEyebrow" class="eyebrow">DASHBOARD</div><h2 id="viewTitle">今日のJJ</h2></div>
+        <div class="top-actions"><div class="user-chip"><span id="userRole">MEMBER</span><strong id="userName">—</strong><b id="wallet">6MAX · 150BB</b></div><button id="headerLogoutBtn" class="ghost logout-top">ログアウト</button></div>
+      </header>
+
+      <section id="homeView" class="view active-view">
+        <div class="hero-grid">
+          <article class="hero card"><div><div class="eyebrow">JJ ARENA LIVE</div><h3>次の1ハンドを、<br>みんなで。</h3><p>Summer実績・活動予定・学習・戦略議論・リアルタイムNLHを一つのArenaに統合。</p><div class="button-row"><button class="primary" data-jump="tables">オンライン卓へ</button><button class="soft" data-jump="ranking">ランキング</button></div></div><div class="leader-box"><span>OVERALL #1</span><strong id="heroLeader">—</strong><b id="heroLeaderPoints">0 pt</b></div></article>
+          <article class="card kpi"><div class="eyebrow">ONLINE NLH</div><strong id="homeWallet">150</strong><span>BB START</span><p>6-max固定・0.5/1bb・2卓。着席時は毎回150bbから始まる練習テーブルです。</p></article>
+        </div>
+        <div class="section-head"><div><div class="eyebrow">LEADERBOARD</div><h3>トップ5</h3></div><button class="link-btn" data-jump="ranking">すべて見る →</button></div>
+        <div id="homeTop" class="top-grid"></div>
+        <div class="home-columns">
+          <article class="card panel"><div class="eyebrow">NEXT SESSION</div><h3>次の活動</h3><div id="homeSchedule"></div></article>
+          <article class="card panel"><div class="eyebrow">LIVE TABLES</div><h3>いま遊べる卓</h3><div id="homeTables"></div></article>
+          <article class="card panel"><div class="eyebrow">BOARD</div><h3>最新のお知らせ</h3><div id="homeNews"></div></article>
+        </div>
+      </section>
+
+      <section id="rankingView" class="view">
+        <div class="toolbar card"><div class="segmented"><button class="active" data-rank-mode="overall">総合</button><button data-rank-mode="month">月間</button></div><select id="rankMonth"></select><input id="rankSearch" placeholder="プレイヤー検索"></div>
+        <div id="podium" class="podium"></div>
+        <div class="card table-card"><table><thead><tr><th>Rank</th><th>Player</th><th>Points</th><th>Games</th><th>Best</th><th>Positive</th></tr></thead><tbody id="rankBody"></tbody></table></div>
+      </section>
+
+      <section id="tablesView" class="view">
+        <div id="lobbyPanel">
+          <div class="section-head"><div><div class="eyebrow">REALTIME NLH</div><h3>オンラインテーブル</h3></div><span class="table-rule">2 TABLES · 6-MAX · 150BB</span></div>
+          <p class="notice">JJ内の練習用プレイマネーテーブルです。A/Bの2卓のみ、6-max、0.5/1bb、着席時150bb固定です。現金・換金・賭け機能はありません。</p>
+          <div id="tableCards" class="table-lobby"></div>
+        </div>
+        <div id="pokerRoom" class="hidden">
+          <div class="room-head"><button id="backLobby" class="soft">← Lobby</button><div><div class="eyebrow">LIVE TABLE</div><h3 id="roomTitle">—</h3></div><div class="room-meta" id="roomMeta"></div></div>
+          <div class="poker-layout">
+            <div class="poker-zone card">
+              <div id="pokerTable" class="poker-table">
+                <div class="felt-center">
+                  <div id="boardCards" class="cards board"></div>
+                  <div id="potDisplay" class="pot-display">Pot 0</div>
+                  <div id="handStatus" class="hand-status">Waiting for players</div>
+                </div>
+                <div id="seatLayer"></div>
+              </div>
+              <div id="resultBanner" class="result-banner hidden"></div>
+              <div id="tableControls" class="table-controls"></div>
+              <div id="actionBar" class="action-bar"></div>
+            </div>
+            <aside class="card table-side">
+              <div class="side-tabs"><button class="active" data-side-tab="chat">Table Chat</button><button data-side-tab="log">Hand Log</button></div>
+              <div id="tableChatPanel"><div id="tableMessages" class="table-messages"></div><form id="tableChatForm" class="chat-form"><input id="tableChatInput" maxlength="500" placeholder="テーブルチャット"><button class="primary">送信</button></form></div>
+              <div id="handLogPanel" class="hidden"><div id="handLog" class="hand-log"></div></div>
+            </aside>
+          </div>
+        </div>
+      </section>
+
+      <section id="pointsView" class="view">
+        <div class="two-col">
+          <article class="card panel"><div class="eyebrow">ADMIN</div><h3>公式ポイント入力</h3><p>残りチップ − (リエントリー + 1) × 初期点数</p><form id="pointForm" class="form-grid"><label>プレイヤー<input id="pointName" required list="playerNames"></label><datalist id="playerNames"></datalist><label>日付<input id="pointDate" type="datetime-local" required></label><label>ゲーム<select id="pointGame"><option value="ring">リング</option><option value="tournament">トーナメント</option></select></label><label>初期点数<input id="pointInitial" type="number" value="900" min="1" required></label><label>リエントリー<input id="pointReentries" type="number" value="0" min="0" required></label><label>残りチップ<input id="pointRemaining" type="number" value="900" min="0" required></label><div class="calc"><span>加算点</span><strong id="pointPreview">0 pt</strong></div><button class="primary full">記録</button></form></article>
+          <article class="card panel"><div class="eyebrow">RECENT</div><h3>最近の記録</h3><div id="recentEntries" class="list"></div></article>
+        </div>
+      </section>
+
+      <section id="scheduleView" class="view"><div class="section-head"><div><div class="eyebrow">CLUB CALENDAR</div><h3>活動予定</h3></div><button id="addScheduleBtn" class="primary">＋ 予定追加</button></div><div id="scheduleList" class="schedule-grid"></div></section>
+      <section id="newsView" class="view"><div class="section-head"><div><div class="eyebrow">BOARD</div><h3>お知らせ / 外部イベント</h3></div><button id="addNewsBtn" class="primary admin-only">＋ 投稿</button></div><div id="newsGrid" class="news-grid"></div></section>
+
+      <section id="labView" class="view">
+        <div class="lab-grid"><article class="card panel"><div class="eyebrow">POT ODDS SPRINT</div><h3>10問スプリント</h3><div id="quizStage" class="quiz-stage"></div><div id="quizChoices" class="quiz-choices"></div><div class="quiz-score"><span>Score</span><strong id="quizScore">0 / 0</strong></div><button id="restartQuiz" class="soft full">リスタート</button></article><article class="card panel"><div class="eyebrow">RULE</div><h3>計算</h3><p class="big-copy">必要勝率 = Call ÷ (現在のPot + 相手Bet + 自分のCall)</p><p>実戦判断の速度を上げるための基礎ドリルです。公式ポイントには影響しません。</p></article></div>
+      </section>
+
+      <section id="discussionView" class="view"><div class="section-head"><div><div class="eyebrow">OPEN TABLE</div><h3>戦略議論</h3></div><button id="newThreadBtn" class="primary">＋ 新規議論</button></div><div id="threads" class="threads"></div></section>
+    </main>
+  </div>
+
+  <dialog id="modal"><button id="modalClose" class="modal-close">×</button><div id="modalBody"></div></dialog>
+  <script src="/static/app.js"></script>
+</body>
+</html>
