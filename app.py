@@ -1,10 +1,8 @@
 """Atomic production entrypoint for JJ Arena Live v1.4.1.
 
-The verified v1.4 release bundle is checksum-validated first. A narrowly-scoped
-runtime compatibility patch is then applied for legacy Render Postgres rows that
-may contain NULL values from the beta schema. This keeps the verified release
-intact while making the migration safe and preventing row-level database details
-(such as email addresses) from being emitted on startup failures.
+The verified v1.4 release bundle is checksum-validated first. Narrow runtime
+compatibility patches are then applied for legacy Render Postgres data and a
+PostgreSQL-specific numeric expression used by the beta-to-v1.4 migration.
 """
 from __future__ import annotations
 
@@ -44,7 +42,7 @@ if not marker.exists() or marker.read_text(encoding="utf-8").strip() != EXPECTED
         archive.extractall(DEST)
     marker.write_text(EXPECTED_SHA256, encoding="utf-8")
 
-# Compatibility hotfix for the beta -> v1.4 Postgres migration.
+# Compatibility hotfixes for the beta -> v1.4 Postgres migration.
 db_file = DEST / "db.py"
 db_text = db_file.read_text(encoding="utf-8")
 legacy = '        if "chips" in cols: con.execute("UPDATE users SET arena_chips=chips WHERE arena_chips=0")\n'
@@ -53,6 +51,14 @@ if legacy in db_text:
     db_text = db_text.replace(legacy, fixed)
 elif "arena_chips=COALESCE(NULLIF(arena_chips,0),chips,0)" not in db_text:
     raise RuntimeError("JJ Arena migration hotfix target was not found")
+
+# PostgreSQL has no round(double precision, integer). Because the online
+# multiplier is exactly 3, keep the arithmetic NUMERIC and avoid float ROUND.
+db_text = db_text.replace("ONLINE_POINTS_PER_BB = 3.0", "ONLINE_POINTS_PER_BB = 3")
+db_text = db_text.replace(
+    'con.execute("UPDATE online_hand_results SET points=ROUND(result_bb * ?, 2)", (ONLINE_POINTS_PER_BB,))',
+    'con.execute("UPDATE online_hand_results SET points=result_bb * ?", (ONLINE_POINTS_PER_BB,))',
+)
 db_file.write_text(db_text, encoding="utf-8")
 
 # Prevent database drivers from placing a full failing row (including email) in
