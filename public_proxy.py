@@ -15,14 +15,22 @@ UPSTREAM_ORIGIN = UPSTREAM
 
 app = FastAPI(title="JJ Arena Public Gateway", docs_url=None, redoc_url=None, openapi_url=None)
 
-HOP_BY_HOP = {
+# httpx transparently decodes compressed upstream bodies. Never forward the
+# original Content-Encoding afterward, and do not request compression upstream.
+REQUEST_STRIP = {
     "connection", "keep-alive", "proxy-authenticate", "proxy-authorization",
     "te", "trailers", "transfer-encoding", "upgrade", "host", "content-length",
+    "accept-encoding",
+}
+RESPONSE_STRIP = {
+    "connection", "keep-alive", "proxy-authenticate", "proxy-authorization",
+    "te", "trailers", "transfer-encoding", "upgrade", "host", "content-length",
+    "content-encoding",
 }
 
 
 def _request_headers(request: Request) -> dict[str, str]:
-    headers = {k: v for k, v in request.headers.items() if k.lower() not in HOP_BY_HOP}
+    headers = {k: v for k, v in request.headers.items() if k.lower() not in REQUEST_STRIP}
     if "origin" in headers:
         headers["origin"] = UPSTREAM_ORIGIN
     if "referer" in headers:
@@ -35,7 +43,7 @@ def _request_headers(request: Request) -> dict[str, str]:
 def _response_headers(response: httpx.Response) -> list[tuple[str, str]]:
     out: list[tuple[str, str]] = []
     for key, value in response.headers.multi_items():
-        if key.lower() not in HOP_BY_HOP:
+        if key.lower() not in RESPONSE_STRIP:
             out.append((key, value))
     return out
 
@@ -53,9 +61,8 @@ async def proxy_http(path: str, request: Request):
             content=body,
             headers=_request_headers(request),
         )
-    headers = _response_headers(upstream)
     response = Response(content=upstream.content, status_code=upstream.status_code, media_type=None)
-    for key, value in headers:
+    for key, value in _response_headers(upstream):
         response.headers.append(key, value)
     return response
 
