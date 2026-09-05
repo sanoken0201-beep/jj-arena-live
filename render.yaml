@@ -1,0 +1,14 @@
+services:
+  - type: web
+    name: jj-arena-live
+    runtime: python
+    plan: free
+    region: singapore
+    buildCommand: pip install -r requirements.txt
+    startCommand: python -m uvicorn server:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /api/health
+    envVars:
+      - key: JJ_ADMIN_NAME
+        value: ケンイチロウ
+      - key: JJ_ENABLE_DEMO_MEMBER
+        value: "0"
