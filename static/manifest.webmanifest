@@ -1,0 +1,11 @@
+{
+  "name": "JJ Arena Live",
+  "short_name": "JJ Arena",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#f4f8f5",
+  "theme_color": "#f4f8f5",
+  "description": "JJ Poker Club ranking, schedule, learning and two realtime 6-max play-money NLH tables",
+  "icons": [{"src":"/static/icon.svg","sizes":"any","type":"image/svg+xml","purpose":"any maskable"}]
+}
