@@ -1,9 +1,8 @@
-"""Atomic production entrypoint for JJ Arena Live v1.5.
+"""Atomic production entrypoint for JJ Arena Live v1.6.
 
 The verified v1.4 release bundle remains the immutable base. At boot, the v1.5
-runtime patch upgrades authentication to Katakana name + 6-digit PIN, removes
-approval/email flows, keeps the poker/ranking engine intact, and applies the
-Postgres compatibility fixes before the app imports.
+runtime patch upgrades authentication to Katakana name + 6-digit PIN, then the
+v1.6 patch upgrades official point entry to Google-Form-style chip counts.
 """
 from __future__ import annotations
 
@@ -18,11 +17,12 @@ import tarfile
 from pathlib import Path
 
 import v15_patch
+import v16_patch
 
 ROOT = Path(__file__).resolve().parent
 RELEASE_DIR = ROOT / "release_v14"
 EXPECTED_SHA256 = "3ccb973f9ab146ce1c0d7da598242b0c1521a8ecc85c091caa10c1f1ebc9ddfd"
-DEST = Path("/tmp/jj_arena_v15_runtime")
+DEST = Path("/tmp/jj_arena_v16_runtime")
 
 parts = sorted(RELEASE_DIR.glob("part*.b64"))
 if len(parts) != 62:
@@ -45,8 +45,9 @@ with tarfile.open(fileobj=io.BytesIO(raw), mode="r:gz") as archive:
     archive.extractall(DEST)
 
 v15_patch.apply(DEST)
+v16_patch.apply(DEST)
 
-# The legacy Render shell command still exports/logs JJ_ADMIN_PASSWORD. v1.5 does
+# The legacy Render shell command still exports/logs JJ_ADMIN_PASSWORD. v1.6 does
 # not use that credential, but overwrite it anyway so the logged value can never
 # authenticate to the application. Old email/password recovery is also disabled.
 os.environ["JJ_ADMIN_PASSWORD"] = secrets.token_urlsafe(32)
