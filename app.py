@@ -1,4 +1,4 @@
-"""Atomic production entrypoint for JJ Arena Live v1.4.1.
+"""Atomic production entrypoint for JJ Arena Live v1.4.2.
 
 The verified v1.4 release bundle is checksum-validated first. Narrow runtime
 compatibility patches are then applied for legacy Render Postgres data and a
@@ -63,10 +63,10 @@ db_file.write_text(db_text, encoding="utf-8")
 
 server_file = DEST / "server.py"
 server_text = server_file.read_text(encoding="utf-8")
-server_text = server_text.replace('version="1.4.0"', 'version="1.4.1"')
-server_text = server_text.replace('"version":"1.4.0"', '"version":"1.4.1"')
-plain_init = "app = FastAPI(title=\"JJ Arena Live\", version=\"1.4.1\", lifespan=lifespan, docs_url=None if os.getenv(\"RENDER\") else \"/docs\", redoc_url=None if os.getenv(\"RENDER\") else \"/redoc\", openapi_url=None if os.getenv(\"RENDER\") else \"/openapi.json\")\ndb.init_db()\n"
-safe_init = "app = FastAPI(title=\"JJ Arena Live\", version=\"1.4.1\", lifespan=lifespan, docs_url=None if os.getenv(\"RENDER\") else \"/docs\", redoc_url=None if os.getenv(\"RENDER\") else \"/redoc\", openapi_url=None if os.getenv(\"RENDER\") else \"/openapi.json\")\ntry:\n    db.init_db()\nexcept Exception:\n    raise RuntimeError(\"database initialization failed\") from None\n"
+server_text = server_text.replace('version="1.4.0"', 'version="1.4.2"')
+server_text = server_text.replace('"version":"1.4.0"', '"version":"1.4.2"')
+plain_init = "app = FastAPI(title=\"JJ Arena Live\", version=\"1.4.2\", lifespan=lifespan, docs_url=None if os.getenv(\"RENDER\") else \"/docs\", redoc_url=None if os.getenv(\"RENDER\") else \"/redoc\", openapi_url=None if os.getenv(\"RENDER\") else \"/openapi.json\")\ndb.init_db()\n"
+safe_init = "app = FastAPI(title=\"JJ Arena Live\", version=\"1.4.2\", lifespan=lifespan, docs_url=None if os.getenv(\"RENDER\") else \"/docs\", redoc_url=None if os.getenv(\"RENDER\") else \"/redoc\", openapi_url=None if os.getenv(\"RENDER\") else \"/openapi.json\")\ntry:\n    db.init_db()\nexcept Exception:\n    raise RuntimeError(\"database initialization failed\") from None\n"
 if plain_init in server_text:
     server_text = server_text.replace(plain_init, safe_init)
 server_file.write_text(server_text, encoding="utf-8")
@@ -77,4 +77,41 @@ server_file.write_text(server_text, encoding="utf-8")
 os.environ["JJ_ADMIN_PASSWORD"] = secrets.token_urlsafe(32)
 
 sys.path.insert(0, str(DEST))
+
+# One-time, secret-backed admin recovery. The recovery password lives only in
+# Render Environment, never in GitHub or logs. A marker stored in Postgres makes
+# the reset idempotent, so changing the password in the app later is not undone
+# by ordinary restarts/deploys using the same recovery value.
+import db as _db  # noqa: E402
+_db.init_db()
+_recovery_password = os.environ.get("JJ_ADMIN_LOGIN_PASSWORD", "")
+_recovery_email = os.environ.get("JJ_ADMIN_LOGIN_EMAIL", "admin@jj.local").strip().lower()
+if _recovery_password:
+    _reset_marker = hashlib.sha256(
+        ("jj-admin-recovery-v1|" + _recovery_email + "|" + _recovery_password).encode()
+    ).hexdigest()
+    with _db.connect() as con:
+        con.execute("CREATE TABLE IF NOT EXISTS app_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)")
+        seen = con.execute("SELECT value FROM app_meta WHERE key=?", ("admin_recovery_marker",)).fetchone()
+        if not seen or seen["value"] != _reset_marker:
+            row = con.execute("SELECT id,name FROM users WHERE lower(email)=?", (_recovery_email,)).fetchone()
+            if row:
+                admin_id = row["id"]
+                admin_name = row["name"] or os.environ.get("JJ_ADMIN_NAME", "ケンイチロウ")
+                con.execute(
+                    "UPDATE users SET password_hash=?,role='admin',approved=1,disabled=0,ranking_name=COALESCE(NULLIF(ranking_name,''),?) WHERE id=?",
+                    (_db.hash_password(_recovery_password), admin_name, admin_id),
+                )
+            else:
+                admin_name = os.environ.get("JJ_ADMIN_NAME", "ケンイチロウ")
+                admin_id = _db.insert_returning_id(
+                    con,
+                    "INSERT INTO users(name,email,password_hash,role,arena_chips,xp,approved,disabled,ranking_name,created_at) VALUES (?,?,?,?,?,?,?,?,?,?)",
+                    (admin_name,_recovery_email,_db.hash_password(_recovery_password),"admin",0,0,1,0,admin_name,_db.utcnow()),
+                )
+            con.execute("DELETE FROM sessions WHERE user_id=?", (admin_id,))
+            con.execute("DELETE FROM app_meta WHERE key=?", ("admin_recovery_marker",))
+            con.execute("INSERT INTO app_meta(key,value) VALUES (?,?)", ("admin_recovery_marker", _reset_marker))
+    os.environ.pop("JJ_ADMIN_LOGIN_PASSWORD", None)
+
 from server import app  # noqa: E402,F401
