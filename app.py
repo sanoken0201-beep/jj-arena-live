@@ -1,4 +1,4 @@
-"""Atomic production entrypoint for JJ Arena Live v1.18.1.
+"""Atomic production entrypoint for JJ Arena Live v1.18.2.
 
 The verified v1.4 release bundle remains the immutable base. v1.5 upgrades
 authentication, v1.6 upgrades official point entry to chip counts, v1.7
@@ -25,8 +25,10 @@ GET /api/tables/{id} to fail before the seating UI could render, v1.17
 rebuilds the phone table as an immersive poker-only surface without competing
 site navigation, duplicate seating controls, or blocking result overlays,
 v1.18 adds the administrator control center, immutable point adjustment
-ledger, account verification controls, policy settings, and audit trail, and
-v1.18.1 guarantees admin routes are evaluated before the SPA fallback.
+ledger, account verification controls, policy settings, and audit trail,
+v1.18.1 guarantees admin routes are evaluated before the SPA fallback, and
+v1.18.2 adds irreversible administrator account deletion while preserving
+historical ranking, point-ledger, and audit integrity.
 """
 from __future__ import annotations
 
@@ -107,7 +109,7 @@ v32_patch.apply(DEST)
 v33_patch.apply(DEST)
 v34_patch.apply(DEST)
 
-# The legacy Render shell command still exports/logs JJ_ADMIN_PASSWORD. v1.18
+# The legacy Render shell command still exports/logs JJ_ADMIN_PASSWORD. v1.18+
 # does not use that credential, but overwrite it anyway so the logged value can
 # never authenticate to the application. Old email/password recovery is disabled.
 os.environ["JJ_ADMIN_PASSWORD"] = secrets.token_urlsafe(32)
@@ -117,10 +119,11 @@ os.environ.pop("JJ_ADMIN_LOGIN_EMAIL", None)
 sys.path.insert(0, str(DEST))
 from server import app  # noqa: E402
 from admin_console import install_admin_console  # noqa: E402
+from admin_delete import install_account_deletion  # noqa: E402
 
 
 def _prioritize_admin_routes(fastapi_app) -> None:
-    """Move v1.18 admin routes ahead of the legacy SPA catch-all.
+    """Move admin routes ahead of the legacy SPA catch-all.
 
     FastAPI/Starlette resolves routes in declaration order. The legacy JJ Arena
     server intentionally has a final catch-all route that returns the normal
@@ -146,4 +149,5 @@ def _prioritize_admin_routes(fastapi_app) -> None:
 
 
 install_admin_console(app)
+install_account_deletion(app)
 _prioritize_admin_routes(app)
