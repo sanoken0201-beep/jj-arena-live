@@ -1,4 +1,4 @@
-"""Atomic production entrypoint for JJ Arena Live v1.16.0.
+"""Atomic production entrypoint for JJ Arena Live v1.16.1.
 
 The verified v1.4 release bundle remains the immutable base. v1.5 upgrades
 authentication, v1.6 upgrades official point entry to chip counts, v1.7
@@ -14,9 +14,11 @@ v1.14.1 restores explicit 150bb Rebuy plus safer preflop sizing presets,
 v1.14.2 clears inter-hand results before each new deal, v1.15 rebuilds the
 poker workspace as a contained responsive game stage with a separate utility
 column, v1.15.1 completes mobile action clearance plus exact hero hand labels,
-and v1.16 introduces an explicit table-state model: active player counts,
+v1.16 introduces an explicit table-state model with active player counts,
 join-during-hand seat reservation, direct fixed-stack seating, and persisted
-state invariant repair.
+state invariant repair, and v1.16.1 hardens continuous sessions with revocable
+first-deal READY, timeout auto-sitout, cross-table seat serialization, and
+immediate authoritative leave refresh.
 """
 from __future__ import annotations
 
@@ -45,11 +47,12 @@ import v26_patch
 import v27_patch
 import v28_patch
 import v29_patch
+import v30_patch
 
 ROOT = Path(__file__).resolve().parent
 RELEASE_DIR = ROOT / "release_v14"
 EXPECTED_SHA256 = "3ccb973f9ab146ce1c0d7da598242b0c1521a8ecc85c091caa10c1f1ebc9ddfd"
-DEST = Path("/tmp/jj_arena_v29_runtime")
+DEST = Path("/tmp/jj_arena_v30_runtime")
 
 parts = sorted(RELEASE_DIR.glob("part*.b64"))
 if len(parts) != 62:
@@ -86,8 +89,9 @@ v26_patch.apply(DEST)
 v27_patch.apply(DEST)
 v28_patch.apply(DEST)
 v29_patch.apply(DEST)
+v30_patch.apply(DEST)
 
-# The legacy Render shell command still exports/logs JJ_ADMIN_PASSWORD. v1.16
+# The legacy Render shell command still exports/logs JJ_ADMIN_PASSWORD. v1.16.1
 # does not use that credential, but overwrite it anyway so the logged value can
 # never authenticate to the application. Old email/password recovery is disabled.
 os.environ["JJ_ADMIN_PASSWORD"] = secrets.token_urlsafe(32)
