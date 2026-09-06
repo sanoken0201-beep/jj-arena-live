@@ -1,4 +1,4 @@
-"""Atomic production entrypoint for JJ Arena Live v1.18.0.
+"""Atomic production entrypoint for JJ Arena Live v1.18.1.
 
 The verified v1.4 release bundle remains the immutable base. v1.5 upgrades
 authentication, v1.6 upgrades official point entry to chip counts, v1.7
@@ -24,8 +24,9 @@ v1.16.3 fixes the table-presence global/function name collision that caused
 GET /api/tables/{id} to fail before the seating UI could render, v1.17
 rebuilds the phone table as an immersive poker-only surface without competing
 site navigation, duplicate seating controls, or blocking result overlays,
-and v1.18 adds the administrator control center, immutable point adjustment
-ledger, account verification controls, policy settings, and audit trail.
+v1.18 adds the administrator control center, immutable point adjustment
+ledger, account verification controls, policy settings, and audit trail, and
+v1.18.1 guarantees admin routes are evaluated before the SPA fallback.
 """
 from __future__ import annotations
 
@@ -117,4 +118,32 @@ sys.path.insert(0, str(DEST))
 from server import app  # noqa: E402
 from admin_console import install_admin_console  # noqa: E402
 
+
+def _prioritize_admin_routes(fastapi_app) -> None:
+    """Move v1.18 admin routes ahead of the legacy SPA catch-all.
+
+    FastAPI/Starlette resolves routes in declaration order. The legacy JJ Arena
+    server intentionally has a final catch-all route that returns the normal
+    SPA for unknown browser paths. Because the admin console is installed after
+    importing that server, its GET routes would otherwise be shadowed by the
+    catch-all. Prioritising only the isolated admin namespace keeps all existing
+    application route ordering intact while making /admin and its assets/API
+    reachable.
+    """
+    routes = list(fastapi_app.router.routes)
+
+    def is_admin_route(route) -> bool:
+        path = str(getattr(route, "path", "") or "")
+        return (
+            path in {"/admin", "/admin/"}
+            or path.startswith("/admin-static")
+            or path.startswith("/api/admin/console")
+        )
+
+    admin_routes = [route for route in routes if is_admin_route(route)]
+    other_routes = [route for route in routes if not is_admin_route(route)]
+    fastapi_app.router.routes[:] = admin_routes + other_routes
+
+
 install_admin_console(app)
+_prioritize_admin_routes(app)
