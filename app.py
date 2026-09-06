@@ -1,4 +1,4 @@
-"""Atomic production entrypoint for JJ Arena Live v1.18.2.
+"""Atomic production entrypoint for JJ Arena Live v1.18.3.
 
 The verified v1.4 release bundle remains the immutable base. v1.5 upgrades
 authentication, v1.6 upgrades official point entry to chip counts, v1.7
@@ -26,9 +26,11 @@ rebuilds the phone table as an immersive poker-only surface without competing
 site navigation, duplicate seating controls, or blocking result overlays,
 v1.18 adds the administrator control center, immutable point adjustment
 ledger, account verification controls, policy settings, and audit trail,
-v1.18.1 guarantees admin routes are evaluated before the SPA fallback, and
+v1.18.1 guarantees admin routes are evaluated before the SPA fallback,
 v1.18.2 adds irreversible administrator account deletion while preserving
-historical ranking, point-ledger, and audit integrity.
+historical ranking, point-ledger, and audit integrity, and v1.18.3 standardizes
+ambiguous user-facing terminology across poker presence, account state, member
+verification, and official point administration.
 """
 from __future__ import annotations
 
@@ -62,11 +64,13 @@ import v31_patch
 import v32_patch
 import v33_patch
 import v34_patch
+import v35_patch
+import admin_copy_patch
 
 ROOT = Path(__file__).resolve().parent
 RELEASE_DIR = ROOT / "release_v14"
 EXPECTED_SHA256 = "3ccb973f9ab146ce1c0d7da598242b0c1521a8ecc85c091caa10c1f1ebc9ddfd"
-DEST = Path("/tmp/jj_arena_v34_runtime")
+DEST = Path("/tmp/jj_arena_v35_runtime")
 
 parts = sorted(RELEASE_DIR.glob("part*.b64"))
 if len(parts) != 62:
@@ -108,6 +112,8 @@ v31_patch.apply(DEST)
 v32_patch.apply(DEST)
 v33_patch.apply(DEST)
 v34_patch.apply(DEST)
+v35_patch.apply(DEST)
+admin_copy_patch.apply(ROOT / "admin_static")
 
 # The legacy Render shell command still exports/logs JJ_ADMIN_PASSWORD. v1.18+
 # does not use that credential, but overwrite it anyway so the logged value can
@@ -123,16 +129,7 @@ from admin_delete import install_account_deletion  # noqa: E402
 
 
 def _prioritize_admin_routes(fastapi_app) -> None:
-    """Move admin routes ahead of the legacy SPA catch-all.
-
-    FastAPI/Starlette resolves routes in declaration order. The legacy JJ Arena
-    server intentionally has a final catch-all route that returns the normal
-    SPA for unknown browser paths. Because the admin console is installed after
-    importing that server, its GET routes would otherwise be shadowed by the
-    catch-all. Prioritising only the isolated admin namespace keeps all existing
-    application route ordering intact while making /admin and its assets/API
-    reachable.
-    """
+    """Move admin routes ahead of the legacy SPA catch-all."""
     routes = list(fastapi_app.router.routes)
 
     def is_admin_route(route) -> bool:
