@@ -60,7 +60,7 @@ v20_patch.apply(DEST)
 
 # The legacy Render shell command still exports/logs JJ_ADMIN_PASSWORD. v1.10 does
 # not use that credential, but overwrite it anyway so the logged value can never
-authenticate to the application. Old email/password recovery is also disabled.
+# authenticate to the application. Old email/password recovery is also disabled.
 os.environ["JJ_ADMIN_PASSWORD"] = secrets.token_urlsafe(32)
 os.environ.pop("JJ_ADMIN_LOGIN_PASSWORD", None)
 os.environ.pop("JJ_ADMIN_LOGIN_EMAIL", None)
