@@ -1,11 +1,12 @@
-"""Atomic production entrypoint for JJ Arena Live v1.11.
+"""Atomic production entrypoint for JJ Arena Live v1.12.
 
 The verified v1.4 release bundle remains the immutable base. v1.5 upgrades
 authentication, v1.6 upgrades official point entry to chip counts, v1.7
 separates Fall 2026/27 rankings from archived Summer totals, v1.8 delivers
 the public-launch UI/performance polish, v1.9 adds the weekly Cash/MTT study
 spotlight, v1.10 redesigns smartphone operations and removes duplicate
-non-admin ケンイチロウ accounts, and v1.11 refines mobile navigation state.
+non-admin ケンイチロウ accounts, v1.11 refines mobile navigation state, and
+v1.12 puts the quick point-entry form directly on Home on every device.
 """
 from __future__ import annotations
 
@@ -26,11 +27,12 @@ import v18_patch
 import v19_patch
 import v20_patch
 import v21_patch
+import v22_patch
 
 ROOT = Path(__file__).resolve().parent
 RELEASE_DIR = ROOT / "release_v14"
 EXPECTED_SHA256 = "3ccb973f9ab146ce1c0d7da598242b0c1521a8ecc85c091caa10c1f1ebc9ddfd"
-DEST = Path("/tmp/jj_arena_v21_runtime")
+DEST = Path("/tmp/jj_arena_v22_runtime")
 
 parts = sorted(RELEASE_DIR.glob("part*.b64"))
 if len(parts) != 62:
@@ -59,8 +61,9 @@ v18_patch.apply(DEST, ROOT / "v18_assets")
 v19_patch.apply(DEST)
 v20_patch.apply(DEST)
 v21_patch.apply(DEST)
+v22_patch.apply(DEST)
 
-# The legacy Render shell command still exports/logs JJ_ADMIN_PASSWORD. v1.11 does
+# The legacy Render shell command still exports/logs JJ_ADMIN_PASSWORD. v1.12 does
 # not use that credential, but overwrite it anyway so the logged value can never
 # authenticate to the application. Old email/password recovery is also disabled.
 os.environ["JJ_ADMIN_PASSWORD"] = secrets.token_urlsafe(32)
