@@ -45,7 +45,7 @@ assert 'コール額' in appjs
 assert 'id="jjRaiseAction"' in appjs
 assert 'jj-actions-${actions.length}' in appjs
 assert 'v1.18.5 mobile poker usability polish' in css
-assert 'grid-template-columns:repeat(5,minmax(0,1fr))' in css
+assert 'grid-template-columns:repeat(auto-fit,minmax(52px,1fr))' in css
 assert 'min-height:56px!important' in css
 assert '@media (prefers-reduced-motion:reduce)' in css
 assert 'min-height:44px!important' in css
