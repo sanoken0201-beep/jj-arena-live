@@ -1,4 +1,4 @@
-"""Atomic production entrypoint for JJ Arena Live v1.16.2.
+"""Atomic production entrypoint for JJ Arena Live v1.16.3.
 
 The verified v1.4 release bundle remains the immutable base. v1.5 upgrades
 authentication, v1.6 upgrades official point entry to chip counts, v1.7
@@ -18,8 +18,10 @@ v1.16 introduces an explicit table-state model with active player counts,
 join-during-hand seat reservation, direct fixed-stack seating, and persisted
 state invariant repair, v1.16.1 hardens continuous sessions with revocable
 first-deal READY, timeout auto-sitout, cross-table seat serialization, and
-immediate authoritative leave refresh, and v1.16.2 makes seating a primary
-server-selected action visible both in the lobby and on the table itself.
+immediate authoritative leave refresh, v1.16.2 makes seating a primary
+server-selected action visible both in the lobby and on the table itself, and
+v1.16.3 fixes the table-presence global/function name collision that caused
+GET /api/tables/{id} to fail before the seating UI could render.
 """
 from __future__ import annotations
 
@@ -50,11 +52,12 @@ import v28_patch
 import v29_patch
 import v30_patch
 import v31_patch
+import v32_patch
 
 ROOT = Path(__file__).resolve().parent
 RELEASE_DIR = ROOT / "release_v14"
 EXPECTED_SHA256 = "3ccb973f9ab146ce1c0d7da598242b0c1521a8ecc85c091caa10c1f1ebc9ddfd"
-DEST = Path("/tmp/jj_arena_v31_runtime")
+DEST = Path("/tmp/jj_arena_v32_runtime")
 
 parts = sorted(RELEASE_DIR.glob("part*.b64"))
 if len(parts) != 62:
@@ -93,8 +96,9 @@ v28_patch.apply(DEST)
 v29_patch.apply(DEST)
 v30_patch.apply(DEST)
 v31_patch.apply(DEST)
+v32_patch.apply(DEST)
 
-# The legacy Render shell command still exports/logs JJ_ADMIN_PASSWORD. v1.16.2
+# The legacy Render shell command still exports/logs JJ_ADMIN_PASSWORD. v1.16.3
 # does not use that credential, but overwrite it anyway so the logged value can
 # never authenticate to the application. Old email/password recovery is disabled.
 os.environ["JJ_ADMIN_PASSWORD"] = secrets.token_urlsafe(32)
