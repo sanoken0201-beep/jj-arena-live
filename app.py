@@ -1,4 +1,4 @@
-"""Atomic production entrypoint for JJ Arena Live v1.15.1.
+"""Atomic production entrypoint for JJ Arena Live v1.16.0.
 
 The verified v1.4 release bundle remains the immutable base. v1.5 upgrades
 authentication, v1.6 upgrades official point entry to chip counts, v1.7
@@ -13,8 +13,10 @@ next-hand sit-out, pot-percentage sizing, and premium bet/card visibility,
 v1.14.1 restores explicit 150bb Rebuy plus safer preflop sizing presets,
 v1.14.2 clears inter-hand results before each new deal, v1.15 rebuilds the
 poker workspace as a contained responsive game stage with a separate utility
-column, and v1.15.1 completes mobile action clearance plus exact hero hand
-labels without changing server-authoritative showdown/payout logic.
+column, v1.15.1 completes mobile action clearance plus exact hero hand labels,
+and v1.16 introduces an explicit table-state model: active player counts,
+join-during-hand seat reservation, direct fixed-stack seating, and persisted
+state invariant repair.
 """
 from __future__ import annotations
 
@@ -42,11 +44,12 @@ import v25_patch
 import v26_patch
 import v27_patch
 import v28_patch
+import v29_patch
 
 ROOT = Path(__file__).resolve().parent
 RELEASE_DIR = ROOT / "release_v14"
 EXPECTED_SHA256 = "3ccb973f9ab146ce1c0d7da598242b0c1521a8ecc85c091caa10c1f1ebc9ddfd"
-DEST = Path("/tmp/jj_arena_v28_runtime")
+DEST = Path("/tmp/jj_arena_v29_runtime")
 
 parts = sorted(RELEASE_DIR.glob("part*.b64"))
 if len(parts) != 62:
@@ -82,8 +85,9 @@ v25_patch.apply(DEST)
 v26_patch.apply(DEST)
 v27_patch.apply(DEST)
 v28_patch.apply(DEST)
+v29_patch.apply(DEST)
 
-# The legacy Render shell command still exports/logs JJ_ADMIN_PASSWORD. v1.15.1
+# The legacy Render shell command still exports/logs JJ_ADMIN_PASSWORD. v1.16
 # does not use that credential, but overwrite it anyway so the logged value can
 # never authenticate to the application. Old email/password recovery is disabled.
 os.environ["JJ_ADMIN_PASSWORD"] = secrets.token_urlsafe(32)
