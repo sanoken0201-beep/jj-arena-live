@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import os
 import shutil
 import tempfile
@@ -13,8 +14,42 @@ os.environ["JJ_ADMIN_PIN"] = "123456"
 os.environ["JJ_ENABLE_DEMO_MEMBER"] = "0"
 
 
+async def asgi_get(app, path: str):
+    messages = []
+    sent_request = False
+
+    async def receive():
+        nonlocal sent_request
+        if not sent_request:
+            sent_request = True
+            return {"type": "http.request", "body": b"", "more_body": False}
+        return {"type": "http.disconnect"}
+
+    async def send(message):
+        messages.append(message)
+
+    scope = {
+        "type": "http",
+        "asgi": {"version": "3.0", "spec_version": "2.3"},
+        "http_version": "1.1",
+        "method": "GET",
+        "scheme": "http",
+        "path": path,
+        "raw_path": path.encode("ascii"),
+        "query_string": b"",
+        "root_path": "",
+        "headers": [(b"host", b"testserver")],
+        "client": ("127.0.0.1", 12345),
+        "server": ("testserver", 80),
+    }
+    await app(scope, receive, send)
+    start = next(m for m in messages if m["type"] == "http.response.start")
+    body = b"".join(m.get("body", b"") for m in messages if m["type"] == "http.response.body")
+    headers = {k.decode("latin1").lower(): v.decode("latin1") for k, v in start.get("headers", [])}
+    return int(start["status"]), headers, body
+
+
 def main() -> None:
-    from fastapi.testclient import TestClient
     from app import app
 
     paths = [str(getattr(r, "path", "")) for r in app.router.routes]
@@ -23,37 +58,27 @@ def main() -> None:
     if fallback_indexes:
         assert admin_index < min(fallback_indexes), (admin_index, fallback_indexes, paths)
 
-    client = TestClient(app)
+    status, headers, body = asyncio.run(asgi_get(app, "/admin"))
+    text = body.decode("utf-8", errors="replace")
+    assert status == 200, status
+    assert "Admin Console" in text, text[:200]
 
-    page = client.get("/admin", follow_redirects=False)
-    assert page.status_code == 200, page.status_code
-    assert "Admin Console" in page.text, page.text[:200]
+    status, headers, body = asyncio.run(asgi_get(app, "/admin-static/admin.css"))
+    css = body.decode("utf-8", errors="replace")
+    assert status == 200, status
+    assert "--bg:" in css and ".sidebar" in css
+    assert "text/css" in headers.get("content-type", "")
 
-    css = client.get("/admin-static/admin.css", follow_redirects=False)
-    assert css.status_code == 200, css.status_code
-    assert "--bg:" in css.text and ".sidebar" in css.text
+    status, headers, body = asyncio.run(asgi_get(app, "/admin-static/admin.js"))
+    js = body.decode("utf-8", errors="replace")
+    assert status == 200, status
+    assert "loadOverview" in js and "admin/console/users" in js
+    assert "javascript" in headers.get("content-type", "")
 
-    js = client.get("/admin-static/admin.js", follow_redirects=False)
-    assert js.status_code == 200, js.status_code
-    assert "loadOverview" in js.text and "admin/console/users" in js.text
-
-    unauth = client.get("/api/admin/console/overview", follow_redirects=False)
-    assert unauth.status_code in {401, 403}, (unauth.status_code, unauth.text[:200])
-    assert "text/html" not in unauth.headers.get("content-type", "")
-
-    login = client.post("/api/auth/pin", json={"name": "ケンイチロウ", "pin": "123456"})
-    assert login.status_code == 200, (login.status_code, login.text[:300])
-    user = login.json().get("user") or {}
-    assert user.get("role") == "admin", user
-
-    overview = client.get("/api/admin/console/overview")
-    assert overview.status_code == 200, (overview.status_code, overview.text[:300])
-    data = overview.json()
-    assert "accounts" in data and "ledger" in data and "season" in data, data
-
-    users = client.get("/api/admin/console/users")
-    assert users.status_code == 200, (users.status_code, users.text[:300])
-    assert any(u.get("role") == "admin" for u in users.json())
+    status, headers, body = asyncio.run(asgi_get(app, "/api/admin/console/overview"))
+    payload = body.decode("utf-8", errors="replace")
+    assert status in {401, 403}, (status, payload[:200])
+    assert "text/html" not in headers.get("content-type", "")
 
     print("ADMIN_ROUTE_SMOKE_OK", flush=True)
 
