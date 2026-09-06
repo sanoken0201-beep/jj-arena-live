@@ -1,4 +1,4 @@
-"""Atomic production entrypoint for JJ Arena Live v1.14.2.
+"""Atomic production entrypoint for JJ Arena Live v1.15.0.
 
 The verified v1.4 release bundle remains the immutable base. v1.5 upgrades
 authentication, v1.6 upgrades official point entry to chip counts, v1.7
@@ -10,9 +10,10 @@ v1.12 puts the quick point-entry form directly on Home on every device,
 v1.13 adds optional member profiles and member-only profile browsing,
 v1.14 rebuilds the online table for continuous play, unanimous first READY,
 next-hand sit-out, pot-percentage sizing, and premium bet/card visibility,
-v1.14.1 restores explicit 150bb Rebuy plus safer preflop sizing presets, and
-v1.14.2 clears inter-hand results before each deal and makes mid-session joins
-explicitly sit out until the player chooses to return.
+v1.14.1 restores explicit 150bb Rebuy plus safer preflop sizing presets,
+v1.14.2 clears inter-hand results before each new deal, and v1.15 rebuilds
+the poker workspace as a contained responsive game stage with a separate
+chat/hand-log column so table geometry can never overlap utility UI.
 """
 from __future__ import annotations
 
@@ -38,11 +39,12 @@ import v23_patch
 import v24_patch
 import v25_patch
 import v26_patch
+import v27_patch
 
 ROOT = Path(__file__).resolve().parent
 RELEASE_DIR = ROOT / "release_v14"
 EXPECTED_SHA256 = "3ccb973f9ab146ce1c0d7da598242b0c1521a8ecc85c091caa10c1f1ebc9ddfd"
-DEST = Path("/tmp/jj_arena_v26_runtime")
+DEST = Path("/tmp/jj_arena_v27_runtime")
 
 parts = sorted(RELEASE_DIR.glob("part*.b64"))
 if len(parts) != 62:
@@ -76,8 +78,9 @@ v23_patch.apply(DEST)
 v24_patch.apply(DEST)
 v25_patch.apply(DEST)
 v26_patch.apply(DEST)
+v27_patch.apply(DEST)
 
-# The legacy Render shell command still exports/logs JJ_ADMIN_PASSWORD. v1.14.2
+# The legacy Render shell command still exports/logs JJ_ADMIN_PASSWORD. v1.15
 # does not use that credential, but overwrite it anyway so the logged value can
 # never authenticate to the application. Old email/password recovery is disabled.
 os.environ["JJ_ADMIN_PASSWORD"] = secrets.token_urlsafe(32)
