@@ -1,9 +1,10 @@
-"""Atomic production entrypoint for JJ Arena Live v1.8.
+"""Atomic production entrypoint for JJ Arena Live v1.9.
 
 The verified v1.4 release bundle remains the immutable base. v1.5 upgrades
 authentication, v1.6 upgrades official point entry to chip counts, v1.7
-separates Fall 2026/27 rankings from archived Summer totals, and v1.8 delivers
-the public-launch UI/performance polish without changing club rules.
+separates Fall 2026/27 rankings from archived Summer totals, v1.8 delivers
+the public-launch UI/performance polish, and v1.9 adds the weekly Cash/MTT
+study spotlight without changing club rules.
 """
 from __future__ import annotations
 
@@ -21,11 +22,12 @@ import v15_patch
 import v16_patch
 import v17_patch
 import v18_patch
+import v19_patch
 
 ROOT = Path(__file__).resolve().parent
 RELEASE_DIR = ROOT / "release_v14"
 EXPECTED_SHA256 = "3ccb973f9ab146ce1c0d7da598242b0c1521a8ecc85c091caa10c1f1ebc9ddfd"
-DEST = Path("/tmp/jj_arena_v18_runtime")
+DEST = Path("/tmp/jj_arena_v19_runtime")
 
 parts = sorted(RELEASE_DIR.glob("part*.b64"))
 if len(parts) != 62:
@@ -51,8 +53,9 @@ v15_patch.apply(DEST)
 v16_patch.apply(DEST)
 v17_patch.apply(DEST)
 v18_patch.apply(DEST, ROOT / "v18_assets")
+v19_patch.apply(DEST)
 
-# The legacy Render shell command still exports/logs JJ_ADMIN_PASSWORD. v1.8 does
+# The legacy Render shell command still exports/logs JJ_ADMIN_PASSWORD. v1.9 does
 # not use that credential, but overwrite it anyway so the logged value can never
 # authenticate to the application. Old email/password recovery is also disabled.
 os.environ["JJ_ADMIN_PASSWORD"] = secrets.token_urlsafe(32)
