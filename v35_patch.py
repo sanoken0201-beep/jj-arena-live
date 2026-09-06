@@ -32,16 +32,16 @@ def _app(p: Path) -> None:
       ('途中着席はSIT OUTで入り','途中着席は一時離席状態で入り'),
       ('SIT OUT NEXT','次ハンドから一時離席'),
       ('SIT OUT','一時離席'),
-      ('`離席 ${Number(t.sitouts||0)}`','`一時離席 ${Number(t.sitouts||0)}`'),
+      ('離席 ${Number(t.sitouts||0)}','一時離席 ${Number(t.sitouts||0)}'),
       ('Rebuyまたは退出','リバイ（150bb）またはテーブルから退席'),
       ('Rebuy 150bb','リバイ（150bb）'),
       ('150bbでRebuyしました','150bbでリバイしました'),
       ('150bbでRebuy','150bbでリバイ'),
       ('テーブルを見る','テーブルを開く'),
-      ('`参加 ${Number(t.players||0)}/6`','`プレイ中 ${Number(t.players||0)}/6`'),
-      ('`着席 ${Number(t.seated||0)}/6`','`着席中 ${Number(t.seated||0)}/6`'),
-      ('`参加 ${active}/6`','`プレイ中 ${active}/6`'),
-      ('`着席 ${seated}/6`','`着席中 ${seated}/6`'),
+      ('参加 ${Number(t.players||0)}/6','プレイ中 ${Number(t.players||0)}/6'),
+      ('着席 ${Number(t.seated||0)}/6','着席中 ${Number(t.seated||0)}/6'),
+      ('参加 ${active}/6','プレイ中 ${active}/6'),
+      ('着席 ${seated}/6','着席中 ${seated}/6'),
     ]
     for old,new in replacements:s=s.replace(old,new)
 
@@ -57,6 +57,7 @@ def _app(p: Path) -> None:
       ('Waiting / Ready','開始待ち'),
       ('>READY</button>','>準備OK</button>'),
       ('`READY ${','`準備 ${'),
+      ("?'READY'","?'準備OK'"),
       ('AUTO PLAY','自動進行'),
       ('NEXT HAND','次ハンド'),
     ]:s=s.replace(old,new)
