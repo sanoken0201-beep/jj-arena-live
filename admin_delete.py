@@ -26,12 +26,13 @@ def _now(db) -> str:
 
 
 def _ensure_schema(db) -> None:
+    deleted_by_type = "BIGINT" if getattr(db, "IS_POSTGRES", False) else "INTEGER"
     with db.connect() as con:
         cols = _cols(db, con, "users")
         if "deleted_at" not in cols:
             con.execute("ALTER TABLE users ADD COLUMN deleted_at TEXT")
         if "deleted_by" not in cols:
-            con.execute("ALTER TABLE users ADD COLUMN deleted_by INTEGER")
+            con.execute(f"ALTER TABLE users ADD COLUMN deleted_by {deleted_by_type}")
 
 
 def _revoke(db, uid: int) -> None:
@@ -65,7 +66,7 @@ def install_account_deletion(app) -> None:
 
     import db
     import server
-    from admin_console import _audit
+    from admin_console import AdminPointIn, _audit
 
     _ensure_schema(db)
 
@@ -90,9 +91,7 @@ def install_account_deletion(app) -> None:
             raise HTTPException(500, "admin overview unavailable")
         data = old_overview.endpoint(user=user)
         with db.connect() as con:
-            row = con.execute(
-                "SELECT COUNT(*) n FROM users WHERE deleted_at IS NOT NULL"
-            ).fetchone()
+            row = con.execute("SELECT COUNT(*) n FROM users WHERE deleted_at IS NOT NULL").fetchone()
         deleted = int(row["n"] or 0)
         accounts = dict(data.get("accounts") or {})
         accounts["total"] = max(0, int(accounts.get("total") or 0) - deleted)
@@ -105,21 +104,17 @@ def install_account_deletion(app) -> None:
         _move_route_before(app, new_overview, old_overview)
 
     @app.post("/api/admin/console/points", include_in_schema=False)
-    def point_guard(p, user=Depends(server.admin_user)):
+    def point_guard(p: AdminPointIn, user=Depends(server.admin_user)):
         if old_point is None:
             raise HTTPException(500, "point endpoint unavailable")
         with db.connect() as con:
-            target = con.execute(
-                "SELECT deleted_at FROM users WHERE id=?", (p.user_id,)
-            ).fetchone()
+            target = con.execute("SELECT deleted_at FROM users WHERE id=?", (p.user_id,)).fetchone()
         if target and target["deleted_at"]:
             raise HTTPException(400, "削除済みアカウントにはポイント操作できません")
         return old_point.endpoint(p=p, user=user)
 
-    # Preserve FastAPI's request-model inference from the existing endpoint.
+    new_point = app.router.routes[-1]
     if old_point is not None:
-        point_guard.__annotations__["p"] = old_point.endpoint.__annotations__.get("p")
-        new_point = app.router.routes[-1]
         _move_route_before(app, new_point, old_point)
 
     @app.delete("/api/admin/console/users/{uid}", include_in_schema=False)
@@ -140,7 +135,6 @@ def install_account_deletion(app) -> None:
             if target["deleted_at"]:
                 raise HTTPException(409, "このアカウントはすでに削除済みです")
 
-        # Sessions are removed first so the account loses access immediately.
         _revoke(db, uid)
 
         deleted_at = _now(db)
@@ -158,8 +152,8 @@ def install_account_deletion(app) -> None:
             if "password_hash" in cols:
                 sets.append("password_hash=?")
                 args.append(db.hash_password(dead_secret))
-            # Keep ranking_name intentionally: point/hand history remains attributed
-            # correctly even though the login account and personal identifier are gone.
+            # ranking_name is deliberately preserved so historical rankings,
+            # point ledgers and online-hand results remain attributable.
             con.execute(f"UPDATE users SET {','.join(sets)} WHERE id=?", args + [uid])
 
         _audit(
