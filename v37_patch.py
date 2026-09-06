@@ -149,7 +149,7 @@ def _styles(p: Path) -> None:
   body.jj-mobile-table-open .jj-sizing{display:block!important;margin-bottom:7px!important}
   body.jj-mobile-table-open .jj-size-row{
     display:grid!important;
-    grid-template-columns:repeat(5,minmax(0,1fr))!important;
+    grid-template-columns:repeat(auto-fit,minmax(52px,1fr))!important;
     gap:5px!important;
     overflow:visible!important;
     padding:0!important;
