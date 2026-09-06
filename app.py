@@ -1,4 +1,4 @@
-"""Atomic production entrypoint for JJ Arena Live v1.17.0.
+"""Atomic production entrypoint for JJ Arena Live v1.18.0.
 
 The verified v1.4 release bundle remains the immutable base. v1.5 upgrades
 authentication, v1.6 upgrades official point entry to chip counts, v1.7
@@ -21,9 +21,11 @@ first-deal READY, timeout auto-sitout, cross-table seat serialization, and
 immediate authoritative leave refresh, v1.16.2 makes seating a primary
 server-selected action visible both in the lobby and on the table itself,
 v1.16.3 fixes the table-presence global/function name collision that caused
-GET /api/tables/{id} to fail before the seating UI could render, and v1.17
+GET /api/tables/{id} to fail before the seating UI could render, v1.17
 rebuilds the phone table as an immersive poker-only surface without competing
-site navigation, duplicate seating controls, or blocking result overlays.
+site navigation, duplicate seating controls, or blocking result overlays,
+and v1.18 adds the administrator control center, immutable point adjustment
+ledger, account verification controls, policy settings, and audit trail.
 """
 from __future__ import annotations
 
@@ -56,11 +58,12 @@ import v30_patch
 import v31_patch
 import v32_patch
 import v33_patch
+import v34_patch
 
 ROOT = Path(__file__).resolve().parent
 RELEASE_DIR = ROOT / "release_v14"
 EXPECTED_SHA256 = "3ccb973f9ab146ce1c0d7da598242b0c1521a8ecc85c091caa10c1f1ebc9ddfd"
-DEST = Path("/tmp/jj_arena_v33_runtime")
+DEST = Path("/tmp/jj_arena_v34_runtime")
 
 parts = sorted(RELEASE_DIR.glob("part*.b64"))
 if len(parts) != 62:
@@ -101,8 +104,9 @@ v30_patch.apply(DEST)
 v31_patch.apply(DEST)
 v32_patch.apply(DEST)
 v33_patch.apply(DEST)
+v34_patch.apply(DEST)
 
-# The legacy Render shell command still exports/logs JJ_ADMIN_PASSWORD. v1.17
+# The legacy Render shell command still exports/logs JJ_ADMIN_PASSWORD. v1.18
 # does not use that credential, but overwrite it anyway so the logged value can
 # never authenticate to the application. Old email/password recovery is disabled.
 os.environ["JJ_ADMIN_PASSWORD"] = secrets.token_urlsafe(32)
@@ -110,4 +114,7 @@ os.environ.pop("JJ_ADMIN_LOGIN_PASSWORD", None)
 os.environ.pop("JJ_ADMIN_LOGIN_EMAIL", None)
 
 sys.path.insert(0, str(DEST))
-from server import app  # noqa: E402,F401
+from server import app  # noqa: E402
+from admin_console import install_admin_console  # noqa: E402
+
+install_admin_console(app)
