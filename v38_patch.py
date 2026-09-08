@@ -110,7 +110,7 @@ def quiz_question(user=Depends(current_user)):
         selector = nonce.int
         pot = JJ_QUIZ_POTS[selector % len(JJ_QUIZ_POTS)]
         bet = JJ_QUIZ_BETS[(selector // len(JJ_QUIZ_POTS)) % len(JJ_QUIZ_BETS)]
-        correct = round(bet / (pot + bet + bet) * 100)
+        correct = int(bet / (pot + bet + bet) * 100 + 0.5)
         choices = _jj_quiz_choices(correct, selector)
         qid = "q-" + nonce.hex
         created = db.utcnow()
@@ -218,13 +218,19 @@ def _app(path: Path) -> None:
   }
 
   renderQuiz=function(){
+    const earned=Number(quiz.earned||0);
+    if(quiz.count>=10&&!quiz.q){
+      $('#quizStage').innerHTML=`<div class="pot-num">${quiz.score}/10</div><p>${quiz.score>=8?'Good pace.':'もう一周すると速くなります。'}</p><div class="jj-quiz-reward">今回の獲得 <b>+${earned}pt</b></div>`;
+      $('#quizChoices').innerHTML='';
+      $('#quizScore').textContent=`正解 ${quiz.score} / 10 · 獲得 +${earned}pt`;
+      return;
+    }
     if(!quiz.q||!quiz.q.id){
       $('#quizStage').innerHTML='<div class="hint">問題を読み込み中…</div>';
       $('#quizChoices').innerHTML='';
       jjV186LoadQuiz();
       return;
     }
-    const earned=Number(quiz.earned||0);
     $('#quizStage').innerHTML=`<div class="jj-quiz-reward">回答報酬 <b>+${Number(quiz.q.reward||10)}pt</b></div><div class="hint">Pot ${quiz.q.pot} に相手が ${quiz.q.bet} bet</div><div class="pot-num">Call <b>${quiz.q.bet}</b></div><p>コールに必要な最低勝率は？</p>`;
     $('#quizChoices').innerHTML=(quiz.q.choices||[]).map(x=>`<button data-quiz="${Number(x)}">${Number(x)}%</button>`).join('');
     $('#quizScore').textContent=`正解 ${quiz.score} / ${quiz.count} · 獲得 +${earned}pt`;
