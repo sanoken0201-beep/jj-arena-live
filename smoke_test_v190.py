@@ -55,6 +55,23 @@ assert "l.kind IN ('credit','collection','reversal')" in ledger_patch
 assert '管理者による振込・回収だけを取消できます' in ledger_patch
 assert 'row.update(categories)' in ledger_patch
 
+# Temporary feature-branch diagnostics: print source context around the current
+# tournament stack values so the next patch can target the real production
+# runtime without guessing.
+for label, text in (("INDEX", index), ("APPJS", appjs), ("SERVER", server)):
+    seen = set()
+    for needle in ("1000", "400"):
+        start = 0
+        while True:
+            pos = text.find(needle, start)
+            if pos < 0:
+                break
+            snippet = text[max(0, pos - 220): min(len(text), pos + 260)].replace("\n", "\\n")
+            if snippet not in seen:
+                print(f"STACK_DIAG {label} {needle}: {snippet}")
+                seen.add(snippet)
+            start = pos + len(needle)
+
 for filename in [
     "runtime_builder.py",
     "v39_patch.py",
