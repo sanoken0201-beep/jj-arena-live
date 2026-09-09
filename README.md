@@ -1,115 +1,142 @@
 # JJ Arena Live
 
-JJ Poker Club向けの共有Webアプリです。`JJ 2026 Summer Season` の229件を初期データとして搭載し、ランキング・予定・告知・学習・戦略議論・リアルタイムNLHを1つに統合しています。
+JJ Poker Club向けの共有Webアプリです。ランキング、公式ポイント、活動予定、学習、管理機能、プレイマネーのリアルタイムNLHを統合しています。
 
-## 実装済み
+**現金・換金・賭け金機能はありません。** オンライン卓のArena chipsは練習用プレイマネーで、公式JJポイントとは分離されています。
 
-### Club
-- 総合ランキング / 月間ランキング
-- Summer Season実績229件を初期投入
-- 管理者限定の公式ポイント入力
-  - `残りチップ - (リエントリー + 1) × 初期点数`
-- 活動予定（日付・時間・教室・メモ）
-- JJ内告知 / 外部イベント告知
-- 戦略議論スレッド + 返信
-- Pot Odds Sprint
+## 現在の本番構成
 
-### Realtime Poker
-- 2 / 6 / 8 / 9-max テーブル作成
-- 観戦 / 着席 / プレイマネーバイイン / キャッシュアウト
-- SB / BB、BTNローテーション
-- 2枚のホールカードを各ユーザーにのみ配信
-- Preflop / Flop / Turn / River
-- Fold / Check / Call / Raise / All-in
-- 最低レイズ額管理
-- short all-inでアクションがre-openしないルール
-- サイドポット
-- split pot
-- 7枚からの役判定
-- 非手番操作のサーバー拒否
-- 45秒アクションタイマー（可能ならCheck、otherwise Fold）
-- テーブルチャット
-- WebSocketリアルタイム同期 + 切断時HTTP polling fallback + 再接続
-- ハンド進行状態をDBへ保存
+```text
+user
+  -> jj-arena-live (Render Web Service / Singapore / 0.5 CPU 512MB)
+      -> jj-arena-db (Render PostgreSQL / Singapore / 0.1 CPU 256MB / 1GB)
+```
 
-**現金・換金・賭け金機能はありません。** Arena chipsは練習用プレイマネーで、公式JJポイントとも分離しています。
+本番入口は `jj-arena-live` です。`jj-arena-club` は旧プロキシであり、新しい実装では依存先にしません。
+
+## 重要: 本番の起動方式
+
+本番のASGI entrypointは **`app.py` の `app`** です。
+
+```bash
+python -m uvicorn app:app --host 0.0.0.0 --port $PORT
+```
+
+ルート直下の古い `server.py` / `db.py` を直接起動する構成ではありません。`app.py` は検証済みの `release_v14` を展開し、`v15_patch.py` 以降のパッチを順番に適用して `/tmp/jj_arena_v39_runtime` に現在のランタイムを再構築します。
+
+したがって、変更時は次のルールを守ります。
+
+1. 既存の動作を変える場合は最新パッチを追加する。
+2. 過去パッチを後から書き換えない。
+3. 最新smoke testでv1.4からの完全再構築を必ず検証する。
+4. `app.py` の適用順序と最新runtime pathを更新する。
+5. CI成功後にのみmainへ反映する。
+
+このパッチ連鎖は互換性維持のため当面残していますが、将来的にはmaterialized runtimeへ縮約する予定です。
 
 ## 認証
 
-- Email + Password
-- PBKDF2-SHA256 password hashing
-- 30日session token
+現在のユーザー認証は次の方式です。
+
+- カタカナ表示名 + 6桁PIN
+- PBKDF2-SHA256 hashing
 - Admin / Member role
+- session cookie
+- ログイン試行回数制限
 
-本番では管理者資格情報を環境変数 `JJ_ADMIN_NAME` / `JJ_ADMIN_EMAIL` / `JJ_ADMIN_PASSWORD` から初期化します。固定の管理者パスワードはRenderへデプロイしません。ローカル開発時のみ、環境変数がない場合に開発用フォールバックを使用します。
+旧Email + Password認証は廃止済みです。
 
-## ローカル起動
+### 管理者復旧
 
-Python 3.11+ を推奨します。
+通常運用では `JJ_ADMIN_PIN` を設定しません。管理者PINを失った場合だけ、Renderの `jj-arena-live` Environmentに一時的に設定します。
 
-```bash
-pip install -r requirements.txt
-python -m uvicorn server:app --host 0.0.0.0 --port 8000
+```text
+JJ_ADMIN_NAME=<管理者のカタカナ名>
+JJ_ADMIN_PIN=<新しい6桁PIN>
 ```
 
-Windowsでは `START_JJ_ARENA_LIVE.bat` を実行できます。
+v1.19.0以降は、再デプロイ時に既存管理者のPIN hashも確実に更新し、既存sessionを失効させます。復旧後は `JJ_ADMIN_PIN` を空にするか削除してください。
 
-ブラウザ: `http://localhost:8000`
+## 主な機能
 
-DBはデフォルトで `jj_arena.db` に作成されます。別の場所に保存する場合:
+### Club
+
+- シーズン / 月間ランキング
+- 公式ポイント台帳
+- 管理者によるポイント振込・回収
+- 活動予定・告知
+- 戦略議論
+- ポーカークイズ
+- クイズ回答ごとの公式ポイント報酬
+- 管理者コンソール
+- アカウント停止・復旧・削除
+
+### Realtime Poker
+
+- 2 / 6 / 8 / 9-max
+- 着席 / 離席 / 退席 / Rebuy
+- SB / BB / BTNローテーション
+- Preflop / Flop / Turn / River
+- Fold / Check / Call / Raise / All-in
+- 最低レイズ・short all-in・side pot・split pot
+- 非手番操作のサーバー拒否
+- action timer
+- WebSocket同期 + HTTP fallback
+- DBへのテーブル状態保存
+- スマートフォン縦画面向けポーカーUI
+
+## 開発環境
+
+Pythonは `.python-version` で本番と同じバージョンへ固定します。
 
 ```bash
-JJ_DB_PATH=/path/to/jj_arena.db python -m uvicorn server:app --host 0.0.0.0 --port 8000
+python -m pip install -r requirements.txt
+python smoke_test_v190.py
 ```
 
-## テスト
+本番相当の起動確認は次です。
 
 ```bash
-pytest -q
+python -m uvicorn app:app --host 0.0.0.0 --port 8000
 ```
 
-対象には、役判定、ヘッズアップ進行、private hole cards、out-of-turn拒否、short BB、side pots、Summerランキング、admin権限、2ユーザー着席、WebSocket初期同期が含まれます。
+SQLiteを使う開発モードと、`DATABASE_URL` があるPostgreSQLモードの両方をサポートします。
 
-## クラウド配備
+## テスト / CI
 
-`Dockerfile` と `render.yaml` を同梱しています。RenderではWebSocket対応の単一Web Service + PostgreSQLを想定しています。ローカル開発ではSQLiteを自動使用します。
+GitHub Actionsはpushとpull requestで最低限次を検証します。
 
-### Render想定
+- Python syntax compile
+- v1.4 release bundleのchecksum
+- v15〜最新patchの完全再構築
+- 最新version marker
+- 管理者PIN復旧 regression
+- ポーカークイズのserver-authoritative reward
+- ポーカー操作性 regression
+- UI用語監査
+
+最新の主テストは `smoke_test_v190.py` です。
+
+## Render
+
+リポジトリの `render.yaml` は現在の本番構成に合わせています。
+
+- Region: Singapore
+- Web compute: 0.5 CPU / 512MB
+- Build: dependencies + `smoke_test_v190.py`
+- Start: `python -m uvicorn app:app ...`
 - Health check: `/api/health`
-- Database: PostgreSQL (`DATABASE_URL`)
-- HTTPとWebSocketを同じservice/portで提供
 
-## 本番公開前チェック
+**既存の `jj-arena-db` を維持してください。新しいPostgreSQLを作成しないでください。**
 
-1. 本番管理者パスワードはRender環境変数だけに保存
-2. HTTPS環境のみで公開
-3. 本番ではsessionをHttpOnly Secure Cookieへ移行（現在はSPA互換のBearer token）
-4. 定期DBバックアップ
-5. 利用規約・プライバシー文言
-6. JJ会員本人と表示名の紐付け方法を決定
-7. オンライン卓はplay-money限定を維持
+## 運用上の原則
 
-## ファイル構成
+- production DBを作り直さない
+- ポイント履歴を直接上書きせず台帳経由で処理する
+- 管理者PINをGitHub・チャット・ログへ保存しない
+- Renderの起動コマンドでcredentialを生成・echoしない
+- 変更はbranch -> CI -> main -> Render -> logsの順で確認する
+- poker engine変更とUI変更を同一修正で混在させない
+- 本番障害時はDBを触る前に最後の正常commitへrollbackする
 
-- `server.py` — FastAPI API / auth / WebSocket / realtime hub
-- `poker_engine.py` — NLH game engine / hand evaluation / side pots
-- `db.py` — SQLite/PostgreSQL schema / session / Summer seed
-- `static/index.html` — SPA
-- `static/app.js` — frontend / WebSocket client
-- `static/styles.css` — responsive UI
-- `data/seed.json` — JJ 2026 Summer seed (229 entries)
-- `tests/` — automated tests
-- `Dockerfile`, `render.yaml` — deployment
-
-## Render deployment (2026-09-06)
-
-The app supports both local SQLite and Render Postgres.
-
-- Local: no `DATABASE_URL` -> SQLite is used.
-- Cloud: set `DATABASE_URL` -> PostgreSQL is used automatically.
-- Render region: Singapore is recommended for JJ users in Japan.
-- Build command: `pip install -r requirements.txt`
-- Start command: `python -m uvicorn server:app --host 0.0.0.0 --port $PORT`
-- Health check: `/api/health`
-
-A Render Free Postgres instance named `jj-arena-db` can be attached by setting its internal database URL as the `DATABASE_URL` environment variable on the web service. The database schema and Summer seed data initialize automatically on first boot.
+詳しい復旧・デプロイ手順は `OPERATIONS.md` を参照してください。
