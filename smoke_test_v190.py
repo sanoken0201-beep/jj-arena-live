@@ -119,8 +119,17 @@ for filename in [
     "v38_patch.py",
     "admin_ledger_stabilization.py",
     "online_results_cleanup.py",
+    "admin_delete.py",
+    "smoke_test_user_management.py",
     "app.py",
 ]:
     py_compile.compile(str(ROOT / filename), doraise=True)
+
+# Exercise the real reconstructed PIN-auth and account-deletion routes against a
+# temporary SQLite database. This verifies deletion visibility and same-name
+# re-registration behavior rather than relying only on source-string checks.
+import smoke_test_user_management
+
+smoke_test_user_management.run()
 
 print("JJ_ARENA_CURRENT_SMOKE_OK")
