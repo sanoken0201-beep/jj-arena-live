@@ -128,6 +128,17 @@ DB migrationが入ったreleaseでは、migrationの後方互換性を保つこ�
 - production DBをSQLiteへ置換しない。
 - テーブル/ハンド状態の修正とアカウント修正を同じSQLで行わない。
 
+### Account lifecycle
+
+- 削除は物理DELETEではなくtombstone化する。point ledgerや監査ログの外部キーを壊さないため、DB行自体は保持する。
+- `deleted_at IS NOT NULL` のアカウントは、現行・旧管理APIのユーザー一覧から必ず除外する。`include_disabled=true` でも表示しない。
+- 削除時は全sessionを失効し、元の名前由来login IDをランダムなtombstone IDへ退避し、元PIN hashもランダムsecretのhashへ置換する。
+- ログイン名はNFKC正規化、空白除去、ひらがな→カタカナ変換後の名前から内部login IDを生成する。そのため `てすと` / `テスト` / 前後空白付き表記は同一login identityとして扱う。
+- 削除後に同じ正規化名で登録すると、新しい`users.id`と、その登録時に入力した6桁PINの新しいhashでアカウントを作る。削除済み行のPIN hashを継承しない。
+- 同じ正規化名の有効アカウントは、内部login IDのUNIQUE制約により同時に1件だけ存在できる。
+- `ranking_name` は削除済み行に保持する。これは過去のランキング・ポイント履歴の帰属を維持するためで、再登録された同一プレイヤーの履歴継続に利用する。
+- 削除済みuser IDに対する再有効化、PIN reset、session revoke、point操作は管理APIから拒否する。
+
 ## 9. Online poker change rules
 
 オンラインポーカー変更は以下を分けます。
