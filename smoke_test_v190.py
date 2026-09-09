@@ -47,8 +47,21 @@ assert 'hash_password(pin)' in db
 app_source = (ROOT / "app.py").read_text(encoding="utf-8")
 assert 'from runtime_builder import build_runtime' in app_source
 assert 'DEST = build_runtime()' in app_source
+assert 'admin_ledger_stabilization.install(app, admin_console)' in app_source
 
-for filename in ["runtime_builder.py", "v39_patch.py", "v38_patch.py", "app.py"]:
+ledger_patch = (ROOT / "admin_ledger_stabilization.py").read_text(encoding="utf-8")
+assert "l.kind='quiz_reward'" in ledger_patch
+assert "l.kind IN ('credit','collection','reversal')" in ledger_patch
+assert '管理者による振込・回収だけを取消できます' in ledger_patch
+assert 'row.update(categories)' in ledger_patch
+
+for filename in [
+    "runtime_builder.py",
+    "v39_patch.py",
+    "v38_patch.py",
+    "admin_ledger_stabilization.py",
+    "app.py",
+]:
     py_compile.compile(str(ROOT / filename), doraise=True)
 
 print("JJ_ARENA_V190_STABILIZATION_OK")
