@@ -20,7 +20,7 @@
     const note=document.createElement('p');
     note.className='field-note';
     note.style.width='100%';
-    note.textContent='削除は取り消せません。ログイン情報と登録名を無効化し、ランキング・ポイント・監査履歴だけを整合性維持のため保存します。';
+    note.textContent='削除は取り消せません。削除後はユーザー管理一覧から除外され、ログイン情報は無効化されます。ランキング・ポイント・監査履歴は整合性維持のため保存します。同じ名前で再登録した場合は、新しいアカウントIDとそのとき設定したPINで作成されます。';
     actions.appendChild(note);
   }
 
@@ -38,7 +38,7 @@
     const typed=prompt(`この操作は取り消せません。\n削除確認のため、アカウント名「${name}」をそのまま入力してください。`);
     if(typed===null)return;
     if(typed!==name){alert('アカウント名が一致しないため削除しませんでした。');return;}
-    if(!confirm(`「${name}」を削除します。既存セッションは失効し、このアカウントでは再ログインできなくなります。実行しますか？`))return;
+    if(!confirm(`「${name}」を削除します。既存セッションは失効し、このアカウントでは再ログインできなくなります。同名で再登録する場合は新しいアカウントとして扱われます。実行しますか？`))return;
     btn.disabled=true;
     btn.textContent='削除中…';
     try{
@@ -46,7 +46,7 @@
       let data=null;try{data=await res.json()}catch{}
       if(!res.ok)throw new Error(data?.detail||`HTTP ${res.status}`);
       dialog.close();
-      alert('アカウントを削除しました。ランキング・ポイント・監査履歴は保持されています。');
+      alert('アカウントを削除しました。ユーザー管理一覧から除外されます。ランキング・ポイント・監査履歴は保持されています。');
       location.hash='#users';
       location.reload();
     }catch(err){
