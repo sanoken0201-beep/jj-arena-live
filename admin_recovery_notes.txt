@@ -1,0 +1,1 @@
+Admin recovery bug: existing admin accounts did not refresh password_hash from JJ_ADMIN_PIN.
