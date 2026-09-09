@@ -13,6 +13,7 @@ import sys
 from pathlib import Path
 
 import admin_copy_patch
+import admin_ledger_stabilization
 from runtime_builder import build_runtime
 
 ROOT = Path(__file__).resolve().parent
@@ -27,7 +28,7 @@ os.environ.pop("JJ_ADMIN_LOGIN_EMAIL", None)
 
 sys.path.insert(0, str(DEST))
 from server import app  # noqa: E402
-from admin_console import install_admin_console  # noqa: E402
+import admin_console  # noqa: E402
 from admin_delete import install_account_deletion  # noqa: E402
 
 
@@ -48,6 +49,7 @@ def _prioritize_admin_routes(fastapi_app) -> None:
     fastapi_app.router.routes[:] = admin_routes + other_routes
 
 
-install_admin_console(app)
+admin_console.install_admin_console(app)
+admin_ledger_stabilization.install(app, admin_console)
 install_account_deletion(app)
 _prioritize_admin_routes(app)
