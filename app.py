@@ -14,6 +14,7 @@ from pathlib import Path
 
 import admin_copy_patch
 import admin_ledger_stabilization
+import online_results_cleanup
 from runtime_builder import build_runtime
 
 ROOT = Path(__file__).resolve().parent
@@ -29,7 +30,13 @@ os.environ.pop("JJ_ADMIN_LOGIN_EMAIL", None)
 sys.path.insert(0, str(DEST))
 from server import app  # noqa: E402
 import admin_console  # noqa: E402
+import db  # noqa: E402
 from admin_delete import install_account_deletion  # noqa: E402
+
+# One-time data migration requested for the current ranking cleanup. It deletes
+# only online_hand_results that existed before this deployment; the DB marker
+# prevents any later restart from deleting newly generated online results.
+online_results_cleanup.apply(db)
 
 
 def _prioritize_admin_routes(fastapi_app) -> None:
