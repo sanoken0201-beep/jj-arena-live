@@ -1,4 +1,4 @@
-"""Atomic production entrypoint for JJ Arena Live v1.18.6.
+"""Atomic production entrypoint for JJ Arena Live v1.19.0.
 
 The verified v1.4 release bundle remains the immutable base. v1.5 upgrades
 authentication, v1.6 upgrades official point entry to chip counts, v1.7
@@ -35,9 +35,10 @@ phone poker surface around a portrait-first tall-oval table and bottom thumb
 zone while leaving landscape and desktop geometry unchanged, v1.18.5
 simplifies mobile poker decisions, makes bet amounts explicit, exposes sizing
 presets without scrolling, strengthens touch targets, and adds reduced-motion
-support without changing game rules or action semantics, and v1.18.6 moves
+support without changing game rules or action semantics, v1.18.6 moves
 poker-quiz rewards to a server-authoritative +10pt ledger path while correcting
-preflop multiplier sizing, action-submit locking, and turn-time visibility.
+preflop multiplier sizing, action-submit locking, and turn-time visibility,
+and v1.19.0 stabilizes administrator recovery and production operations.
 """
 from __future__ import annotations
 
@@ -75,12 +76,13 @@ import v35_patch
 import v36_patch
 import v37_patch
 import v38_patch
+import v39_patch
 import admin_copy_patch
 
 ROOT = Path(__file__).resolve().parent
 RELEASE_DIR = ROOT / "release_v14"
 EXPECTED_SHA256 = "3ccb973f9ab146ce1c0d7da598242b0c1521a8ecc85c091caa10c1f1ebc9ddfd"
-DEST = Path("/tmp/jj_arena_v38_runtime")
+DEST = Path("/tmp/jj_arena_v39_runtime")
 
 parts = sorted(RELEASE_DIR.glob("part*.b64"))
 if len(parts) != 62:
@@ -126,11 +128,11 @@ v35_patch.apply(DEST)
 v36_patch.apply(DEST)
 v37_patch.apply(DEST)
 v38_patch.apply(DEST)
+v39_patch.apply(DEST)
 admin_copy_patch.apply(ROOT / "admin_static")
 
-# The legacy Render shell command still exports/logs JJ_ADMIN_PASSWORD. v1.18+
-# does not use that credential, but overwrite it anyway so the logged value can
-# never authenticate to the application. Old email/password recovery is disabled.
+# Legacy Render email/password bootstrap variables are not part of the current
+# authentication model. Neutralize them before importing the reconstructed app.
 os.environ["JJ_ADMIN_PASSWORD"] = secrets.token_urlsafe(32)
 os.environ.pop("JJ_ADMIN_LOGIN_PASSWORD", None)
 os.environ.pop("JJ_ADMIN_LOGIN_EMAIL", None)
