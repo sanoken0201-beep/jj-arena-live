@@ -7,7 +7,7 @@ from pathlib import Path
 from runtime_builder import RUNTIME_VERSION, build_runtime
 
 ROOT = Path(__file__).resolve().parent
-WORK = Path(tempfile.mkdtemp(prefix="jj-v190-smoke-"))
+WORK = Path(tempfile.mkdtemp(prefix="jj-current-smoke-"))
 DEST = build_runtime(WORK / "runtime")
 
 server = (DEST / "server.py").read_text(encoding="utf-8")
@@ -17,8 +17,8 @@ css = (DEST / "static" / "styles.css").read_text(encoding="utf-8")
 index = (DEST / "static" / "index.html").read_text(encoding="utf-8")
 sw = (DEST / "static" / "sw.js").read_text(encoding="utf-8")
 
-assert RUNTIME_VERSION == "1.19.0"
-assert 'version="1.19.0"' in server or '"version":"1.19.0"' in server
+assert RUNTIME_VERSION == "1.19.1"
+assert 'version="1.19.1"' in server or '"version":"1.19.1"' in server
 
 # Quiz/ledger regression coverage from v1.18.6.
 assert 'JJ_QUIZ_REWARD = 10' in server
@@ -35,8 +35,19 @@ assert 'base*multiplier' in appjs
 assert 'jjV186ActionPending' in appjs
 assert 'jjActionClock' in appjs
 assert 'v1.18.6 poker interaction reliability' in css
-assert '?v=38' in index
-assert 'jj-arena-live-v38' in sw
+
+# Tournament point-entry stacks must be consistent across desktop UI, quick UI,
+# and server-side validation. Default remains 400 for backwards familiarity.
+for value in (300, 400, 500, 600, 800, 1000):
+    assert f"value:{value},label:'{value} / tournament'" in appjs
+    assert f"value:{value},label:'{value} · Tournament'" in appjs
+    assert f'{value}: "{value} / tournament"' in server
+assert "else sel.value=String(game==='ring'?450:400)" in appjs
+
+# Asset cache version is bumped whenever app.js changes.
+assert '?v=40' in index
+assert 'jj-arena-live-v40' in sw
+assert 'request.url.query == "v=40"' in server
 
 # Regression that caused the 2026-09 administrator lockout recovery failure.
 assert '# v1.19.0 deterministic administrator recovery' in db
@@ -57,6 +68,7 @@ assert 'row.update(categories)' in ledger_patch
 
 for filename in [
     "runtime_builder.py",
+    "v40_patch.py",
     "v39_patch.py",
     "v38_patch.py",
     "admin_ledger_stabilization.py",
@@ -64,4 +76,4 @@ for filename in [
 ]:
     py_compile.compile(str(ROOT / filename), doraise=True)
 
-print("JJ_ARENA_V190_STABILIZATION_OK")
+print("JJ_ARENA_CURRENT_SMOKE_OK")

@@ -35,6 +35,7 @@ jobs:
           python -m py_compile app.py
           python -m py_compile v38_patch.py
           python -m py_compile v39_patch.py
+          python -m py_compile v40_patch.py
 
       - name: Run latest reconstruction smoke test
         run: python smoke_test_v190.py
