@@ -1,9 +1,12 @@
 from __future__ import annotations
 
 import py_compile
+import sqlite3
 import tempfile
+from contextlib import contextmanager
 from pathlib import Path
 
+import online_results_cleanup
 from runtime_builder import RUNTIME_VERSION, build_runtime
 
 ROOT = Path(__file__).resolve().parent
@@ -55,9 +58,52 @@ assert 'password_hash=? WHERE id=?' in db
 assert 'DELETE FROM sessions WHERE user_id=?' in db
 assert 'hash_password(pin)' in db
 
+# The requested ranking cleanup is a DB migration, not a permanent startup
+# delete. Existing online results are removed once, while future results survive
+# subsequent restarts.
+class _CleanupTestDB:
+    def __init__(self, path: Path):
+        self.path = path
+
+    @contextmanager
+    def connect(self):
+        con = sqlite3.connect(self.path)
+        con.row_factory = sqlite3.Row
+        try:
+            yield con
+            con.commit()
+        except Exception:
+            con.rollback()
+            raise
+        finally:
+            con.close()
+
+    @staticmethod
+    def utcnow() -> str:
+        return "2026-09-10T00:00:00+00:00"
+
+
+cleanup_db = _CleanupTestDB(WORK / "cleanup.sqlite")
+with cleanup_db.connect() as con:
+    con.execute("CREATE TABLE online_hand_results(id INTEGER PRIMARY KEY, user_id INTEGER NOT NULL)")
+    con.executemany(
+        "INSERT INTO online_hand_results(id,user_id) VALUES (?,?)",
+        [(1, 101), (2, 101), (3, 202)],
+    )
+first_cleanup = online_results_cleanup.apply(cleanup_db)
+assert first_cleanup == {"applied": True, "rows": 3, "users": 2}
+with cleanup_db.connect() as con:
+    assert con.execute("SELECT COUNT(*) AS c FROM online_hand_results").fetchone()["c"] == 0
+    con.execute("INSERT INTO online_hand_results(id,user_id) VALUES (?,?)", (4, 303))
+second_cleanup = online_results_cleanup.apply(cleanup_db)
+assert second_cleanup == {"applied": False, "rows": 0, "users": 0}
+with cleanup_db.connect() as con:
+    assert con.execute("SELECT COUNT(*) AS c FROM online_hand_results").fetchone()["c"] == 1
+
 app_source = (ROOT / "app.py").read_text(encoding="utf-8")
 assert 'from runtime_builder import build_runtime' in app_source
 assert 'DEST = build_runtime()' in app_source
+assert 'online_results_cleanup.apply(db)' in app_source
 assert 'admin_ledger_stabilization.install(app, admin_console)' in app_source
 
 ledger_patch = (ROOT / "admin_ledger_stabilization.py").read_text(encoding="utf-8")
@@ -72,6 +118,7 @@ for filename in [
     "v39_patch.py",
     "v38_patch.py",
     "admin_ledger_stabilization.py",
+    "online_results_cleanup.py",
     "app.py",
 ]:
     py_compile.compile(str(ROOT / filename), doraise=True)
