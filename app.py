@@ -16,6 +16,7 @@ import admin_copy_patch
 import admin_ledger_stabilization
 import admin_pin_verification
 import hand_analytics
+import hand_analytics_hardening
 import learning_content
 import online_results_cleanup
 from runtime_builder import build_runtime
@@ -66,4 +67,5 @@ install_account_deletion(app)
 admin_pin_verification.install(app, admin_console)
 learning_content.install(app)
 hand_analytics.install(app, runtime_server, db)
+hand_analytics_hardening.install(hand_analytics, runtime_server)
 _prioritize_extension_routes(app)
