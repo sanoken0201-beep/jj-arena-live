@@ -11,6 +11,20 @@ from starlette.websockets import WebSocketDisconnect
 from runtime_builder import build_runtime
 
 
+def expect_close(client: TestClient, first_payload, code: int, path: str = "/ws/tables/jj-table-a") -> None:
+    try:
+        with client.websocket_connect(path) as ws:
+            if isinstance(first_payload, str):
+                ws.send_text(first_payload)
+            else:
+                ws.send_json(first_payload)
+            ws.receive_json()
+    except WebSocketDisconnect as exc:
+        assert exc.code == code, exc
+    else:
+        raise AssertionError(f"websocket unexpectedly accepted payload for close code {code}")
+
+
 def run() -> None:
     work = Path(tempfile.mkdtemp(prefix="jj-ws-auth-smoke-"))
     runtime = build_runtime(work / "runtime")
@@ -42,6 +56,8 @@ def run() -> None:
         assert "JSON.stringify({type:'auth',token})" in appjs
         assert 'ws.query_params.get("token")' not in server_source
         assert 'await asyncio.wait_for(ws.receive_text(), timeout=5.0)' in server_source
+        assert 'if not isinstance(payload, dict)' in server_source
+        assert 'if not token or len(token) > 512' in server_source
         assert 'JJ_TIMEOUT_LOOP_ERROR' in server_source
         assert 'finally:\n        hub.remove(table_id, ws)' in server_source
 
@@ -63,37 +79,19 @@ def run() -> None:
                 assert payload["state"]["id"] == "jj-table-a"
                 ws.send_text("ping")
 
-            # Invalid tokens are rejected immediately after the auth frame.
-            try:
-                with client.websocket_connect("/ws/tables/jj-table-a") as ws:
-                    ws.send_json({"type": "auth", "token": "invalid-token"})
-                    ws.receive_json()
-            except WebSocketDisconnect as exc:
-                assert exc.code == 4401
-            else:
-                raise AssertionError("invalid websocket token was accepted")
+            expect_close(client, {"type": "auth", "token": "invalid-token"}, 4401)
+            expect_close(client, [], 4401)
+            expect_close(client, "not-json", 4401)
+            expect_close(client, {"type": "auth", "token": "x" * 513}, 4401)
+            expect_close(client, {"type": "ping", "token": token}, 4401)
 
             # The old query-string transport is intentionally not accepted.
-            try:
-                with client.websocket_connect(f"/ws/tables/jj-table-a?token={token}") as ws:
-                    ws.send_text("ping")
-                    ws.receive_json()
-            except WebSocketDisconnect as exc:
-                assert exc.code == 4401
-            else:
-                raise AssertionError("legacy query-string websocket auth still works")
+            expect_close(client, "ping", 4401, f"/ws/tables/jj-table-a?token={token}")
 
             # Disabled accounts are rejected even with a valid session token.
             with db.connect() as con:
                 con.execute("UPDATE users SET disabled=1 WHERE id=?", (uid,))
-            try:
-                with client.websocket_connect("/ws/tables/jj-table-a") as ws:
-                    ws.send_json({"type": "auth", "token": token})
-                    ws.receive_json()
-            except WebSocketDisconnect as exc:
-                assert exc.code == 4403
-            else:
-                raise AssertionError("disabled user websocket was accepted")
+            expect_close(client, {"type": "auth", "token": token}, 4403)
 
         print("JJ_WEBSOCKET_AUTH_SMOKE_OK")
     finally:
