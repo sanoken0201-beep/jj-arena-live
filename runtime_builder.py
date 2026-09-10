@@ -7,6 +7,7 @@ import shutil
 import tarfile
 from pathlib import Path
 
+import mobile_poker_hotfix
 import v15_patch
 import v16_patch
 import v17_patch
@@ -47,7 +48,7 @@ RELEASE_DIR = ROOT / "release_v14"
 EXPECTED_PARTS = 62
 EXPECTED_SHA256 = "3ccb973f9ab146ce1c0d7da598242b0c1521a8ecc85c091caa10c1f1ebc9ddfd"
 RUNTIME_VERSION = "1.20.3"
-DEFAULT_DEST = Path("/tmp/jj_arena_v48_runtime")
+DEFAULT_DEST = Path("/tmp/jj_arena_v48_hotfix1_runtime")
 
 
 def _release_bytes() -> bytes:
@@ -114,6 +115,7 @@ def _apply_patches(dest: Path) -> None:
         v48_patch,
     ):
         module.apply(dest)
+    mobile_poker_hotfix.apply(dest)
 
 
 def build_runtime(dest: Path | None = None) -> Path:
