@@ -64,17 +64,40 @@ def _app(path: Path) -> None:
     if marker in text:
         return
 
-    old_socket = "tableWS=new WebSocket(`${proto}://${location.host}/ws/tables/${encodeURIComponent(id)}?token=${encodeURIComponent(token)}`);"
-    new_socket = "tableWS=new WebSocket(`${proto}://${location.host}/ws/tables/${encodeURIComponent(id)}`);"
-    if text.count(old_socket) != 1:
-        raise RuntimeError(f"v1.20.2 websocket URL target mismatch: {text.count(old_socket)}")
-    text = text.replace(old_socket, new_socket, 1)
+    # Earlier UI patches can change whitespace and surrounding statements, so
+    # remove only the token query fragment attached to the table-id template.
+    # Do not depend on the complete connectTable line staying byte-identical.
+    ws_query_pattern = re.compile(
+        r'(\$\{encodeURIComponent\(id\)\})\?token=\$\{[^}]+\}'
+    )
+    text, removed = ws_query_pattern.subn(r'\1', text, count=1)
+    if removed != 1:
+        # If a prior patch already removed it, accept only when the table socket
+        # still exists and no token query remains anywhere on that URL path.
+        if "/ws/tables/${encodeURIComponent(id)}" not in text or re.search(
+            r'/ws/tables/[^`\n]*\?token=', text
+        ):
+            raise RuntimeError(f"v1.20.2 websocket query-token target mismatch: {removed}")
 
-    old_open = "tableWS.onopen=()=>{if(tablePoll){clearInterval(tablePoll);tablePoll=null}tableHeartbeat=setInterval(()=>{if(tableWS?.readyState===WebSocket.OPEN)tableWS.send('ping')},15000)};"
-    new_open = "tableWS.onopen=()=>{tableWS.send(JSON.stringify({type:'auth',token}));if(tablePoll){clearInterval(tablePoll);tablePoll=null}tableHeartbeat=setInterval(()=>{if(tableWS?.readyState===WebSocket.OPEN)tableWS.send('ping')},15000)};"
-    if text.count(old_open) != 1:
-        raise RuntimeError(f"v1.20.2 websocket onopen target mismatch: {text.count(old_open)}")
-    text = text.replace(old_open, new_open, 1)
+    # Insert first-frame authentication at the beginning of the socket onopen
+    # callback, independent of the rest of its formatting/content.
+    open_pattern = re.compile(r'tableWS\.onopen\s*=\s*\(\)\s*=>\s*\{')
+    if not open_pattern.search(text):
+        raise RuntimeError("v1.20.2 websocket onopen target missing")
+    text, opened = open_pattern.subn(
+        lambda m: m.group(0) + "tableWS.send(JSON.stringify({type:'auth',token}));",
+        text,
+        count=1,
+    )
+    if opened != 1:
+        raise RuntimeError(f"v1.20.2 websocket onopen target mismatch: {opened}")
+
+    # Postconditions: session token must not remain in a WebSocket URL and the
+    # first-frame auth send must exist exactly once.
+    if re.search(r'/ws/tables/[^`\n]*\?token=', text):
+        raise RuntimeError("v1.20.2 websocket token query remains after patch")
+    if text.count("JSON.stringify({type:'auth',token})") != 1:
+        raise RuntimeError("v1.20.2 websocket auth send count mismatch")
 
     insert = "\n  // v1.20.2 websocket token privacy: session token is sent only after WSS opens, never in the URL.\n"
     pos = text.rfind("})();")
