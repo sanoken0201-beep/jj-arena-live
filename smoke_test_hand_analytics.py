@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import inspect
 import os
 import sys
 import tempfile
@@ -27,6 +28,46 @@ def _clear_runtime_modules() -> dict[str, object]:
     return old
 
 
+def _seed_stat_hand(db, hand_id: str, players: list[tuple[int, str, str]], actions: list[dict], board=None) -> dict:
+    board = list(board or [])
+    with db.connect() as con:
+        con.execute(
+            """INSERT INTO jj_hand_history(
+                 hand_id,table_id,table_name,hand_no,started_at,completed_at,small_blind,big_blind,
+                 button_seat,small_blind_seat,big_blind_seat,player_count,board_json,reached_street,
+                 result_type,showdown,partial_capture,summary_json
+               ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+            (
+                hand_id, "jj-table-a", "JJ Table A", 900, db.utcnow(), db.utcnow(), 50, 100,
+                0, 1, 2, len(players), __import__("json").dumps(board),
+                "flop" if len(board) >= 3 else "preflop", "test", 0, 0, "{}",
+            ),
+        )
+        for seat, (uid, name, position) in enumerate(players):
+            con.execute(
+                """INSERT INTO jj_hand_players(
+                     hand_id,user_id,player_name,seat,position,hole_cards_json,starting_stack,
+                     starting_stack_bb,effective_stack,effective_stack_bb,ending_stack,net_chips,net_bb
+                   ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                (hand_id, uid, name, seat, position, "[]", 15000, 150, 15000, 150, 15000, 0, 0),
+            )
+        for seq, action in enumerate(actions, 1):
+            con.execute(
+                """INSERT INTO jj_hand_actions(
+                     hand_id,seq,user_id,player_name,street,action,amount_chips,amount_bb,to_chips,to_bb,
+                     pot_before,facing_chips,is_aggressive,raise_number,decision_seconds,timed_out,created_at
+                   ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                (
+                    hand_id, seq, action["user_id"], action["name"], action["street"], action["action"],
+                    action.get("amount_chips", 0), action.get("amount_bb", 0), action.get("to_chips"),
+                    action.get("to_bb"), action.get("pot_before", 0), action.get("facing_chips", 0),
+                    action.get("is_aggressive", 0), action.get("raise_number", 0),
+                    action.get("decision_seconds"), action.get("timed_out", 0), db.utcnow(),
+                ),
+            )
+    return {"hand": {"board": board, "showdown": None}, "last_result": {"winners": []}}
+
+
 def run() -> None:
     work = Path(tempfile.mkdtemp(prefix="jj-hand-analytics-smoke-"))
     runtime = build_runtime(work / "runtime")
@@ -46,9 +87,16 @@ def run() -> None:
         import server  # type: ignore
         import poker_engine  # type: ignore
         import hand_analytics
+        import hand_analytics_hardening
 
         hand_analytics.install(server.app, server, db)
+        hand_analytics_hardening.install(hand_analytics, server)
         assert getattr(server, "_jj_hand_analytics_wrapped", False)
+        assert getattr(hand_analytics, "_jj_stats_hardening_installed", False)
+
+        timer_default = inspect.signature(server.arm_action_deadline).parameters["seconds"].default
+        if timer_default is not inspect._empty:
+            assert float(hand_analytics.DEFAULT_DECISION_SECONDS) == float(timer_default)
 
         with db.connect() as con:
             def create_user(name: str) -> int:
@@ -74,7 +122,7 @@ def run() -> None:
             p["sitting_out"] = False
             p["sit_out_next"] = False
 
-        # Use the real reconstructed engine, but the analytics-wrapped server globals.
+        # Real reconstructed engine: complete a BTN steal hand end-to-end.
         server.start_hand(state)
         hand1 = str(state["hand"]["id"])
         server.save_table(state)
@@ -98,6 +146,7 @@ def run() -> None:
         assert p1["position"] == "BTN"
         assert int(p1["vpip"]) == 1 and int(p1["pfr"]) == 1
         assert int(p1["steal_opp"]) == 1 and int(p1["steal_attempt"]) == 1
+        assert int(p1["aggressive_actions"]) == 0  # AF is postflop only.
         assert int(p2["vpip"]) == 0
         assert [a["action"] for a in actions] == ["raise", "fold", "fold"]
         assert all('"deck"' not in s["state_json"] for s in snaps)
@@ -122,7 +171,56 @@ def run() -> None:
         assert "Dealt to アリス" in export
         assert "ボブ: shows" not in export and "キャロル: shows" not in export
 
-        # Directly create a showdown hand to verify disclosed-card visibility rules.
+        # Edge case: a limp closes the unopened-pot steal opportunity.
+        limp_state = _seed_stat_hand(
+            db, "stat-limp", [(u1, "アリス", "UTG"), (u2, "ボブ", "CO"), (u3, "キャロル", "BB")],
+            [
+                {"user_id": u1, "name": "アリス", "street": "preflop", "action": "call", "amount_chips": 100},
+                {"user_id": u2, "name": "ボブ", "street": "preflop", "action": "raise", "amount_chips": 400, "to_chips": 400, "is_aggressive": 1, "raise_number": 1},
+                {"user_id": u3, "name": "キャロル", "street": "preflop", "action": "fold"},
+            ],
+        )
+        with db.connect() as con:
+            flags = hand_analytics._compute_flags(con, "stat-limp", limp_state)
+        assert flags[u2]["steal_opp"] == 0 and flags[u2]["steal_attempt"] == 0
+        assert flags[u3]["bb_vs_steal"] == 0
+
+        # Edge case: raising a donk lead is not a continuation bet, but it is
+        # still postflop aggression. The preflop raise must not inflate AF.
+        donk_state = _seed_stat_hand(
+            db, "stat-donk", [(u1, "アリス", "BTN"), (u2, "ボブ", "BB")],
+            [
+                {"user_id": u1, "name": "アリス", "street": "preflop", "action": "raise", "amount_chips": 300, "to_chips": 300, "is_aggressive": 1, "raise_number": 1},
+                {"user_id": u2, "name": "ボブ", "street": "preflop", "action": "call", "amount_chips": 200},
+                {"user_id": u2, "name": "ボブ", "street": "flop", "action": "raise", "amount_chips": 300, "to_chips": 300, "is_aggressive": 1},
+                {"user_id": u1, "name": "アリス", "street": "flop", "action": "raise", "amount_chips": 900, "to_chips": 900, "is_aggressive": 1},
+            ],
+            board=["2c", "7d", "Kh"],
+        )
+        with db.connect() as con:
+            flags = hand_analytics._compute_flags(con, "stat-donk", donk_state)
+        assert flags[u1]["cbet_opp"] == 0 and flags[u1]["cbet"] == 0
+        assert flags[u1]["aggressive_actions"] == 1
+        assert flags[u2]["aggressive_actions"] == 1
+
+        # Normal checked-to-PFR flop bet is a Cbet and the caller can fold to it.
+        cbet_state = _seed_stat_hand(
+            db, "stat-cbet", [(u1, "アリス", "BTN"), (u2, "ボブ", "BB")],
+            [
+                {"user_id": u1, "name": "アリス", "street": "preflop", "action": "raise", "amount_chips": 300, "to_chips": 300, "is_aggressive": 1, "raise_number": 1},
+                {"user_id": u2, "name": "ボブ", "street": "preflop", "action": "call", "amount_chips": 200},
+                {"user_id": u2, "name": "ボブ", "street": "flop", "action": "check"},
+                {"user_id": u1, "name": "アリス", "street": "flop", "action": "raise", "amount_chips": 250, "to_chips": 250, "is_aggressive": 1},
+                {"user_id": u2, "name": "ボブ", "street": "flop", "action": "fold"},
+            ],
+            board=["2s", "8c", "Jh"],
+        )
+        with db.connect() as con:
+            flags = hand_analytics._compute_flags(con, "stat-cbet", cbet_state)
+        assert flags[u1]["cbet_opp"] == 1 and flags[u1]["cbet"] == 1
+        assert flags[u2]["faced_cbet"] == 1 and flags[u2]["folded_to_cbet"] == 1
+
+        # Direct showdown state verifies disclosed-card visibility rules.
         showdown = {
             "id": "jj-table-b", "name": "JJ Table B", "max_seats": 6,
             "small_blind": 50, "big_blind": 100, "button_seat": 0, "hand_no": 50,
