@@ -1,4 +1,4 @@
-"""Production entrypoint for JJ Arena Live v1.20.0.
+"""Production entrypoint for JJ Arena Live v1.20.1.
 
 The application runtime is reconstructed deterministically by runtime_builder.py
 from the verified v1.4 release bundle plus the ordered patch chain. Keep this
