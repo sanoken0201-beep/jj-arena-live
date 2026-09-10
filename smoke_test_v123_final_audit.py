@@ -41,6 +41,19 @@ def main() -> None:
         assert "_jj_v123_resilience.record_error" in server
         assert "v1.23.0 forced-runout operational logging" in server
 
+        # The final scheduler must use the reconstructed production server's
+        # concrete table/lock/broadcast contracts, not provisional helper names.
+        marker = "v1.23.0 reconstructed-server scheduler compatibility final"
+        assert marker in server
+        final_scheduler = server.split(marker, 1)[1]
+        assert "db.FIXED_TABLES" in final_scheduler
+        assert "get_table_lock(table_id)" in final_scheduler
+        assert "hub.broadcast(table_id)" in final_scheduler
+        assert "FIXED_TABLE_IDS" not in final_scheduler
+        assert "table_locks[table_id]" not in final_scheduler
+        assert "broadcast_table(table_id)" not in final_scheduler
+        assert "arm_action_deadline(state)" not in final_scheduler
+
         # The existing authoritative double-submit protection remains present.
         assert "_processed_action_ids" in server
         assert "payload.action_id" in server
