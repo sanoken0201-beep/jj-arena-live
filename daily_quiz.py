@@ -96,8 +96,8 @@ def _progress(con, uid, day):
     # Include rewards issued by the old implementation on deployment day. Existing
     # points are never removed, but switching versions cannot open another 100pt.
     legacy = con.execute("""SELECT COALESCE(SUM(amount),0) earned FROM point_ledger
-        WHERE user_id=? AND kind='quiz_reward' AND amount>0 AND id NOT LIKE 'dq3-%'
-        AND effective_at>=? AND effective_at<?""", (uid, start.isoformat(), end.isoformat())).fetchone()
+        WHERE user_id=? AND kind='quiz_reward' AND amount>0 AND id NOT LIKE ?
+        AND effective_at>=? AND effective_at<?""", (uid, 'dq3-%', start.isoformat(), end.isoformat())).fetchone()
     carried = max(0, float(legacy["earned"]))
     row = con.execute("""SELECT COUNT(*) answered, COALESCE(SUM(is_correct),0) correct,
         COALESCE(SUM(reward_awarded),0) earned FROM quiz_daily_answers
