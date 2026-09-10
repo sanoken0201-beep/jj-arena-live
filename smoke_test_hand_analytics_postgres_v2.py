@@ -98,11 +98,10 @@ def run() -> None:
             by_uid = {int(row["user_id"]): dict(row) for row in rows}
             assert by_uid[alice]["position"] == "BTN/SB"
             assert float(by_uid[alice]["net_bb"]) == -0.5, by_uid[alice]
-            # JJ Arena's existing online-table rule charges 10% rake even when
-            # the hand ends preflop (5bb cap). A 1.5bb pot therefore returns
-            # 1.35bb to the BB winner: +0.35bb net after posting 1bb.
-            assert float(by_uid[bob]["net_bb"]) == 0.35, by_uid[bob]
-            assert int(by_uid[alice]["net_chips"]) + int(by_uid[bob]["net_chips"]) == -15, by_uid
+            # v1.23 uses No Flop, No Drop: a preflop uncontested 1.5bb pot is
+            # returned in full. The BB therefore finishes +0.5bb after posting 1bb.
+            assert float(by_uid[bob]["net_bb"]) == 0.5, by_uid[bob]
+            assert int(by_uid[alice]["net_chips"]) + int(by_uid[bob]["net_chips"]) == 0, by_uid
 
             actions = con.execute(
                 "SELECT user_id,street,action FROM jj_hand_actions WHERE hand_id=? ORDER BY seq",
@@ -125,7 +124,7 @@ def run() -> None:
         assert alice_summary["overall"]["hands"] >= 1
         assert bob_summary["overall"]["hands"] >= 1
         assert float(alice_summary["overall"]["net_bb"]) <= -0.5
-        assert float(bob_summary["overall"]["net_bb"]) >= 0.35
+        assert float(bob_summary["overall"]["net_bb"]) >= 0.5
 
         detail = hand_analytics._detail_payload(hand_id, alice)
         private_cards = {int(player["user_id"]): player["cards"] for player in detail["players"]}
