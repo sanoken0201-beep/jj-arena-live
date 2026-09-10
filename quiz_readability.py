@@ -57,6 +57,9 @@ _REPLACEMENTS: list[tuple[str, str]] = [
     ("賞金EV", "平均して得られる賞金"),
     ("chipEV", "チップの増減だけで見た長期的な平均損益"),
     ("+EV", "長期的に利益が出る"),
+    ("エクイティ", "勝つ見込み"),
+    ("レーキ", "手数料"),
+    ("EV", "長期的な平均損益"),
 ]
 
 
@@ -89,6 +92,11 @@ _VOCAB_SAFE_REPLACEMENTS = [
     ("ホールカード", "自分だけに配られる2枚"),
 ]
 
+# Some stems are better rewritten as complete situations than mechanically expanded.
+_PROMPT_OVERRIDES = {
+    "mdf-notodds": "ポットと同じ額をベットされた場合、『相手の純粋なブラフを簡単に利益にさせないための最低継続率』は50%ですが、コール自体に必要な勝率は約33%です。なぜ数字が違うのでしょうか？",
+}
+
 # A few vocabulary stems were circular or relied on another specialist term. Give
 # them a readable situation while keeping the answer as the poker term.
 _VOCAB_PROMPTS = {
@@ -110,6 +118,7 @@ _GLOSSARY = {
     "3ベット": "プリフロップで、最初のレイズに対してさらにレイズすること",
     "オールイン": "残りチップをすべて賭けること",
     "ドロー": "あと1枚などで強い役が完成する可能性がある手",
+    "ブロッカー": "自分のカードによって、相手が特定の手札を持てる組み合わせが減ること",
 }
 
 
@@ -148,11 +157,18 @@ def make_readable(question: dict[str, Any]) -> dict[str, Any]:
     category = str(q.get("category") or "")
     vocabulary = category == "vocabulary"
     key = str(q.get("key") or "")
-    if vocabulary and key in _VOCAB_PROMPTS:
+    if key in _PROMPT_OVERRIDES:
+        q["prompt"] = _PROMPT_OVERRIDES[key]
+    elif vocabulary and key in _VOCAB_PROMPTS:
         q["prompt"] = _VOCAB_PROMPTS[key]
     else:
         q["prompt"] = _plain_text(str(q.get("prompt") or ""), vocabulary=vocabulary)
     q["explanation"] = _plain_text(str(q.get("explanation") or ""), vocabulary=False)
+    if not vocabulary:
+        q["choices"] = [
+            {**choice, "label": _plain_text(str(choice.get("label") or ""), vocabulary=False)}
+            for choice in q.get("choices") or []
+        ]
     q["category_label"] = PLAIN_CATEGORY_LABELS.get(category, str(q.get("category_label") or "ポーカー"))
     q["glossary"] = _glossary_for(q["prompt"], list(q.get("choices") or []), vocabulary=vocabulary)
     return q
@@ -171,7 +187,11 @@ def _strip_explained_abbreviations(text: str) -> str:
 def audit_questions(pools: dict[str, list[dict[str, Any]]]) -> list[str]:
     errors: list[str] = []
     raw_abbreviations = re.compile(r"(?:chipEV|MDF|SPR|ICM|OOP|IP|PKO|FT)")
-    hard_phrases = ("生エクイティ", "エクイティ実現率", "フォールドエクイティ", "インプライドオッズ", "ナッツブロッカー", "ブラフキャッチャー")
+    hard_phrases = (
+        "生エクイティ", "エクイティ実現率", "フォールドエクイティ",
+        "インプライドオッズ", "ナッツブロッカー", "ブラフキャッチャー",
+        "レーキ", "chipEV",
+    )
     seen_prompts: set[str] = set()
     for category, pool in pools.items():
         for original in pool:
@@ -189,7 +209,10 @@ def audit_questions(pools: dict[str, list[dict[str, Any]]]) -> list[str]:
                 for phrase in hard_phrases:
                     if phrase in prompt:
                         errors.append(f"{key}: unexplained jargon remains: {phrase}")
-            if len(prompt) > 230:
+                labels = [str(c.get("label") or "").strip() for c in q.get("choices") or []]
+                if len(labels) != len(set(labels)):
+                    errors.append(f"{key}: readable choice labels collapsed into duplicates")
+            if len(prompt) > 250:
                 errors.append(f"{key}: prompt too long ({len(prompt)})")
             if q.get("category_label") != PLAIN_CATEGORY_LABELS.get(category):
                 errors.append(f"{key}: category label not plain")
