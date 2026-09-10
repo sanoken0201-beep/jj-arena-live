@@ -58,6 +58,7 @@ jobs:
           python -m py_compile v39_patch.py
           python -m py_compile v38_patch.py
           python -m py_compile smoke_test_hand_analytics.py
+          python -m py_compile smoke_test_stat_definitions.py
           python -m py_compile smoke_test_card_privacy.py
           python -m py_compile smoke_test_hand_analytics_postgres.py
 
@@ -71,6 +72,9 @@ jobs:
 
       - name: Run hand analytics SQLite integration smoke test
         run: python smoke_test_hand_analytics.py
+
+      - name: Run statistic-definition edge-case smoke test
+        run: python smoke_test_stat_definitions.py
 
       - name: Run completed-hand card privacy smoke test
         run: python smoke_test_card_privacy.py
