@@ -54,7 +54,10 @@ def run() -> None:
         assert 'ws.query_params.get("token")' not in server_source
         assert 'token = request_token(ws)' in server_source
         assert 'origin = str(ws.headers.get("origin") or "").rstrip("/")' in server_source
-        assert 'JJ_TIMEOUT_LOOP_ERROR' in server_source
+        timeout_start = server_source.index("async def timeout_loop():")
+        timeout_end = server_source.index('@app.websocket("/ws/tables/{table_id}")', timeout_start)
+        timeout_block = server_source[timeout_start:timeout_end]
+        assert 'except Exception:\n            pass' not in timeout_block
         assert 'finally:\n        hub.remove(table_id, ws)' in server_source
 
         # Use HTTPS so Secure cookies, if configured, behave exactly like the
