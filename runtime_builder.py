@@ -50,6 +50,7 @@ import v51_patch
 import v51_post_patch
 import v51_final_patch
 import v51_engine_compat_patch
+import v51_call_signature_patch
 
 ROOT = Path(__file__).resolve().parent
 RELEASE_DIR = ROOT / "release_v14"
@@ -136,6 +137,9 @@ def _apply_patches(dest: Path) -> None:
     # Adapt the final v1.23 wrappers to the verified reconstructed engine's
     # concrete helper contracts before the runtime is imported by FastAPI/tests.
     v51_engine_compat_patch.apply(dest)
+    # The established apply_action path passes the uncontested winner explicitly,
+    # while v1.23 also uses a one-argument internal call. Preserve both contracts.
+    v51_call_signature_patch.apply(dest)
 
 
 def build_runtime(dest: Path | None = None) -> Path:
