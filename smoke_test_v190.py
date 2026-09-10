@@ -91,28 +91,39 @@ assert 'id="jjHandList"' in appjs
 assert '/analysis/summary' in appjs
 assert '/analysis/hands?' in appjs
 assert '/review' in appjs
-assert 'PokerStars-style' not in appjs  # export formatting remains server-authoritative
+assert 'PokerStars-style' not in appjs
 assert '相手のホールカードはショーダウンで公開された場合だけ表示します' in appjs
 assert 'v1.20.0 private hand history and analytics' in css
 assert '.jj-replay-table' in css and '.jj-stat-grid' in css
 
-# v1.20.1 keeps async filters coherent and prevents future showdown information
-# from appearing in earlier replay frames.
+# v1.20.1 request and replay stabilization.
 assert 'v1.20.1 analysis request/replay stabilization' in appjs
 assert 'analysisRequestSeq' in appjs
 assert 'handRequestSeq' in appjs
 assert "showdownVisible=phase==='complete'" in appjs
 assert "p.in_hand?['??','??']:[]" in appjs
 
-# v1.20.2 keeps bearer tokens out of WebSocket URLs and makes disconnect
-# cleanup/timeout-loop failures observable without logging sensitive values.
+# v1.20.2: cookie-authenticated WebSocket, no credential in URL/JS payload,
+# explicit origin check and unconditional Hub cleanup.
 assert 'v1.20.2 websocket token privacy' in appjs
-assert "?token=${encodeURIComponent(token)}" not in appjs
-assert "JSON.stringify({type:'auth',token})" in appjs
+assert '?token=' not in ''.join(
+    line for line in appjs.splitlines() if '/ws/tables/' in line and 'new WebSocket' in line
+)
+assert "JSON.stringify({type:'auth',token})" not in appjs
 assert 'ws.query_params.get("token")' not in server
-assert 'await asyncio.wait_for(ws.receive_text(), timeout=5.0)' in server
-assert 'JJ_TIMEOUT_LOOP_ERROR' in server
+assert 'token = request_token(ws)' in server
+assert 'origin = str(ws.headers.get("origin") or "").rstrip("/")' in server
+assert 'origin not in {f"https://{host}", f"http://{host}"}' in server
 assert 'JJ_WS_CONNECTION_ERROR' in server
+ws_start = server.index('@app.websocket("/ws/tables/{table_id}")')
+ws_end = server.index('app.mount("/static"', ws_start)
+ws_block = server[ws_start:ws_end]
+assert 'finally:\n        hub.remove(table_id, ws)' in ws_block
+assert ws_block.index('token = request_token(ws)') < ws_block.index('await ws.send_json')
+timeout_start = server.index('async def timeout_loop():')
+timeout_end = server.index('@app.websocket("/ws/tables/{table_id}")', timeout_start)
+timeout_block = server[timeout_start:timeout_end]
+assert 'except Exception:\n            pass' not in timeout_block
 assert '?v=47' in index
 assert 'jj-arena-live-v47' in sw
 assert 'request.url.query == "v=47"' in server
@@ -151,7 +162,7 @@ assert len(parsed_videos) == 2
 assert {v["category"] for v in parsed_videos} == {"strategy", "motivation"}
 assert all(urlsplit(v["url"]).hostname == "www.youtube.com" for v in parsed_videos)
 
-# Regression that caused the administrator lockout recovery failure.
+# Administrator recovery regression.
 assert '# v1.19.0 deterministic administrator recovery' in db
 assert 'password_hash=? WHERE id=?' in db
 assert 'DELETE FROM sessions WHERE user_id=?' in db
@@ -206,7 +217,7 @@ assert 'learning_content.install(app)' in app_source
 assert 'hand_analytics.install(app, runtime_server, db)' in app_source
 assert 'path.startswith("/api/analysis")' in app_source
 
-# Hand analytics privacy, storage and API contract must remain server-side.
+# Hand analytics privacy/storage/API contract remains server-side.
 analytics_source = (ROOT / "hand_analytics.py").read_text(encoding="utf-8")
 for table in ("jj_hand_history", "jj_hand_players", "jj_hand_actions", "jj_hand_snapshots", "jj_hand_reviews"):
     assert f"CREATE TABLE IF NOT EXISTS {table}" in analytics_source
