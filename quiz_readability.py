@@ -59,14 +59,21 @@ _REPLACEMENTS: list[tuple[str, str]] = [
     ("+EV", "長期的に利益が出る"),
 ]
 
+
+def _ascii_token(token: str) -> re.Pattern[str]:
+    # Python's Unicode \b does not see a boundary between ASCII letters and
+    # Japanese characters because both are classified as word characters.
+    return re.compile(rf"(?<![A-Za-z0-9]){re.escape(token)}(?![A-Za-z0-9])")
+
+
 _ABBREVIATIONS: list[tuple[re.Pattern[str], str]] = [
-    (re.compile(r"\bMDF\b"), "相手の純粋なブラフを簡単に利益にさせないための最低継続率（MDF）"),
-    (re.compile(r"\bSPR\b"), "実際に賭け合える残りチップ ÷ 現在のポット（SPR）"),
-    (re.compile(r"\bICM\b"), "残りスタックと賞金配分からチップの賞金価値を考えるモデル（ICM）"),
-    (re.compile(r"\bOOP\b"), "相手より先に行動する側（OOP）"),
-    (re.compile(r"\bIP\b"), "相手より後に行動する側（IP）"),
-    (re.compile(r"\bPKO\b"), "相手を飛ばすと賞金が得られる形式（PKO）"),
-    (re.compile(r"\bFT\b"), "ファイナルテーブル（FT）"),
+    (_ascii_token("MDF"), "相手の純粋なブラフを簡単に利益にさせないための最低継続率（MDF）"),
+    (_ascii_token("SPR"), "実際に賭け合える残りチップ ÷ 現在のポット（SPR）"),
+    (_ascii_token("ICM"), "残りスタックと賞金配分からチップの賞金価値を考えるモデル（ICM）"),
+    (_ascii_token("OOP"), "相手より先に行動する側（OOP）"),
+    (_ascii_token("IP"), "相手より後に行動する側（IP）"),
+    (_ascii_token("PKO"), "相手を飛ばすと賞金が得られる形式（PKO）"),
+    (_ascii_token("FT"), "ファイナルテーブル（FT）"),
 ]
 
 # In vocabulary questions the named term itself is what is being tested. Replacing
@@ -151,9 +158,19 @@ def make_readable(question: dict[str, Any]) -> dict[str, Any]:
     return q
 
 
+def _strip_explained_abbreviations(text: str) -> str:
+    approved = (
+        "（MDF）", "（SPR）", "（ICM）", "（OOP）", "（IP）", "（PKO）", "（FT）",
+    )
+    out = text
+    for value in approved:
+        out = out.replace(value, "")
+    return out
+
+
 def audit_questions(pools: dict[str, list[dict[str, Any]]]) -> list[str]:
     errors: list[str] = []
-    raw_abbreviations = re.compile(r"\b(?:chipEV|MDF|SPR|ICM|OOP|IP|PKO|FT)\b")
+    raw_abbreviations = re.compile(r"(?:chipEV|MDF|SPR|ICM|OOP|IP|PKO|FT)")
     hard_phrases = ("生エクイティ", "エクイティ実現率", "フォールドエクイティ", "インプライドオッズ", "ナッツブロッカー", "ブラフキャッチャー")
     seen_prompts: set[str] = set()
     for category, pool in pools.items():
@@ -167,7 +184,7 @@ def audit_questions(pools: dict[str, list[dict[str, Any]]]) -> list[str]:
                 errors.append(f"{key}: duplicate readable prompt")
             seen_prompts.add(prompt)
             if category != "vocabulary":
-                if raw_abbreviations.search(prompt):
+                if raw_abbreviations.search(_strip_explained_abbreviations(prompt)):
                     errors.append(f"{key}: unexplained abbreviation remains")
                 for phrase in hard_phrases:
                     if phrase in prompt:
