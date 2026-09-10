@@ -7,6 +7,9 @@ from __future__ import annotations
 
 import copy
 import importlib
+import json
+from datetime import datetime, timezone
+import daily_quiz
 import os
 import re
 import shutil
@@ -28,7 +31,7 @@ ROOT = Path(__file__).resolve().parent
 
 
 @contextmanager
-def isolated_production_app():
+def isolated_production_app(database_url=""):
     modules = (
         "app", "server", "db", "poker_engine", "admin_console", "admin_delete",
         "admin_pin_verification", "admin_ledger_stabilization", "learning_content",
@@ -46,7 +49,7 @@ def isolated_production_app():
             apply_admin_copy = admin_copy_patch.apply
             with (
                 patch.dict(os.environ, {
-                    "DATABASE_URL": "",
+                    "DATABASE_URL": database_url,
                     "JJ_DB_PATH": str(work / "learning.sqlite3"),
                     "JJ_ADMIN_NAME": "ケンイチロウ",
                     "JJ_ADMIN_PIN": "654321",
@@ -58,7 +61,7 @@ def isolated_production_app():
                 production = importlib.import_module("app")
                 assert production.DEST == work / "runtime"
                 assert production.db.DB_PATH == work / "learning.sqlite3"
-                assert not production.db.IS_POSTGRES
+                assert production.db.IS_POSTGRES == bool(database_url)
                 yield production
     finally:
         sys.path[:] = previous_path
@@ -124,6 +127,7 @@ def run() -> None:
         content._refreshing = False
         with (
             patch.object(content, "_fetch_bytes", side_effect=AssertionError("external network forbidden")) as fetch,
+            patch.object(daily_quiz, "utc_now", return_value=datetime(2026,9,10,12,tzinfo=timezone.utc)),
             TestClient(app, base_url="https://testserver") as member,
             TestClient(app, base_url="https://testserver") as other,
             TestClient(app, base_url="https://testserver") as admin,
@@ -139,6 +143,7 @@ def run() -> None:
             user = login(member, "ガクシュウテスト", "123456")
             second = login(other, "ガクシュウベツ", "234567")
             login(admin, "ケンイチロウ", "654321")
+            assert json_response(admin.get('/api/admin/console/quiz-stats'))['min_samples'] == 30
             uid = int(user["id"])
             assert uid != int(second["id"])
             json_response(member.get("/api/admin/console/users"), 403)
@@ -163,14 +168,14 @@ def run() -> None:
             assert question["reward"] == 10
             assert "correct_answer" not in question
             with db.connect() as con:
-                attempt = dict(con.execute("SELECT * FROM quiz_attempts WHERE id=?", (question["id"],)).fetchone())
+                attempt = dict(con.execute("SELECT * FROM quiz_daily_answers WHERE id=?", (question["id"],)).fetchone())
             assert int(attempt["user_id"]) == uid and attempt["answer"] is None
-            correct = int(attempt["correct_answer"])
-            assert correct in question["choices"]
+            correct = json.loads(attempt["question_json"])["correct"]
+            assert correct in [c["value"] for c in question["choices"]]
             answer = {"question_id": question["id"], "answer": correct}
 
             json_response(other.post("/api/quiz/answer", json=answer), 404)
-            invalid = next(value for value in range(101) if value not in question["choices"])
+            invalid = "invalid-choice"
             json_response(member.post("/api/quiz/answer", json={**answer, "answer": invalid}), 400)
             assert ledger_snapshot(db) == before_ledger
 
