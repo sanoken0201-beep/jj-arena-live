@@ -42,13 +42,16 @@ import v45_patch
 import v46_patch
 import v47_patch
 import v48_patch
+import v49_compat_patch
+import v49_patch
+import v49_post_patch
 
 ROOT = Path(__file__).resolve().parent
 RELEASE_DIR = ROOT / "release_v14"
 EXPECTED_PARTS = 62
 EXPECTED_SHA256 = "3ccb973f9ab146ce1c0d7da598242b0c1521a8ecc85c091caa10c1f1ebc9ddfd"
-RUNTIME_VERSION = "1.20.3"
-DEFAULT_DEST = Path("/tmp/jj_arena_v48_hotfix1_runtime")
+RUNTIME_VERSION = "1.21.0"
+DEFAULT_DEST = Path("/tmp/jj_arena_v49_hotfix1_runtime")
 
 
 def _release_bytes() -> bytes:
@@ -113,6 +116,9 @@ def _apply_patches(dest: Path) -> None:
         v46_patch,
         v47_patch,
         v48_patch,
+        v49_compat_patch,
+        v49_patch,
+        v49_post_patch,
     ):
         module.apply(dest)
     mobile_poker_hotfix.apply(dest)

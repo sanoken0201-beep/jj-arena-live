@@ -17,7 +17,7 @@ css = (DEST / "static" / "styles.css").read_text(encoding="utf-8")
 index = (DEST / "static" / "index.html").read_text(encoding="utf-8")
 sw = (DEST / "static" / "sw.js").read_text(encoding="utf-8")
 
-assert RUNTIME_VERSION == "1.20.3"
+assert RUNTIME_VERSION == "1.21.0"
 marker = "v1.20.3 mobile bet-marker/call-amount hotfix"
 assert marker in appjs
 
@@ -28,7 +28,7 @@ assert "callButton.textContent=`コール ${callLabel}`" in appjs
 assert "contextAmount.textContent=`コール額 ${callLabel}`" in appjs
 assert "const bb=(n,state=tableState)=>{const big=Number(state?.big_blind||100);const v=Number(n||0)/big;" in appjs
 assert appjs.index(marker) > appjs.index("v1.18.5 mobile poker action ergonomics")
-assert appjs.index(marker) > appjs.index("v1.20.3 daily poker quiz v2")
+assert appjs.index(marker) > appjs.index("v1.21.0 learning and home hub")
 
 # Concrete screenshot-scale sanity check: 2,500 raw chips at 100/chip BB = 25bb.
 assert 2500 / 100 == 25
@@ -40,12 +40,11 @@ assert "if(visual===3)return {left:p.left,top:27};" in appjs
 assert "jjMobileHotfixBetPos(actual)" in appjs
 assert "pointer-events:none!important" in css
 
-# Force iOS/PWA/browser caches off the broken v48 mobile assets. The server-side
-# immutable-cache recognition deliberately remains on v48 so the hotfix URL is
-# not long-lived cached while we validate it in production.
-assert "?v=48-hotfix1" in index
-assert "jj-arena-live-v48-hotfix1" in sw
-assert 'request.url.query == "v=48"' in server
+# v1.21 owns the active cache key. The mobile hotfix still applies after v49,
+# but its old v48 cache-key replacement intentionally becomes a no-op.
+assert "?v=49" in index
+assert "jj-arena-live-v49" in sw
+assert 'request.url.query == "v=49"' in server
 
 py_compile.compile(str(ROOT / "mobile_poker_hotfix.py"), doraise=True)
 py_compile.compile(str(ROOT / "runtime_builder.py"), doraise=True)

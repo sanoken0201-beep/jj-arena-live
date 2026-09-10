@@ -1,4 +1,4 @@
-"""Production entrypoint for JJ Arena Live v1.20.3.
+"""Production entrypoint for JJ Arena Live v1.21.0.
 
 The application runtime is reconstructed deterministically by runtime_builder.py
 from the verified v1.4 release bundle plus the ordered patch chain. Keep this
@@ -20,6 +20,9 @@ import hand_analytics_hardening
 import learning_content
 import daily_quiz
 import online_results_cleanup
+import operations_learning
+import operations_learning_hardening
+import resilience
 from runtime_builder import build_runtime
 
 ROOT = Path(__file__).resolve().parent
@@ -56,6 +59,7 @@ def _prioritize_extension_routes(fastapi_app) -> None:
             or path.startswith("/api/admin/console")
             or path.startswith("/api/analysis")
             or path.startswith("/api/quiz/")
+            or path.startswith("/api/home/")
         )
 
     extension_routes = [route for route in routes if is_extension_route(route)]
@@ -71,4 +75,7 @@ learning_content.install(app)
 daily_quiz.install(app, runtime_server, db)
 hand_analytics.install(app, runtime_server, db)
 hand_analytics_hardening.install(hand_analytics, runtime_server)
+operations_learning.install(app, runtime_server, db, hand_analytics, daily_quiz, learning_content, admin_console)
+operations_learning_hardening.apply(operations_learning, db, hand_analytics)
+resilience.install(app, runtime_server, db, admin_console)
 _prioritize_extension_routes(app)
