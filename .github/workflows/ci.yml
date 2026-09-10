@@ -16,7 +16,21 @@ permissions:
 jobs:
   smoke:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 14
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: jj_arena_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d jj_arena_ci"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -33,15 +47,42 @@ jobs:
       - name: Compile production entrypoint and patches
         run: |
           python -m py_compile app.py
+          python -m py_compile hand_analytics.py
+          python -m py_compile hand_analytics_hardening.py
+          python -m py_compile v45_patch.py
+          python -m py_compile v44_patch.py
           python -m py_compile v43_patch.py
           python -m py_compile v42_patch.py
           python -m py_compile v41_patch.py
           python -m py_compile v40_patch.py
           python -m py_compile v39_patch.py
           python -m py_compile v38_patch.py
+          python -m py_compile smoke_test_hand_analytics.py
+          python -m py_compile smoke_test_stat_definitions.py
+          python -m py_compile smoke_test_card_privacy.py
+          python -m py_compile smoke_test_hand_analytics_postgres_v2.py
+
+      - name: Check reconstructed browser JavaScript syntax
+        run: |
+          RUNTIME="$(python -c 'from runtime_builder import build_runtime; print(build_runtime())')"
+          node --check "$RUNTIME/static/app.js"
 
       - name: Run latest reconstruction smoke test
         run: python smoke_test_v190.py
+
+      - name: Run hand analytics SQLite integration smoke test
+        run: python smoke_test_hand_analytics.py
+
+      - name: Run statistic-definition edge-case smoke test
+        run: python smoke_test_stat_definitions.py
+
+      - name: Run completed-hand card privacy smoke test
+        run: python smoke_test_card_privacy.py
+
+      - name: Run hand analytics PostgreSQL 18 integration smoke test
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/jj_arena_ci
+        run: python smoke_test_hand_analytics_postgres_v2.py
 
       - name: Run prior v1.18.6 regression smoke test
         run: python smoke_test_v186.py
