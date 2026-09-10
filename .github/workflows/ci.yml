@@ -52,7 +52,7 @@ jobs:
         run: |
           python -m py_compile app.py admin_copy_patch.py
           python -m py_compile operations_learning.py operations_learning_hardening.py resilience.py
-          python -m py_compile quiz_readability.py v50_patch.py smoke_test_v122.py smoke_test_v190.py
+          python -m py_compile quiz_readability.py v50_patch.py smoke_test_v122.py smoke_test_v190.py smoke_test_quiz_readability_refresh.py
           python -m py_compile v49_compat_patch.py v49_patch.py v49_post_patch.py smoke_test_v121.py
           python -m py_compile daily_quiz.py quiz_bank.py v48_patch.py
           python -m py_compile mobile_poker_hotfix.py
@@ -86,6 +86,9 @@ jobs:
 
       - name: Run v1.22 current-runtime regression
         run: python smoke_test_v122.py
+
+      - name: Run same-day quiz readability refresh regression
+        run: python smoke_test_quiz_readability_refresh.py
 
       - name: Run Render production smoke command
         run: python smoke_test_v190.py
