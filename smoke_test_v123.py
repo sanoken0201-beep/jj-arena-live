@@ -19,16 +19,16 @@ def load_engine(root: Path):
 
 def test_no_flop_no_drop(engine) -> None:
     original_finish = engine._jj_v123_base_finish_hand
-    original_rake = engine._apply_rake_from_pot
+    original_award = engine._jj_v123_base_award_uncontested
     try:
         engine._jj_v123_base_finish_hand = lambda state, winner: state.update(
             {"status": "waiting", "last_result": {"type": "uncontested", "winner": winner}}
         )
 
-        def forbidden_rake(*_args, **_kwargs):
-            raise AssertionError("preflop uncontested pot must not call rake")
+        def forbidden_legacy_award(_state):
+            raise AssertionError("preflop uncontested pot must bypass legacy rake settlement")
 
-        engine._apply_rake_from_pot = forbidden_rake
+        engine._jj_v123_base_award_uncontested = forbidden_legacy_award
         state = {
             "status": "playing",
             "big_blind": 100,
@@ -51,10 +51,10 @@ def test_no_flop_no_drop(engine) -> None:
             {"user_id": 1, "name": "アリス", "seat": 0, "stack": 900, "contributed": 200, "round_bet": 100, "in_hand": True, "folded": False, "all_in": False},
         ]
         engine._award_uncontested(postflop)
-        assert delegated["value"], "postflop rake path must remain delegated to established engine"
+        assert delegated["value"], "postflop settlement must remain delegated to the established rake path"
     finally:
         engine._jj_v123_base_finish_hand = original_finish
-        engine._apply_rake_from_pot = original_rake
+        engine._jj_v123_base_award_uncontested = original_award
 
 
 def test_staged_allin_runout(engine) -> None:
