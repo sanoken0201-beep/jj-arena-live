@@ -15,7 +15,7 @@ def main() -> None:
     with isolated_production_app() as production, patch.object(dq, "utc_now") as clock:
         clock.return_value = datetime(2026, 9, 11, 3, 0, 0, tzinfo=timezone.utc)
         with TestClient(production.app) as client:
-            uid = login(client, "読みやすさ確認", "123456")["id"]
+            uid = login(client, "ヨミヤスサ", "123456")["id"]
             q1 = json_response(client.get("/api/quiz/question"))
             assert q1["slot"] == 1
             assert "glossary" in q1
