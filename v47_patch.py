@@ -17,13 +17,29 @@ def _server(path: Path) -> None:
     text = text.replace('"version":"1.20.1"', '"version":"1.20.2"')
     text = text.replace('request.url.query == "v=46"', 'request.url.query == "v=47"')
 
-    # Timeout processing must never fail silently. Log only the exception type
-    # to avoid accidentally printing request/session data.
-    old_timeout = '''        except Exception:\n            pass\n\n\n@app.websocket("/ws/tables/{table_id}")'''
-    new_timeout = '''        except Exception as exc:\n            print(f"JJ_TIMEOUT_LOOP_ERROR {type(exc).__name__}")\n\n\n@app.websocket("/ws/tables/{table_id}")'''
-    if old_timeout not in text:
-        raise RuntimeError("v1.20.2 timeout-loop target missing")
-    text = text.replace(old_timeout, new_timeout, 1)
+    # Timeout processing must never fail silently. Patch only the final generic
+    # catch inside timeout_loop so earlier nested recovery behavior is preserved,
+    # and tolerate harmless whitespace/patch-chain changes from older releases.
+    timeout_start = text.find("async def timeout_loop():")
+    websocket_start = text.find('@app.websocket("/ws/tables/{table_id}")', timeout_start)
+    if timeout_start < 0 or websocket_start < 0:
+        raise RuntimeError("v1.20.2 timeout-loop boundaries missing")
+    timeout_block = text[timeout_start:websocket_start]
+    silent_pattern = re.compile(r"(?m)^(\s*)except Exception:\s*\n\1    pass\s*$")
+    silent_matches = list(silent_pattern.finditer(timeout_block))
+    if silent_matches:
+        match = silent_matches[-1]
+        indent = match.group(1)
+        replacement = (
+            f'{indent}except Exception as exc:\n'
+            f'{indent}    print(f"JJ_TIMEOUT_LOOP_ERROR {{type(exc).__name__}}")'
+        )
+        timeout_block = timeout_block[:match.start()] + replacement + timeout_block[match.end():]
+        text = text[:timeout_start] + timeout_block + text[websocket_start:]
+    elif "JJ_TIMEOUT_LOOP_ERROR" not in timeout_block:
+        # Some earlier patch may already have replaced the silent catch. In that
+        # case, do not guess/rewrite unrelated exception handling.
+        print("JJ_V1202_TIMEOUT_DIAGNOSTIC_ALREADY_NON_SILENT")
 
     # Session tokens in WebSocket query strings can be exposed in browser
     # history, reverse-proxy access logs, tracing systems and copied URLs.
