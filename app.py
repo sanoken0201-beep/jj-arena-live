@@ -21,6 +21,7 @@ import learning_content
 import daily_quiz
 import online_results_cleanup
 import operations_learning
+import operations_learning_hardening
 import resilience
 from runtime_builder import build_runtime
 
@@ -75,5 +76,6 @@ daily_quiz.install(app, runtime_server, db)
 hand_analytics.install(app, runtime_server, db)
 hand_analytics_hardening.install(hand_analytics, runtime_server)
 operations_learning.install(app, runtime_server, db, hand_analytics, daily_quiz, learning_content, admin_console)
+operations_learning_hardening.apply(operations_learning, db, hand_analytics)
 resilience.install(app, runtime_server, db, admin_console)
 _prioritize_extension_routes(app)
