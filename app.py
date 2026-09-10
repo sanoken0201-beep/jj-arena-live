@@ -1,4 +1,4 @@
-"""Production entrypoint for JJ Arena Live v1.19.1.
+"""Production entrypoint for JJ Arena Live v1.19.2.
 
 The application runtime is reconstructed deterministically by runtime_builder.py
 from the verified v1.4 release bundle plus the ordered patch chain. Keep this
@@ -14,6 +14,7 @@ from pathlib import Path
 
 import admin_copy_patch
 import admin_ledger_stabilization
+import learning_content
 import online_results_cleanup
 from runtime_builder import build_runtime
 
@@ -33,30 +34,30 @@ import admin_console  # noqa: E402
 import db  # noqa: E402
 from admin_delete import install_account_deletion  # noqa: E402
 
-# One-time data migration requested for the current ranking cleanup. It deletes
-# only online_hand_results that existed before this deployment; the DB marker
-# prevents any later restart from deleting newly generated online results.
+# One-time data migration requested for the online-ranking cleanup. The marker
+# makes this a no-op on all subsequent production restarts.
 online_results_cleanup.apply(db)
 
 
-def _prioritize_admin_routes(fastapi_app) -> None:
-    """Move administrator routes ahead of the legacy SPA catch-all."""
+def _prioritize_extension_routes(fastapi_app) -> None:
+    """Move extension/API routes ahead of the reconstructed SPA catch-all."""
     routes = list(fastapi_app.router.routes)
 
-    def is_admin_route(route) -> bool:
+    def is_extension_route(route) -> bool:
         path = str(getattr(route, "path", "") or "")
         return (
-            path in {"/admin", "/admin/"}
+            path in {"/admin", "/admin/", "/api/learning-content"}
             or path.startswith("/admin-static")
             or path.startswith("/api/admin/console")
         )
 
-    admin_routes = [route for route in routes if is_admin_route(route)]
-    other_routes = [route for route in routes if not is_admin_route(route)]
-    fastapi_app.router.routes[:] = admin_routes + other_routes
+    extension_routes = [route for route in routes if is_extension_route(route)]
+    other_routes = [route for route in routes if not is_extension_route(route)]
+    fastapi_app.router.routes[:] = extension_routes + other_routes
 
 
 admin_console.install_admin_console(app)
 admin_ledger_stabilization.install(app, admin_console)
 install_account_deletion(app)
-_prioritize_admin_routes(app)
+learning_content.install(app)
+_prioritize_extension_routes(app)
