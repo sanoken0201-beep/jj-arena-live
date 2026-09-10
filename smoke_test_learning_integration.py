@@ -31,7 +31,7 @@ ROOT = Path(__file__).resolve().parent
 
 
 @contextmanager
-def isolated_production_app():
+def isolated_production_app(database_url=""):
     modules = (
         "app", "server", "db", "poker_engine", "admin_console", "admin_delete",
         "admin_pin_verification", "admin_ledger_stabilization", "learning_content",
@@ -49,7 +49,7 @@ def isolated_production_app():
             apply_admin_copy = admin_copy_patch.apply
             with (
                 patch.dict(os.environ, {
-                    "DATABASE_URL": "",
+                    "DATABASE_URL": database_url,
                     "JJ_DB_PATH": str(work / "learning.sqlite3"),
                     "JJ_ADMIN_NAME": "ケンイチロウ",
                     "JJ_ADMIN_PIN": "654321",
@@ -61,7 +61,7 @@ def isolated_production_app():
                 production = importlib.import_module("app")
                 assert production.DEST == work / "runtime"
                 assert production.db.DB_PATH == work / "learning.sqlite3"
-                assert not production.db.IS_POSTGRES
+                assert production.db.IS_POSTGRES == bool(database_url)
                 yield production
     finally:
         sys.path[:] = previous_path

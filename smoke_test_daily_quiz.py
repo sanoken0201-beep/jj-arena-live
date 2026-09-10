@@ -59,19 +59,9 @@ def test_app(postgres):
     url = os.environ.get('DATABASE_URL', '')
     parsed = urlsplit(url)
     assert parsed.hostname in ('127.0.0.1', 'localhost') and parsed.path == '/jj_arena_ci', 'Only local disposable CI database allowed'
-    # Reuse the ordinary runtime adapter, with no destructive database reset.
-    import tempfile
-    from pathlib import Path
-    from runtime_builder import build_runtime
-    with tempfile.TemporaryDirectory(prefix='jj-quiz-pg-') as directory:
-        runtime = build_runtime(Path(directory)/'runtime')
-        sys.path.insert(0, str(runtime))
-        import server
-        import db
-        assert db.IS_POSTGRES
-        dq.install(server.app, server, db)
-        server.app.router.routes.sort(key=lambda r: not str(getattr(r, 'path', '')).startswith(('/api/quiz/', '/api/admin/console/quiz-stats')))
-        yield server.app, db
+    # Exercise the full production entrypoint, including point-ledger schema.
+    with isolated_production_app(url) as production:
+        yield production.app, production.db
 
 
 def run(postgres=False):
