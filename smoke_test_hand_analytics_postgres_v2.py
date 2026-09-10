@@ -92,13 +92,15 @@ def run() -> None:
             assert str(hand["result_type"]) == "uncontested"
 
             rows = con.execute(
-                "SELECT user_id,position,net_bb FROM jj_hand_players WHERE hand_id=? ORDER BY seat",
+                "SELECT user_id,position,starting_stack,ending_stack,net_chips,net_bb FROM jj_hand_players WHERE hand_id=? ORDER BY seat",
                 (hand_id,),
             ).fetchall()
             by_uid = {int(row["user_id"]): dict(row) for row in rows}
+            print("PG_NET_DEBUG", {uid: {k: row[k] for k in ("position", "starting_stack", "ending_stack", "net_chips", "net_bb")} for uid, row in by_uid.items()})
             assert by_uid[alice]["position"] == "BTN/SB"
-            assert float(by_uid[alice]["net_bb"]) == -0.5
-            assert float(by_uid[bob]["net_bb"]) == 0.5
+            assert float(by_uid[alice]["net_bb"]) == -0.5, by_uid[alice]
+            assert float(by_uid[bob]["net_bb"]) == 0.5, by_uid[bob]
+            assert int(by_uid[alice]["net_chips"]) + int(by_uid[bob]["net_chips"]) == 0, by_uid
 
             actions = con.execute(
                 "SELECT user_id,street,action FROM jj_hand_actions WHERE hand_id=? ORDER BY seq",
