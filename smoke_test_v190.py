@@ -22,8 +22,12 @@ css = (DEST / "static" / "styles.css").read_text(encoding="utf-8")
 index = (DEST / "static" / "index.html").read_text(encoding="utf-8")
 sw = (DEST / "static" / "sw.js").read_text(encoding="utf-8")
 
-assert RUNTIME_VERSION == "1.20.2"
-assert 'version="1.20.2"' in server or '"version":"1.20.2"' in server
+assert RUNTIME_VERSION == "1.20.3"
+from daily_quiz import build_daily_questions
+from quiz_bank import POOLS
+assert len(POOLS) == 10 and all(len(pool) == 16 for pool in POOLS.values())
+assert len(build_daily_questions('2026-09-11')) == 10
+assert 'version="1.20.2"' in server or '"version":"1.20.3"' in server
 
 # Quiz/ledger regression coverage from v1.18.6.
 assert 'JJ_QUIZ_REWARD = 10' in server
@@ -124,9 +128,9 @@ timeout_start = server.index('async def timeout_loop():')
 timeout_end = server.index('@app.websocket("/ws/tables/{table_id}")', timeout_start)
 timeout_block = server[timeout_start:timeout_end]
 assert 'except Exception:\n            pass' not in timeout_block
-assert '?v=47-ja1' in index
-assert 'jj-arena-live-v47-ja1' in sw
-assert 'request.url.query == "v=47-ja1"' in server
+assert '?v=48' in index
+assert 'jj-arena-live-v48' in sw
+assert 'request.url.query == "v=48"' in server
 
 # Learning-content outbound security policy.
 fallback = learning_content._fallback_payload()
@@ -208,7 +212,7 @@ with cleanup_db.connect() as con:
 
 # Production extension wiring.
 app_source = (ROOT / "app.py").read_text(encoding="utf-8")
-assert 'Production entrypoint for JJ Arena Live v1.20.2' in app_source
+assert 'Production entrypoint for JJ Arena Live v1.20.3' in app_source
 assert 'from runtime_builder import build_runtime' in app_source
 assert 'DEST = build_runtime()' in app_source
 assert 'online_results_cleanup.apply(db)' in app_source

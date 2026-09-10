@@ -49,6 +49,7 @@ jobs:
       - name: Compile production entrypoint and patches
         run: |
           python -m py_compile app.py
+          python -m py_compile daily_quiz.py quiz_bank.py v48_patch.py
           python -m py_compile hand_analytics.py
           python -m py_compile hand_analytics_hardening.py
           python -m py_compile v47_patch.py
@@ -72,12 +73,21 @@ jobs:
           RUNTIME="$(python -c 'from runtime_builder import build_runtime; print(build_runtime())')"
           node --check "$RUNTIME/static/app.js"
           node smoke_test_learning_ui.js "$RUNTIME/static/app.js"
+          node smoke_test_daily_quiz_ui.js "$RUNTIME/static/app.js"
 
       - name: Run latest reconstruction smoke test
         run: python smoke_test_v190.py
 
       - name: Run article sharing and core API integration regression
         run: python smoke_test_learning_integration.py
+
+      - name: Run daily quiz SQLite concurrency and rollover regression
+        run: python smoke_test_daily_quiz.py
+
+      - name: Run daily quiz PostgreSQL 18 concurrency and rollover regression
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/jj_arena_ci
+        run: python smoke_test_daily_quiz.py --postgres
 
       - name: Run WebSocket authentication security smoke test
         run: python smoke_test_websocket_auth.py
