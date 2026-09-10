@@ -44,6 +44,7 @@ import v47_patch
 import v48_patch
 import v49_compat_patch
 import v49_patch
+import v49_post_patch
 
 ROOT = Path(__file__).resolve().parent
 RELEASE_DIR = ROOT / "release_v14"
@@ -117,6 +118,7 @@ def _apply_patches(dest: Path) -> None:
         v48_patch,
         v49_compat_patch,
         v49_patch,
+        v49_post_patch,
     ):
         module.apply(dest)
     mobile_poker_hotfix.apply(dest)
