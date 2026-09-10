@@ -4,9 +4,28 @@ from pathlib import Path
 
 
 def apply(root: Path) -> None:
+    _engine(root / "poker_engine.py")
     _server(root / "server.py")
     _app(root / "static" / "app.js")
     _styles(root / "static" / "styles.css")
+
+
+def _engine(path: Path) -> None:
+    text = path.read_text(encoding="utf-8")
+    marker = "v1.23.0 occupied-seat compatibility"
+    if marker in text:
+        return
+    addon = r'''
+
+# v1.23.0 occupied-seat compatibility.
+# The reconstructed production engine represents occupied seats directly in the
+# table state's `seats` list. v1.23's final wrappers use one small accessor so
+# every seat traversal is safe even though older runtimes never exposed a helper
+# named `_occupied`.
+def _occupied(state: dict) -> list[dict]:
+    return list(state.get("seats") or [])
+'''
+    path.write_text(text.rstrip() + addon + "\n", encoding="utf-8")
 
 
 def _server(path: Path) -> None:
