@@ -9,38 +9,57 @@ def apply(root: Path) -> None:
 
 def _poker(path: Path) -> None:
     text = path.read_text(encoding="utf-8")
-    marker = '# v1.20.0 completed-hand card privacy'
+    marker = "# v1.20.0 completed-hand card privacy"
     if marker in text:
         return
 
-    old_head = '''def public_state(state: dict[str, Any], viewer_id: int | None = None) -> dict[str, Any]:
-    out = {k: v for k, v in state.items() if k not in ("seats", "hand")}; reveal_all = bool(state.get("hand") and state["hand"].get("phase") == "complete"); out["seats"] = []
-'''
-    new_head = '''def public_state(state: dict[str, Any], viewer_id: int | None = None) -> dict[str, Any]:
-    # v1.20.0 completed-hand card privacy
-    # A completed hand does not make every folded hand public. Only the viewer's
-    # own cards and players who actually reached showdown are disclosed.
-    out = {k: v for k, v in state.items() if k not in ("seats", "hand")}
-    showdown_scores = ((state.get("hand") or {}).get("showdown") or {}).get("scores") or {}
-    showdown_ids = {int(uid) for uid in showdown_scores.keys()}
-    out["seats"] = []
-'''
-    if old_head not in text:
-        raise RuntimeError('v1.20.0 public_state header target missing')
-    text = text.replace(old_head, new_head, 1)
+    # Append a final wrapper rather than rewriting an older implementation of
+    # public_state. Earlier release patches may wrap/replace that function, so a
+    # final sanitizing layer is safer and keeps every other public-state field
+    # exactly as the verified runtime produced it.
+    addon = r'''
 
-    old_condition = '''        if p["user_id"] == viewer_id or reveal_all: item["cards"] = list(p.get("cards", []))
-        elif p.get("in_hand"): item["cards"] = ["??", "??"]
-        else: item["cards"] = []
-'''
-    new_condition = '''        if p["user_id"] == viewer_id or int(p["user_id"]) in showdown_ids:
-            item["cards"] = list(p.get("cards", []))
-        elif p.get("in_hand"):
-            item["cards"] = ["??", "??"]
+# v1.20.0 completed-hand card privacy
+# Never reveal a mucked/folded opponent hand just because the hand reached the
+# complete state. The viewer always sees their own cards; other players' cards
+# are disclosed only when that player actually reached showdown.
+_jj_v120_public_state_before_privacy = public_state
+
+
+def public_state(state: dict[str, Any], viewer_id: int | None = None) -> dict[str, Any]:
+    out = _jj_v120_public_state_before_privacy(state, viewer_id)
+    hand = state.get("hand") or {}
+    scores = ((hand.get("showdown") or {}).get("scores") or {})
+    showdown_ids: set[int] = set()
+    for raw_uid in scores.keys():
+        try:
+            showdown_ids.add(int(raw_uid))
+        except (TypeError, ValueError):
+            continue
+
+    private_by_uid = {}
+    for player in state.get("seats", []):
+        try:
+            uid = int(player.get("user_id"))
+        except (TypeError, ValueError):
+            continue
+        private_by_uid[uid] = player
+
+    for item in out.get("seats", []):
+        try:
+            uid = int(item.get("user_id"))
+        except (TypeError, ValueError):
+            item["cards"] = []
+            continue
+        private = private_by_uid.get(uid) or {}
+        if viewer_id is not None and uid == int(viewer_id):
+            item["cards"] = list(private.get("cards") or [])
+        elif uid in showdown_ids:
+            item["cards"] = list(private.get("cards") or [])
+        elif bool(private.get("in_hand")):
+            item["cards"] = ["??", "??"] if private.get("cards") else []
         else:
             item["cards"] = []
+    return out
 '''
-    if old_condition not in text:
-        raise RuntimeError('v1.20.0 public_state reveal target missing')
-    text = text.replace(old_condition, new_condition, 1)
-    path.write_text(text, encoding="utf-8")
+    path.write_text(text.rstrip() + addon + "\n", encoding="utf-8")
