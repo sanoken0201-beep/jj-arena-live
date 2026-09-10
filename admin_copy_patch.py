@@ -3,7 +3,7 @@ import re
 from pathlib import Path
 
 
-ADMIN_ASSET_VERSION = "184"
+ADMIN_ASSET_VERSION = "185"
 
 
 def apply(static_dir: Path) -> None:
@@ -22,6 +22,9 @@ def _index(p: Path) -> None:
       ('管理者による1回の振込・回収上限','管理者による1回の付与・回収上限'),
       ('通常は利用停止で管理できます。','通常は一時停止で管理できます。'),
       ('利用停止を含む','一時停止を含む'),
+      ('<th>Account</th><th>Status</th><th>Ranking</th><th>後期Pt</th><th>Session</th><th></th>',
+       '<th>アカウント</th><th>状態</th><th>ランキング</th><th>後期Pt</th><th>ログイン</th><th>操作</th>'),
+      ('1bb あたりのポイント','1 BB あたりのポイント'),
     ]
     for old,new in replacements:s=s.replace(old,new)
 
@@ -32,18 +35,29 @@ def _index(p: Path) -> None:
             s,
         )
 
-    pin_css=f'<link rel="stylesheet" href="/admin-static/admin_pin_verify.css?v={ADMIN_ASSET_VERSION}">'
-    pin_js=f'<script src="/admin-static/admin_pin_verify.js?v={ADMIN_ASSET_VERSION}"></script>'
-    if 'admin_pin_verify.css' not in s:
-        if '</head>' not in s:raise RuntimeError('admin head marker missing')
-        s=s.replace('</head>',pin_css+'\n</head>',1)
-    else:
-        s=re.sub(r'/admin-static/admin_pin_verify\.css(?:\?v=\d+)?',f'/admin-static/admin_pin_verify.css?v={ADMIN_ASSET_VERSION}',s)
-    if 'admin_pin_verify.js' not in s:
-        if '</body>' not in s:raise RuntimeError('admin body marker missing')
-        s=s.replace('</body>',pin_js+'\n</body>',1)
-    else:
-        s=re.sub(r'/admin-static/admin_pin_verify\.js(?:\?v=\d+)?',f'/admin-static/admin_pin_verify.js?v={ADMIN_ASSET_VERSION}',s)
+    css_assets=(
+        ('admin_pin_verify.css','admin_pin_verify.css'),
+        ('admin_ui_foundation.css','admin_ui_foundation.css'),
+    )
+    for marker,asset in css_assets:
+        tag=f'<link rel="stylesheet" href="/admin-static/{asset}?v={ADMIN_ASSET_VERSION}">'
+        if marker not in s:
+            if '</head>' not in s:raise RuntimeError('admin head marker missing')
+            s=s.replace('</head>',tag+'\n</head>',1)
+        else:
+            s=re.sub(rf'/admin-static/{re.escape(asset)}(?:\?v=\d+)?',f'/admin-static/{asset}?v={ADMIN_ASSET_VERSION}',s)
+
+    js_assets=(
+        ('admin_pin_verify.js','admin_pin_verify.js'),
+        ('admin_ui_foundation.js','admin_ui_foundation.js'),
+    )
+    for marker,asset in js_assets:
+        tag=f'<script src="/admin-static/{asset}?v={ADMIN_ASSET_VERSION}"></script>'
+        if marker not in s:
+            if '</body>' not in s:raise RuntimeError('admin body marker missing')
+            s=s.replace('</body>',tag+'\n</body>',1)
+        else:
+            s=re.sub(rf'/admin-static/{re.escape(asset)}(?:\?v=\d+)?',f'/admin-static/{asset}?v={ADMIN_ASSET_VERSION}',s)
     p.write_text(s,encoding='utf-8')
 
 
@@ -55,7 +69,8 @@ def _js(p: Path) -> None:
       ('本人確認が未完了のアカウント','JJメンバー確認が未完了のアカウント'),
       ("u.club_verified?'チェック済'","u.club_verified?'JJ確認済'"),
       ("u.club_verified?'<span class=\"badge verify\">確認済</span>'","u.club_verified?'<span class=\"badge verify\">JJ確認済</span>'"),
-      ("${u.disabled?'利用停止':'ACTIVE'}","${u.disabled?'一時停止中':'ACTIVE'}"),
+      ("${u.disabled?'利用停止':'ACTIVE'}","${u.disabled?'一時停止中':'利用中'}"),
+      ("${u.disabled?'一時停止中':'ACTIVE'}","${u.disabled?'一時停止中':'利用中'}"),
       ("${u.disabled?'利用を再開':'利用を停止'}","${u.disabled?'利用を再開':'一時停止'}"),
       ('このアカウントを利用停止にします。既存セッションも失効します。','このアカウントを一時停止します。既存セッションも失効します。'),
       ("disabled?'利用停止にしました':'利用を再開しました'","disabled?'一時停止しました':'利用を再開しました'"),
