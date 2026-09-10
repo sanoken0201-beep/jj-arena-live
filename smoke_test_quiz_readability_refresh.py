@@ -7,6 +7,7 @@ from unittest.mock import patch
 from fastapi.testclient import TestClient
 
 import daily_quiz as dq
+from quiz_readability import PLAIN_CATEGORY_LABELS
 from smoke_test_learning_integration import isolated_production_app, json_response, login
 
 
@@ -33,7 +34,7 @@ def main() -> None:
             q2 = json_response(client.get("/api/quiz/question"))
             assert q2["id"] == q1["id"]
             assert q2["prompt"] != "STALE UNREADABLE QUESTION"
-            assert q2["category_label"] == dq.PLAIN_CATEGORY_LABELS[q2["category"]] if hasattr(dq, "PLAIN_CATEGORY_LABELS") else True
+            assert q2["category_label"] == PLAIN_CATEGORY_LABELS[q2["category"]]
 
             with production.db.connect() as con:
                 daily = con.execute("SELECT bank_version FROM quiz_daily_sets WHERE quiz_date=?", (q2["date"],)).fetchone()
