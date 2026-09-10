@@ -41,31 +41,35 @@ def _app(path: Path) -> None:
   // 100-chip big blind was shown as 2,500bb instead of 25bb. Keep the action
   // request unchanged and fix presentation through the existing raw-chip -> BB
   // converter used elsewhere in the table UI.
-  const jjMobileHotfixRenderActionBar=renderActionBar;
-  renderActionBar=function(){
-    jjMobileHotfixRenderActionBar();
-    const l=tableState?.legal||{};
-    if(!l.can_act||l.can_check)return;
-    const callLabel=bb(Number(l.call_amount||0));
-    const callButton=$('#actionBar .jj-call b');
-    if(callButton)callButton.textContent=`コール ${callLabel}`;
-    const contextAmount=$('#actionBar .jj-action-context b');
-    if(contextAmount&&Number(l.call_amount||0)>0)contextAmount.textContent=`コール額 ${callLabel}`;
-  };
+  if(typeof renderActionBar==='function'){
+    const jjMobileHotfixRenderActionBar=renderActionBar;
+    renderActionBar=function(){
+      jjMobileHotfixRenderActionBar();
+      const l=tableState?.legal||{};
+      if(!l.can_act||l.can_check)return;
+      const callLabel=bb(Number(l.call_amount||0));
+      const callButton=$('#actionBar .jj-call b');
+      if(callButton)callButton.textContent=`コール ${callLabel}`;
+      const contextAmount=$('#actionBar .jj-action-context b');
+      if(contextAmount&&Number(l.call_amount||0)>0)contextAmount.textContent=`コール額 ${callLabel}`;
+    };
+  }
 
   // Portrait geometry: the generic seat-to-center interpolation puts the hero
   // blind/bet marker directly over the enlarged hero hole cards and puts the
   // 12-o'clock marker too close to the community cards. Move only those two
   // high-risk positions; the four side seats retain the established geometry.
-  const jjMobileHotfixBetPos=jjBetPos;
-  jjBetPos=function(actual){
-    const p=jjMobileHotfixBetPos(actual);
-    if(!window.matchMedia('(max-width:760px) and (orientation:portrait)').matches)return p;
-    const visual=jjVisualIndex(actual);
-    if(visual===0)return {left:p.left,top:56.5};
-    if(visual===3)return {left:p.left,top:27};
-    return p;
-  };
+  if(typeof jjBetPos==='function' && typeof jjVisualIndex==='function'){
+    const jjMobileHotfixBetPos=jjBetPos;
+    jjBetPos=function(actual){
+      const p=jjMobileHotfixBetPos(actual);
+      if(!window.matchMedia('(max-width:760px) and (orientation:portrait)').matches)return p;
+      const visual=jjVisualIndex(actual);
+      if(visual===0)return {left:p.left,top:56.5};
+      if(visual===3)return {left:p.left,top:27};
+      return p;
+    };
+  }
 '''
     path.write_text(text[:pos] + addon + text[pos:], encoding="utf-8")
 
