@@ -4,20 +4,12 @@ from pathlib import Path
 
 
 def apply(root: Path) -> None:
-    _server(root / "server.py")
     _poker(root / "poker_engine.py")
-
-
-def _server(path: Path) -> None:
-    text = path.read_text(encoding="utf-8")
-    text = text.replace('version="1.20.0"', 'version="1.20.1"')
-    text = text.replace('"version":"1.20.0"', '"version":"1.20.1"')
-    path.write_text(text, encoding="utf-8")
 
 
 def _poker(path: Path) -> None:
     text = path.read_text(encoding="utf-8")
-    marker = '# v1.20.1 completed-hand card privacy'
+    marker = '# v1.20.0 completed-hand card privacy'
     if marker in text:
         return
 
@@ -25,7 +17,7 @@ def _poker(path: Path) -> None:
     out = {k: v for k, v in state.items() if k not in ("seats", "hand")}; reveal_all = bool(state.get("hand") and state["hand"].get("phase") == "complete"); out["seats"] = []
 '''
     new_head = '''def public_state(state: dict[str, Any], viewer_id: int | None = None) -> dict[str, Any]:
-    # v1.20.1 completed-hand card privacy
+    # v1.20.0 completed-hand card privacy
     # A completed hand does not make every folded hand public. Only the viewer's
     # own cards and players who actually reached showdown are disclosed.
     out = {k: v for k, v in state.items() if k not in ("seats", "hand")}
@@ -34,7 +26,7 @@ def _poker(path: Path) -> None:
     out["seats"] = []
 '''
     if old_head not in text:
-        raise RuntimeError('v1.20.1 public_state header target missing')
+        raise RuntimeError('v1.20.0 public_state header target missing')
     text = text.replace(old_head, new_head, 1)
 
     old_condition = '''        if p["user_id"] == viewer_id or reveal_all: item["cards"] = list(p.get("cards", []))
@@ -49,6 +41,6 @@ def _poker(path: Path) -> None:
             item["cards"] = []
 '''
     if old_condition not in text:
-        raise RuntimeError('v1.20.1 public_state reveal target missing')
+        raise RuntimeError('v1.20.0 public_state reveal target missing')
     text = text.replace(old_condition, new_condition, 1)
     path.write_text(text, encoding="utf-8")
