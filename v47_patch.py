@@ -18,8 +18,7 @@ def _server(path: Path) -> None:
     text = text.replace('request.url.query == "v=46"', 'request.url.query == "v=47"')
 
     # Timeout processing must never fail silently. Patch only the final generic
-    # catch inside timeout_loop so earlier nested recovery behavior is preserved,
-    # and tolerate harmless whitespace/patch-chain changes from older releases.
+    # catch inside timeout_loop so earlier nested recovery behavior is preserved.
     timeout_start = text.find("async def timeout_loop():")
     websocket_start = text.find('@app.websocket("/ws/tables/{table_id}")', timeout_start)
     if timeout_start < 0 or websocket_start < 0:
@@ -36,22 +35,17 @@ def _server(path: Path) -> None:
         )
         timeout_block = timeout_block[:match.start()] + replacement + timeout_block[match.end():]
         text = text[:timeout_start] + timeout_block + text[websocket_start:]
-    elif "JJ_TIMEOUT_LOOP_ERROR" not in timeout_block:
-        # Some earlier patch may already have replaced the silent catch. In that
-        # case, do not guess/rewrite unrelated exception handling.
-        print("JJ_V1202_TIMEOUT_DIAGNOSTIC_ALREADY_NON_SILENT")
 
-    # Session tokens in WebSocket query strings can be exposed in browser
-    # history, reverse-proxy access logs, tracing systems and copied URLs.
-    # Authenticate using the first WSS message instead. No table state is sent
-    # before authentication succeeds.
+    # The PIN login flow already issues a server-managed session cookie. Use the
+    # same request_token helper for WebSocket handshakes instead of copying the
+    # bearer token into a URL or exposing the HttpOnly cookie value to JS.
     pattern = re.compile(
         r'@app\.websocket\("/ws/tables/\{table_id\}"\)\n'
         r'async def table_ws\(ws: WebSocket, table_id: str\):\n'
         r'.*?\n\n\napp\.mount\("/static",',
         re.DOTALL,
     )
-    replacement = '''@app.websocket("/ws/tables/{table_id}")\nasync def table_ws(ws: WebSocket, table_id: str):\n    await ws.accept()\n    try:\n        raw = await asyncio.wait_for(ws.receive_text(), timeout=5.0)\n        if len(raw) > 4096:\n            raise ValueError("auth frame too large")\n        payload = json.loads(raw)\n        if not isinstance(payload, dict):\n            raise ValueError("auth frame must be an object")\n        token = str(payload.get("token") or "") if payload.get("type") == "auth" else ""\n        if not token or len(token) > 512:\n            raise ValueError("invalid auth token")\n    except (asyncio.TimeoutError, json.JSONDecodeError, TypeError, ValueError):\n        await ws.close(code=4401)\n        return\n\n    user = db.get_user_by_token(token)\n    if not user:\n        await ws.close(code=4401)\n        return\n    if int(user.get("disabled") or 0):\n        await ws.close(code=4403)\n        return\n    try:\n        state = load_table(table_id)\n    except HTTPException:\n        await ws.close(code=4404)\n        return\n\n    await hub.add(table_id, ws, user["id"])\n    try:\n        await ws.send_json({"type":"state","state":public_state(state,user["id"]),"messages":get_messages(table_id)})\n        while True:\n            message = await ws.receive_text()\n            if message == "ping":\n                continue\n    except WebSocketDisconnect:\n        pass\n    except Exception as exc:\n        print(f"JJ_WS_CONNECTION_ERROR {type(exc).__name__}")\n    finally:\n        hub.remove(table_id, ws)\n\n\napp.mount("/static",'''
+    replacement = '''@app.websocket("/ws/tables/{table_id}")\nasync def table_ws(ws: WebSocket, table_id: str):\n    await ws.accept()\n\n    # Browser WebSockets send Origin. Reject an explicit cross-origin handshake\n    # before reading any authenticated table state. Non-browser clients without\n    # Origin are still permitted for health/testing compatibility.\n    origin = str(ws.headers.get("origin") or "").rstrip("/")\n    host = str(ws.headers.get("host") or "").strip()\n    if origin and host and origin not in {f"https://{host}", f"http://{host}"}:\n        await ws.close(code=4403)\n        return\n\n    token = request_token(ws)\n    user = db.get_user_by_token(token)\n    if not user:\n        await ws.close(code=4401)\n        return\n    if int(user.get("disabled") or 0):\n        await ws.close(code=4403)\n        return\n    try:\n        state = load_table(table_id)\n    except HTTPException:\n        await ws.close(code=4404)\n        return\n\n    await hub.add(table_id, ws, user["id"])\n    try:\n        await ws.send_json({"type":"state","state":public_state(state,user["id"]),"messages":get_messages(table_id)})\n        while True:\n            message = await ws.receive_text()\n            if message == "ping":\n                continue\n    except WebSocketDisconnect:\n        pass\n    except Exception as exc:\n        print(f"JJ_WS_CONNECTION_ERROR {type(exc).__name__}")\n    finally:\n        hub.remove(table_id, ws)\n\n\napp.mount("/static",'''
     text, count = pattern.subn(replacement, text, count=1)
     if count != 1:
         raise RuntimeError(f"v1.20.2 websocket handler target mismatch: {count}")
@@ -64,42 +58,23 @@ def _app(path: Path) -> None:
     if marker in text:
         return
 
-    # Earlier UI patches can change whitespace and surrounding statements, so
-    # remove only the token query fragment attached to the table-id template.
-    # Do not depend on the complete connectTable line staying byte-identical.
+    # Remove the bearer-token query fragment without depending on the complete
+    # connectTable line. Existing same-origin session cookies are automatically
+    # included in the WebSocket handshake by the browser.
     ws_query_pattern = re.compile(
         r'(\$\{encodeURIComponent\(id\)\})\?token=\$\{[^}]+\}'
     )
     text, removed = ws_query_pattern.subn(r'\1', text, count=1)
     if removed != 1:
-        # If a prior patch already removed it, accept only when the table socket
-        # still exists and no token query remains anywhere on that URL path.
         if "/ws/tables/${encodeURIComponent(id)}" not in text or re.search(
             r'/ws/tables/[^`\n]*\?token=', text
         ):
             raise RuntimeError(f"v1.20.2 websocket query-token target mismatch: {removed}")
 
-    # Insert first-frame authentication at the beginning of the socket onopen
-    # callback, independent of the rest of its formatting/content.
-    open_pattern = re.compile(r'tableWS\.onopen\s*=\s*\(\)\s*=>\s*\{')
-    if not open_pattern.search(text):
-        raise RuntimeError("v1.20.2 websocket onopen target missing")
-    text, opened = open_pattern.subn(
-        lambda m: m.group(0) + "tableWS.send(JSON.stringify({type:'auth',token}));",
-        text,
-        count=1,
-    )
-    if opened != 1:
-        raise RuntimeError(f"v1.20.2 websocket onopen target mismatch: {opened}")
-
-    # Postconditions: session token must not remain in a WebSocket URL and the
-    # first-frame auth send must exist exactly once.
     if re.search(r'/ws/tables/[^`\n]*\?token=', text):
         raise RuntimeError("v1.20.2 websocket token query remains after patch")
-    if text.count("JSON.stringify({type:'auth',token})") != 1:
-        raise RuntimeError("v1.20.2 websocket auth send count mismatch")
 
-    insert = "\n  // v1.20.2 websocket token privacy: session token is sent only after WSS opens, never in the URL.\n"
+    insert = "\n  // v1.20.2 websocket token privacy: same-origin session cookie authenticates WSS; no credential is placed in the URL.\n"
     pos = text.rfind("})();")
     if pos < 0:
         raise RuntimeError("v1.20.2 app closing marker missing")
