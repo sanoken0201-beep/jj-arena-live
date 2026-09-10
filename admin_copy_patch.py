@@ -1,5 +1,9 @@
 from __future__ import annotations
+import re
 from pathlib import Path
+
+
+ADMIN_ASSET_VERSION = "184"
 
 
 def apply(static_dir: Path) -> None:
@@ -20,9 +24,26 @@ def _index(p: Path) -> None:
       ('利用停止を含む','一時停止を含む'),
     ]
     for old,new in replacements:s=s.replace(old,new)
-    s=s.replace('/admin-static/admin.css"','/admin-static/admin.css?v=183"')
-    s=s.replace('/admin-static/admin.js"','/admin-static/admin.js?v=183"')
-    s=s.replace('/admin-static/admin_delete.js"','/admin-static/admin_delete.js?v=183"')
+
+    for asset in ('admin.css','admin.js','admin_delete.js'):
+        s=re.sub(
+            rf'/admin-static/{re.escape(asset)}(?:\?v=\d+)?',
+            f'/admin-static/{asset}?v={ADMIN_ASSET_VERSION}',
+            s,
+        )
+
+    pin_css=f'<link rel="stylesheet" href="/admin-static/admin_pin_verify.css?v={ADMIN_ASSET_VERSION}">'
+    pin_js=f'<script src="/admin-static/admin_pin_verify.js?v={ADMIN_ASSET_VERSION}"></script>'
+    if 'admin_pin_verify.css' not in s:
+        if '</head>' not in s:raise RuntimeError('admin head marker missing')
+        s=s.replace('</head>',pin_css+'\n</head>',1)
+    else:
+        s=re.sub(r'/admin-static/admin_pin_verify\.css(?:\?v=\d+)?',f'/admin-static/admin_pin_verify.css?v={ADMIN_ASSET_VERSION}',s)
+    if 'admin_pin_verify.js' not in s:
+        if '</body>' not in s:raise RuntimeError('admin body marker missing')
+        s=s.replace('</body>',pin_js+'\n</body>',1)
+    else:
+        s=re.sub(r'/admin-static/admin_pin_verify\.js(?:\?v=\d+)?',f'/admin-static/admin_pin_verify.js?v={ADMIN_ASSET_VERSION}',s)
     p.write_text(s,encoding='utf-8')
 
 

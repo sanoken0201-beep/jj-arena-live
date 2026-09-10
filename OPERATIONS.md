@@ -137,7 +137,7 @@ DB migrationが入ったreleaseでは、migrationの後方互換性を保つこ�
 - 削除後に同じ正規化名で登録すると、新しい`users.id`と、その登録時に入力した6桁PINの新しいhashでアカウントを作る。削除済み行のPIN hashを継承しない。
 - 同じ正規化名の有効アカウントは、内部login IDのUNIQUE制約により同時に1件だけ存在できる。
 - `ranking_name` は削除済み行に保持する。これは過去のランキング・ポイント履歴の帰属を維持するためで、再登録された同一プレイヤーの履歴継続に利用する。
-- 削除済みuser IDに対する再有効化、PIN reset、session revoke、point操作は管理APIから拒否する。
+- 削除済みuser IDに対する再有効化、PIN reset、PIN verify、session revoke、point操作は管理APIから拒否する。
 
 ## 9. Online poker change rules
 
@@ -152,11 +152,16 @@ UI改善だけの場合はgame engineを触らないこと。game rule変更時�
 ## 10. Security hygiene
 
 - PIN・password・DATABASE_URLをcommitしない。
+- PINは一方向ハッシュで保存し、平文または復号可能な形式では保存しない。
+- 管理者であっても「現在のPINそのものを表示する」機能は実装しない。
+- 管理者はプレイヤーから申告された候補PINを照合できる。照合APIはadmin role必須、同一対象への失敗試行は10分間に5回まで、監査ログには一致/不一致だけを残しPIN値を記録しない。
+- PINを忘れたプレイヤーには管理者のPINリセットを使う。リセット後は対象ユーザーの既存sessionを失効させる。
+- プレイヤー本人のPIN変更は現在PINの再確認を必須とし、変更後は現在端末以外のsessionを失効させる。
 - secret値をRender Start Commandで `echo` しない。
 - 管理者復旧用PINを常設しない。
 - ログにはcredentialを出さない。
 - 管理APIはrole checkを必須にする。
-- account/PIN変更後は対象sessionを失効させる。
+- account/PIN変更後は対象sessionを適切に失効させる。
 
 ## 11. Post-deploy checklist
 
@@ -168,7 +173,11 @@ UI改善だけの場合はgame engineを触らないこと。game rule変更時�
 [ ] health 200
 [ ] normal login succeeds
 [ ] /api/me succeeds after login
+[ ] player can change own PIN with current PIN + confirmation
+[ ] changed PIN works and previous PIN no longer works
 [ ] /admin opens for admin
+[ ] admin candidate-PIN verification returns match / no-match without exposing PIN
+[ ] admin PIN verification audit contains no PIN value
 [ ] ranking/points load
 [ ] quiz question loads
 [ ] quiz answer awards once

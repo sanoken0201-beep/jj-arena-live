@@ -22,8 +22,8 @@ css = (DEST / "static" / "styles.css").read_text(encoding="utf-8")
 index = (DEST / "static" / "index.html").read_text(encoding="utf-8")
 sw = (DEST / "static" / "sw.js").read_text(encoding="utf-8")
 
-assert RUNTIME_VERSION == "1.19.2"
-assert 'version="1.19.2"' in server or '"version":"1.19.2"' in server
+assert RUNTIME_VERSION == "1.19.3"
+assert 'version="1.19.3"' in server or '"version":"1.19.3"' in server
 
 # Quiz/ledger regression coverage from v1.18.6.
 assert 'JJ_QUIZ_REWARD = 10' in server
@@ -49,7 +49,7 @@ for value in (300, 400, 500, 600, 800, 1000):
     assert f'{value}: "{value} / tournament"' in server
 assert "else sel.value=String(game==='ring'?450:400)" in appjs
 
-# Japanese-first learning share UI and cache-busting.
+# Japanese-first learning share remains present after the security patch.
 assert 'v1.19.2 Japanese-first learning share' in appjs
 assert 'id=\'jjLearningShare\'' in appjs or 'shell.id=\'jjLearningShare\'' in appjs
 assert '今日の学び' in appjs
@@ -57,9 +57,17 @@ assert '記事は日本語を優先' in appjs
 assert "api('/learning-content')" in appjs
 assert 'STRATEGY' in appjs and 'MOTIVATION' in appjs
 assert 'v1.19.2 Japanese-first learning share' in css
-assert '?v=41' in index
-assert 'jj-arena-live-v41' in sw
-assert 'request.url.query == "v=41"' in server
+
+# Member PIN self-service is prominent and requires confirming the new PIN.
+assert 'v1.19.3 member PIN self-service' in appjs
+assert 'jj-account-security' in appjs
+assert 'id="pinChangeConfirmForm"' in appjs
+assert "post('/auth/change-pin',{current_pin:current,new_pin:next})" in appjs
+assert '新しいPINが一致しません' in appjs
+assert 'v1.19.3 member PIN self-service' in css
+assert '?v=42' in index
+assert 'jj-arena-live-v42' in sw
+assert 'request.url.query == "v=42"' in server
 
 # The content service never accepts a caller-supplied fetch URL. All remote
 # sources are hard-coded and validated against allow-listed HTTPS hosts.
@@ -150,8 +158,24 @@ assert 'from runtime_builder import build_runtime' in app_source
 assert 'DEST = build_runtime()' in app_source
 assert 'online_results_cleanup.apply(db)' in app_source
 assert 'admin_ledger_stabilization.install(app, admin_console)' in app_source
+assert 'admin_pin_verification.install(app, admin_console)' in app_source
 assert 'learning_content.install(app)' in app_source
 assert '"/api/learning-content"' in app_source
+
+pin_verify_source = (ROOT / "admin_pin_verification.py").read_text(encoding="utf-8")
+assert 'Depends(server.admin_user)' in pin_verify_source
+assert 'VERIFY_MAX_ATTEMPTS = 5' in pin_verify_source
+assert 'password_hash' in pin_verify_source
+assert 'result="match" if matched else "no_match"' in pin_verify_source
+assert 'candidate PIN or password hash' in pin_verify_source
+
+admin_copy_source = (ROOT / "admin_copy_patch.py").read_text(encoding="utf-8")
+assert 'admin_pin_verify.css' in admin_copy_source
+assert 'admin_pin_verify.js' in admin_copy_source
+admin_pin_js = (ROOT / "admin_static" / "admin_pin_verify.js").read_text(encoding="utf-8")
+assert 'type="password"' in admin_pin_js
+assert '/verify-pin' in admin_pin_js
+assert '現在のPINそのものは表示できません' in admin_pin_js
 
 ledger_patch = (ROOT / "admin_ledger_stabilization.py").read_text(encoding="utf-8")
 assert "l.kind='quiz_reward'" in ledger_patch
@@ -161,11 +185,14 @@ assert 'row.update(categories)' in ledger_patch
 
 for filename in [
     "runtime_builder.py",
+    "v42_patch.py",
     "v41_patch.py",
     "v40_patch.py",
     "v39_patch.py",
     "v38_patch.py",
     "learning_content.py",
+    "admin_pin_verification.py",
+    "admin_copy_patch.py",
     "admin_ledger_stabilization.py",
     "online_results_cleanup.py",
     "admin_delete.py",
@@ -174,12 +201,12 @@ for filename in [
 ]:
     py_compile.compile(str(ROOT / filename), doraise=True)
 
-# Exercise the real reconstructed PIN-auth and account-deletion routes against a
-# temporary SQLite database. This verifies deletion visibility and same-name
-# re-registration behavior rather than relying only on source-string checks.
+# Exercise the real reconstructed PIN-auth, PIN management, and account deletion
+# routes against a temporary SQLite database.
 import smoke_test_user_management
 
 smoke_test_user_management.run()
 
 print("JJ_LEARNING_CONTENT_SMOKE_OK")
+print("JJ_PIN_MANAGEMENT_SMOKE_OK")
 print("JJ_ARENA_CURRENT_SMOKE_OK")

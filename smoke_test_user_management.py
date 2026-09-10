@@ -69,9 +69,11 @@ def run() -> None:
         import server  # type: ignore
         import admin_console
         import admin_delete
+        import admin_pin_verification
 
         admin_console.install_admin_console(server.app)
         admin_delete.install_account_deletion(server.app)
+        admin_pin_verification.install(server.app, admin_console)
 
         with db.connect() as con:
             admin = dict(con.execute("SELECT * FROM users WHERE role='admin' ORDER BY id LIMIT 1").fetchone())
@@ -168,6 +170,50 @@ def run() -> None:
         assert equivalent_login["created"] is False
         assert int(equivalent_login["user"]["id"]) == new_uid
 
+        # A player can change their own PIN using the existing authenticated API.
+        changed_pin = "555555"
+        changed = server.change_pin(
+            server.ChangePinIn(current_pin=new_pin, new_pin=changed_pin),
+            _request("/api/auth/change-pin"),
+            user=equivalent_login["user"],
+        )
+        assert changed["ok"] is True
+        with db.connect() as con:
+            changed_row = dict(con.execute("SELECT password_hash FROM users WHERE id=?", (new_uid,)).fetchone())
+        assert db.verify_password(changed_pin, changed_row["password_hash"])
+        assert not db.verify_password(new_pin, changed_row["password_hash"])
+
+        changed_login = server.pin_access(
+            server.PinAccess(name="テスト", pin=changed_pin),
+            Response(),
+            _request(),
+        )
+        assert changed_login["created"] is False
+        assert int(changed_login["user"]["id"]) == new_uid
+
+        # Admins can verify a candidate PIN without retrieving the stored PIN.
+        verify_ep = _route(server.app, "/api/admin/console/users/{uid}/verify-pin", "POST").endpoint
+        mismatch = verify_ep(
+            uid=new_uid,
+            payload=admin_pin_verification.AdminPinVerify(pin=new_pin),
+            user=admin,
+        )
+        assert mismatch == {"ok": True, "matches": False}
+        match = verify_ep(
+            uid=new_uid,
+            payload=admin_pin_verification.AdminPinVerify(pin=changed_pin),
+            user=admin,
+        )
+        assert match == {"ok": True, "matches": True}
+        with db.connect() as con:
+            audits = con.execute(
+                "SELECT detail_json FROM admin_audit_log WHERE action='user.pin_verify' AND target_user_id=? ORDER BY id",
+                (new_uid,),
+            ).fetchall()
+        assert len(audits) == 2
+        assert all(new_pin not in str(row["detail_json"]) for row in audits)
+        assert all(changed_pin not in str(row["detail_json"]) for row in audits)
+
         visible = users_ep(q="", include_disabled=True, user=admin)
         ids = [int(r["id"]) for r in visible]
         assert old_uid not in ids
@@ -191,6 +237,7 @@ def run() -> None:
         point_ep = _route(server.app, "/api/admin/console/points", "POST").endpoint
         _expect_404(lambda: update_ep(uid=old_uid, p=admin_console.AdminUserPatch(disabled=False), user=admin))
         _expect_404(lambda: reset_ep(uid=old_uid, p=admin_console.AdminPinReset(pin="444444"), user=admin))
+        _expect_404(lambda: verify_ep(uid=old_uid, payload=admin_pin_verification.AdminPinVerify(pin="444444"), user=admin))
         _expect_404(lambda: revoke_ep(uid=old_uid, user=admin))
         _expect_404(lambda: point_ep(
             p=admin_console.AdminPointIn(

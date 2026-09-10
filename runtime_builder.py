@@ -34,13 +34,14 @@ import v38_patch
 import v39_patch
 import v40_patch
 import v41_patch
+import v42_patch
 
 ROOT = Path(__file__).resolve().parent
 RELEASE_DIR = ROOT / "release_v14"
 EXPECTED_PARTS = 62
 EXPECTED_SHA256 = "3ccb973f9ab146ce1c0d7da598242b0c1521a8ecc85c091caa10c1f1ebc9ddfd"
-RUNTIME_VERSION = "1.19.2"
-DEFAULT_DEST = Path("/tmp/jj_arena_v41_runtime")
+RUNTIME_VERSION = "1.19.3"
+DEFAULT_DEST = Path("/tmp/jj_arena_v42_runtime")
 
 
 def _release_bytes() -> bytes:
@@ -98,6 +99,7 @@ def _apply_patches(dest: Path) -> None:
         v39_patch,
         v40_patch,
         v41_patch,
+        v42_patch,
     ):
         module.apply(dest)
 

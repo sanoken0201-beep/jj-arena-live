@@ -1,0 +1,5 @@
+.admin-pin-verify-panel{margin-top:16px;padding:15px;border:1px solid rgba(242,205,99,.28);border-radius:14px;background:rgba(242,205,99,.045)}
+.admin-pin-verify-copy{margin-bottom:11px}.admin-pin-verify-copy strong{display:block;margin:.2rem 0 .25rem;font-size:.92rem}.admin-pin-verify-copy p{margin:0;color:var(--muted,#728078);font-size:.75rem;line-height:1.55}
+.admin-pin-verify-form{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:end;gap:10px}.admin-pin-verify-form label{margin:0}.admin-pin-verify-form input{letter-spacing:.28em;font-variant-numeric:tabular-nums}.admin-pin-verify-form button{min-height:42px;white-space:nowrap}
+.admin-pin-verify-result{min-height:1.1em;margin-top:9px;font-size:.74rem;font-weight:700}.admin-pin-verify-result.match{color:#62c695}.admin-pin-verify-result.mismatch{color:#e48686}
+@media(max-width:620px){.admin-pin-verify-form{grid-template-columns:1fr}.admin-pin-verify-form button{width:100%}}
