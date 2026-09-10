@@ -40,10 +40,12 @@ assert "if(visual===3)return {left:p.left,top:27};" in appjs
 assert "jjMobileHotfixBetPos(actual)" in appjs
 assert "pointer-events:none!important" in css
 
-# Force iOS/PWA/browser caches off the broken v48 mobile assets.
+# Force iOS/PWA/browser caches off the broken v48 mobile assets. The server-side
+# immutable-cache recognition deliberately remains on v48 so the hotfix URL is
+# not long-lived cached while we validate it in production.
 assert "?v=48-hotfix1" in index
 assert "jj-arena-live-v48-hotfix1" in sw
-assert 'request.url.query == "v=48-hotfix1"' in server
+assert 'request.url.query == "v=48"' in server
 
 py_compile.compile(str(ROOT / "mobile_poker_hotfix.py"), doraise=True)
 py_compile.compile(str(ROOT / "runtime_builder.py"), doraise=True)
