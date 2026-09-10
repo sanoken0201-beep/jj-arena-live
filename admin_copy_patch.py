@@ -52,6 +52,7 @@ def _index(p: Path) -> None:
         ('admin_pin_verify.js','admin_pin_verify.js'),
         ('admin_ui_foundation.js','admin_ui_foundation.js'),
         ('ops_dashboard.js','ops_dashboard.js'),
+        ('ops_participation.js','ops_participation.js'),
     )
     for marker,asset in js_assets:
         tag=f'<script src="/admin-static/{asset}?v={ADMIN_ASSET_VERSION}"></script>'
