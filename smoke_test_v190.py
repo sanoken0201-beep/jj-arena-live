@@ -22,8 +22,8 @@ css = (DEST / "static" / "styles.css").read_text(encoding="utf-8")
 index = (DEST / "static" / "index.html").read_text(encoding="utf-8")
 sw = (DEST / "static" / "sw.js").read_text(encoding="utf-8")
 
-assert RUNTIME_VERSION == "1.20.1"
-assert 'version="1.20.1"' in server or '"version":"1.20.1"' in server
+assert RUNTIME_VERSION == "1.20.2"
+assert 'version="1.20.2"' in server or '"version":"1.20.2"' in server
 
 # Quiz/ledger regression coverage from v1.18.6.
 assert 'JJ_QUIZ_REWARD = 10' in server
@@ -91,21 +91,42 @@ assert 'id="jjHandList"' in appjs
 assert '/analysis/summary' in appjs
 assert '/analysis/hands?' in appjs
 assert '/review' in appjs
-assert 'PokerStars-style' not in appjs  # export formatting remains server-authoritative
+assert 'PokerStars-style' not in appjs
 assert '相手のホールカードはショーダウンで公開された場合だけ表示します' in appjs
 assert 'v1.20.0 private hand history and analytics' in css
 assert '.jj-replay-table' in css and '.jj-stat-grid' in css
 
-# v1.20.1 keeps async filters coherent and prevents future showdown information
-# from appearing in earlier replay frames.
+# v1.20.1 request and replay stabilization.
 assert 'v1.20.1 analysis request/replay stabilization' in appjs
 assert 'analysisRequestSeq' in appjs
 assert 'handRequestSeq' in appjs
 assert "showdownVisible=phase==='complete'" in appjs
 assert "p.in_hand?['??','??']:[]" in appjs
-assert '?v=46' in index
-assert 'jj-arena-live-v46' in sw
-assert 'request.url.query == "v=46"' in server
+
+# v1.20.2: cookie-authenticated WebSocket, no credential in URL/JS payload,
+# explicit origin check and unconditional Hub cleanup.
+assert 'v1.20.2 websocket token privacy' in appjs
+assert '?token=' not in ''.join(
+    line for line in appjs.splitlines() if '/ws/tables/' in line and 'new WebSocket' in line
+)
+assert "JSON.stringify({type:'auth',token})" not in appjs
+assert 'ws.query_params.get("token")' not in server
+assert 'token = request_token(ws)' in server
+assert 'origin = str(ws.headers.get("origin") or "").rstrip("/")' in server
+assert 'origin not in {f"https://{host}", f"http://{host}"}' in server
+assert 'JJ_WS_CONNECTION_ERROR' in server
+ws_start = server.index('@app.websocket("/ws/tables/{table_id}")')
+ws_end = server.index('app.mount("/static"', ws_start)
+ws_block = server[ws_start:ws_end]
+assert 'finally:\n        hub.remove(table_id, ws)' in ws_block
+assert ws_block.index('token = request_token(ws)') < ws_block.index('await ws.send_json')
+timeout_start = server.index('async def timeout_loop():')
+timeout_end = server.index('@app.websocket("/ws/tables/{table_id}")', timeout_start)
+timeout_block = server[timeout_start:timeout_end]
+assert 'except Exception:\n            pass' not in timeout_block
+assert '?v=47' in index
+assert 'jj-arena-live-v47' in sw
+assert 'request.url.query == "v=47"' in server
 
 # Learning-content outbound security policy.
 fallback = learning_content._fallback_payload()
@@ -141,7 +162,7 @@ assert len(parsed_videos) == 2
 assert {v["category"] for v in parsed_videos} == {"strategy", "motivation"}
 assert all(urlsplit(v["url"]).hostname == "www.youtube.com" for v in parsed_videos)
 
-# Regression that caused the administrator lockout recovery failure.
+# Administrator recovery regression.
 assert '# v1.19.0 deterministic administrator recovery' in db
 assert 'password_hash=? WHERE id=?' in db
 assert 'DELETE FROM sessions WHERE user_id=?' in db
@@ -186,7 +207,7 @@ with cleanup_db.connect() as con:
 
 # Production extension wiring.
 app_source = (ROOT / "app.py").read_text(encoding="utf-8")
-assert 'Production entrypoint for JJ Arena Live v1.20.1' in app_source
+assert 'Production entrypoint for JJ Arena Live v1.20.2' in app_source
 assert 'from runtime_builder import build_runtime' in app_source
 assert 'DEST = build_runtime()' in app_source
 assert 'online_results_cleanup.apply(db)' in app_source
@@ -196,7 +217,7 @@ assert 'learning_content.install(app)' in app_source
 assert 'hand_analytics.install(app, runtime_server, db)' in app_source
 assert 'path.startswith("/api/analysis")' in app_source
 
-# Hand analytics privacy, storage and API contract must remain server-side.
+# Hand analytics privacy/storage/API contract remains server-side.
 analytics_source = (ROOT / "hand_analytics.py").read_text(encoding="utf-8")
 for table in ("jj_hand_history", "jj_hand_players", "jj_hand_actions", "jj_hand_snapshots", "jj_hand_reviews"):
     assert f"CREATE TABLE IF NOT EXISTS {table}" in analytics_source
@@ -242,12 +263,12 @@ assert '管理者による振込・回収だけを取消できます' in ledger_
 assert 'row.update(categories)' in ledger_patch
 
 for filename in [
-    "runtime_builder.py", "v46_patch.py", "v45_patch.py", "v44_patch.py", "v43_patch.py", "v42_patch.py",
-    "v41_patch.py", "v40_patch.py", "v39_patch.py", "v38_patch.py", "hand_analytics.py",
+    "runtime_builder.py", "v47_patch.py", "v46_patch.py", "v45_patch.py", "v44_patch.py", "v43_patch.py",
+    "v42_patch.py", "v41_patch.py", "v40_patch.py", "v39_patch.py", "v38_patch.py", "hand_analytics.py",
     "hand_analytics_hardening.py", "learning_content.py", "admin_pin_verification.py", "admin_copy_patch.py",
     "admin_ledger_stabilization.py", "online_results_cleanup.py", "admin_delete.py", "smoke_test_user_management.py",
     "smoke_test_hand_analytics.py", "smoke_test_stat_definitions.py", "smoke_test_card_privacy.py",
-    "smoke_test_hand_analytics_postgres_v2.py", "app.py",
+    "smoke_test_hand_analytics_postgres_v2.py", "smoke_test_websocket_auth.py", "app.py",
 ]:
     py_compile.compile(str(ROOT / filename), doraise=True)
 
@@ -260,4 +281,5 @@ print("JJ_PIN_MANAGEMENT_SMOKE_OK")
 print("JJ_UI_FOUNDATION_SMOKE_OK")
 print("JJ_HAND_ANALYTICS_STATIC_OK")
 print("JJ_ANALYSIS_STABILIZATION_SMOKE_OK")
+print("JJ_WEBSOCKET_SECURITY_STATIC_OK")
 print("JJ_ARENA_CURRENT_SMOKE_OK")

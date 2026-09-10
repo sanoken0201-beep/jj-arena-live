@@ -34,6 +34,22 @@ Browser / mobile
 8. `Application startup complete` と health check 200を確認する。
 9. `/api/auth/pin`、`/api/me`、`/admin`、quiz、online pokerのエラーをログで確認する。
 
+### Render auto-deploy source authorization
+
+`autoDeploy=yes` でも、Render側のGitHub source authorizationが切れているとpushだけではdeployが作成されません。ビルドログに次が出る場合はsource接続異常として扱います。
+
+```text
+It looks like we don't have access to your repo, but we'll try to clone it anyway.
+```
+
+この状態では公開repositoryのclone自体は成功することがありますが、commit通知によるauto deployは信頼できません。
+
+- Render Dashboard -> `jj-arena-live` -> Settings / Repository でGitHub接続を再認証し、`sanoken0201-beep/jj-arena-live` と `main` を選び直す。
+- 再認証はアカウント権限操作なので、コード変更や新しいWeb Service作成で代替しない。
+- source接続が直るまでは、GitHub CI成功とmain SHAを確認してから既存 `jj-arena-live` を手動deployする。
+- auto deploy復旧確認は、次回main commitで「Renderに同じSHAのcommit-triggered deployが自動生成されたか」で判定する。
+- この問題のために `jj-arena-db`、Environment、service URL、service IDを作り直さない。
+
 ## 4. Render settings
 
 ### Web Service: jj-arena-live
@@ -149,6 +165,18 @@ DB migrationが入ったreleaseでは、migrationの後方互換性を保つこ�
 
 UI改善だけの場合はgame engineを触らないこと。game rule変更時は最低レイズ、short all-in、side pot、split pot、turn ownership、timeoutを回帰確認します。
 
+### WebSocket authentication
+
+- v1.20.2以降、session tokenを `/ws/tables/...?...` のquery stringへ入れない。
+- PINログイン時にサーバーが設定する既存のsame-origin session cookieをWebSocket handshakeでも使用する。JavaScriptへWebSocket専用tokenを返さない。
+- WebSocket URL自体はcredentialなしの `/ws/tables/{table_id}` とする。
+- ブラウザが明示した `Origin` が現在の `Host` と一致しない場合は4403で拒否する。
+- session cookieが無い、失効済み、または無効な場合は4401、disabled accountは4403、存在しないtableは4404でcloseする。
+- 認証成功前にtable state、message、player dataを送らない。
+- query stringに有効な旧tokenを付与しても認証手段として扱わない。
+- 接続終了時は成功・例外を問わずHubから必ずremoveする。
+- credential値をWebSocket URL、timeout error log、connection error logへ出さない。
+
 ## 10. Security hygiene
 
 - PIN・password・DATABASE_URLをcommitしない。
@@ -160,6 +188,7 @@ UI改善だけの場合はgame engineを触らないこと。game rule変更時�
 - secret値をRender Start Commandで `echo` しない。
 - 管理者復旧用PINを常設しない。
 - ログにはcredentialを出さない。
+- HTTP bearer tokenをURL queryへ入れない。v1.20.2以降、WebSocketでもtokenをURLへ含めない。
 - 管理APIはrole checkを必須にする。
 - account/PIN変更後は対象sessionを適切に失効させる。
 
@@ -183,8 +212,12 @@ UI改善だけの場合はgame engineを触らないこと。game rule変更時�
 [ ] quiz answer awards once
 [ ] poker lobby loads
 [ ] table state loads
-[ ] WebSocket connects
+[ ] WebSocket URL contains no token query parameter
+[ ] authenticated browser session opens WebSocket using its existing session cookie
+[ ] cross-origin WebSocket handshake is rejected
+[ ] query-string-only / invalid / disabled WebSocket sessions are rejected
 [ ] no new ERROR logs
+[ ] no JJ_TIMEOUT_LOOP_ERROR / JJ_WS_CONNECTION_ERROR during normal play
 ```
 
 ## 12. Learning content sharing rules
