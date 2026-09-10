@@ -44,10 +44,13 @@ It looks like we don't have access to your repo, but we'll try to clone it anywa
 
 この状態では公開repositoryのclone自体は成功することがありますが、commit通知によるauto deployは信頼できません。
 
-- Render Dashboard -> `jj-arena-live` -> Settings / Repository でGitHub接続を再認証し、`sanoken0201-beep/jj-arena-live` と `main` を選び直す。
+- 現在のRender UIでは `jj-arena-live` -> `Settings` -> `Build` -> `Source` -> `Edit` を開く。
+- `Git Provider` でGitHub credentialを接続し、`sanoken0201-beep/jj-arena-live` を選択する。
+- Branchは `main`、Runtimeは `Python 3`、既存Build/Start Commandは変更しない。
 - 再認証はアカウント権限操作なので、コード変更や新しいWeb Service作成で代替しない。
 - source接続が直るまでは、GitHub CI成功とmain SHAを確認してから既存 `jj-arena-live` を手動deployする。
-- auto deploy復旧確認は、次回main commitで「Renderに同じSHAのcommit-triggered deployが自動生成されたか」で判定する。
+- source再接続後は、Render `get_service` 相当で `repo=https://github.com/sanoken0201-beep/jj-arena-live`、`branch=main`、`autoDeploy=yes`、`autoDeployTrigger=commit` を確認する。
+- auto deploy復旧の最終確認は、CI済みの安全なmain commitを1件作成し、Renderに同じSHAの `trigger=commit` deployが自動生成されるかで判定する。手動/API deployでは復旧確認にならない。
 - この問題のために `jj-arena-db`、Environment、service URL、service IDを作り直さない。
 
 ## 4. Render settings
