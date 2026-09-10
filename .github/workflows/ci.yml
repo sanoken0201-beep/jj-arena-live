@@ -50,9 +50,9 @@ jobs:
 
       - name: Compile production entrypoint and patches
         run: |
-          python -m py_compile app.py admin_copy_patch.py diagnose_v123_runtime.py
+          python -m py_compile app.py admin_copy_patch.py
           python -m py_compile operations_learning.py operations_learning_hardening.py resilience.py
-          python -m py_compile quiz_readability.py v50_patch.py smoke_test_v122.py smoke_test_v190.py smoke_test_quiz_readability_refresh.py
+          python -m py_compile quiz_readability.py v50_patch.py v51_patch.py smoke_test_v123.py smoke_test_v122.py smoke_test_v190.py smoke_test_quiz_readability_refresh.py
           python -m py_compile v49_compat_patch.py v49_patch.py v49_post_patch.py smoke_test_v121.py
           python -m py_compile daily_quiz.py quiz_bank.py v48_patch.py
           python -m py_compile mobile_poker_hotfix.py
@@ -75,9 +75,6 @@ jobs:
           python -m py_compile smoke_test_websocket_auth.py
           python -m py_compile smoke_test_mobile_poker_hotfix.py
 
-      - name: Diagnose reconstructed poker runtime
-        run: python diagnose_v123_runtime.py
-
       - name: Check reconstructed browser JavaScript syntax
         run: |
           RUNTIME="$(python -c 'from runtime_builder import build_runtime; print(build_runtime())')"
@@ -86,6 +83,9 @@ jobs:
           node --check admin_static/ops_participation.js
           node smoke_test_learning_ui.js "$RUNTIME/static/app.js"
           node smoke_test_daily_quiz_ui.js "$RUNTIME/static/app.js"
+
+      - name: Run v1.23 mobile poker UX regression
+        run: python smoke_test_v123.py
 
       - name: Run v1.22 current-runtime regression
         run: python smoke_test_v122.py
