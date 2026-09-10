@@ -7,7 +7,7 @@ actual production smoke gate to the current release suite so deployments cannot
 be blocked by stale version assertions.
 """
 
-from smoke_test_v122 import main
+from smoke_test_v123 import main
 
 
 if __name__ == "__main__":
