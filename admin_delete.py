@@ -1,4 +1,6 @@
-from __future__ import annotations
+# Route models are imported inside install_account_deletion after the runtime
+# exists. Keep their annotations resolvable in that local scope: stringized
+# annotations made FastAPI treat the JSON body `p` as a required query argument.
 
 import secrets
 import uuid

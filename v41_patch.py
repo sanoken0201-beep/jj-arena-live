@@ -43,8 +43,9 @@ def _app(path: Path) -> None:
     shell=document.createElement('section');
     shell.id='jjLearningShare';
     shell.className='jj-learning-share';
-    shell.innerHTML=`<div class="jj-learning-head"><div><div class="eyebrow">POKER STUDY</div><h2>今日の学び</h2><p>記事は日本語を優先。動画は信頼できるポーカー発信元から選定しています。</p></div><span class="jj-learning-policy">日本語優先</span></div><div class="jj-learning-columns"><section class="jj-learning-column"><div class="jj-learning-title"><b>ARTICLE</b><span>GTO Wizard Japan</span></div><div id="jjLearningArticles" class="jj-learning-list"><div class="card empty">読み込み中…</div></div></section><section class="jj-learning-column"><div class="jj-learning-title"><b>YOUTUBE</b><span>解説・モチベーション</span></div><div id="jjLearningVideos" class="jj-video-list"><div class="card empty">読み込み中…</div></div></section></div>`;
+    shell.innerHTML=`<div class="jj-learning-head"><div><div class="eyebrow">POKER STUDY</div><h2>今日の学び</h2><p>記事は日本語で読めるものだけを表示。動画は信頼できるポーカー発信元から選定しています。</p></div><span class="jj-learning-policy">日本語記事のみ</span></div><div class="jj-learning-columns"><section class="jj-learning-column"><div class="jj-learning-title"><b>ARTICLE</b><span>GTO Wizard Japan</span></div><div id="jjLearningArticles" class="jj-learning-list"><div class="card empty">読み込み中…</div></div></section><section class="jj-learning-column"><div class="jj-learning-title"><b>YOUTUBE</b><span>解説・モチベーション</span></div><div id="jjLearningVideos" class="jj-video-list"><div class="card empty">読み込み中…</div></div></section></div>`;
     home.appendChild(shell);
+    jjV192RenderArticles(jjJapaneseArticleFallback);
     return shell;
   }
 
@@ -55,7 +56,9 @@ def _app(path: Path) -> None:
 
   function jjV192RenderArticles(items){
     const box=$('#jjLearningArticles');if(!box)return;
-    box.innerHTML=(items||[]).slice(0,5).map(item=>`<a class="jj-study-card" href="${safe(item.url||'#')}" target="_blank" rel="noopener noreferrer"><div class="jj-study-meta"><span class="jj-study-source">${safe(item.source||'GTO Wizard Japan')}</span>${item.topic?`<span>${safe(item.topic)}</span>`:''}</div><h3>${safe(item.title||'')}</h3>${item.summary?`<p>${safe(item.summary)}</p>`:''}<footer><span>${safe(jjV192StudyDate(item.published_at))}</span><b>読む →</b></footer></a>`).join('')||'<div class="card empty">共有できる日本語記事がありません</div>';
+    const filtered=jjJapaneseStudyArticles(items);
+    const selected=filtered.length?filtered:jjJapaneseStudyArticles(jjJapaneseArticleFallback);
+    box.innerHTML=selected.slice(0,5).map(item=>`<a class="jj-study-card" href="${safe(item.url)}" target="_blank" rel="noopener noreferrer"><div class="jj-study-meta"><span class="jj-study-source">GTO Wizard Japan</span>${item.topic?`<span>${safe(item.topic)}</span>`:''}</div><h3>${safe(item.title||'')}</h3>${item.summary?`<p>${safe(item.summary)}</p>`:''}<footer><span>${safe(jjV192StudyDate(item.published_at))}</span><b>日本語で読む →</b></footer></a>`).join('')||'<div class="card empty">共有できる日本語記事がありません</div>';
   }
 
   function jjV192VideoLabel(category){return category==='motivation'?'MOTIVATION':'STRATEGY'}
@@ -80,8 +83,8 @@ def _app(path: Path) -> None:
       jjV192RenderVideos(data.videos||[]);
       shell.dataset.loaded='1';
     }catch(err){
-      const articles=$('#jjLearningArticles'),videos=$('#jjLearningVideos');
-      if(articles)articles.innerHTML='<div class="card empty">記事を取得できませんでした。時間をおいて再読み込みしてください。</div>';
+      const videos=$('#jjLearningVideos');
+      jjV192RenderArticles(jjJapaneseArticleFallback);
       if(videos)videos.innerHTML='<div class="card empty">動画を取得できませんでした。時間をおいて再読み込みしてください。</div>';
     }finally{jjV192LearningBusy=false}
   }

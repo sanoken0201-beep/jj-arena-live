@@ -71,9 +71,13 @@ jobs:
         run: |
           RUNTIME="$(python -c 'from runtime_builder import build_runtime; print(build_runtime())')"
           node --check "$RUNTIME/static/app.js"
+          node smoke_test_learning_ui.js "$RUNTIME/static/app.js"
 
       - name: Run latest reconstruction smoke test
         run: python smoke_test_v190.py
+
+      - name: Run article sharing and core API integration regression
+        run: python smoke_test_learning_integration.py
 
       - name: Run WebSocket authentication security smoke test
         run: python smoke_test_websocket_auth.py

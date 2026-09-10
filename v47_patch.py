@@ -15,7 +15,7 @@ def _server(path: Path) -> None:
     text = path.read_text(encoding="utf-8")
     text = text.replace('version="1.20.1"', 'version="1.20.2"')
     text = text.replace('"version":"1.20.1"', '"version":"1.20.2"')
-    text = text.replace('request.url.query == "v=46"', 'request.url.query == "v=47"')
+    text = text.replace('request.url.query == "v=46"', 'request.url.query == "v=47-ja1"')
 
     # Timeout processing must never fail silently. Patch only the final generic
     # catch inside timeout_loop so earlier nested recovery behavior is preserved.
@@ -83,11 +83,12 @@ def _app(path: Path) -> None:
 
 
 def _index(path: Path) -> None:
-    text = path.read_text(encoding="utf-8").replace("?v=46", "?v=47")
+    # Invalidate the old English study cards in installed browser caches.
+    text = path.read_text(encoding="utf-8").replace("?v=46", "?v=47-ja1")
     path.write_text(text, encoding="utf-8")
 
 
 def _sw(path: Path) -> None:
     text = path.read_text(encoding="utf-8")
-    text = re.sub(r"jj-arena-live-v\d+", "jj-arena-live-v47", text)
+    text = re.sub(r"jj-arena-live-v\d+", "jj-arena-live-v47-ja1", text)
     path.write_text(text, encoding="utf-8")
