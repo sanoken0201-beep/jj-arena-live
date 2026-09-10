@@ -3,7 +3,7 @@ import re
 from pathlib import Path
 
 
-ADMIN_ASSET_VERSION = "185"
+ADMIN_ASSET_VERSION = "121"
 
 
 def apply(static_dir: Path) -> None:
@@ -30,7 +30,7 @@ def _index(p: Path) -> None:
 
     for asset in ('admin.css','admin.js','admin_delete.js'):
         s=re.sub(
-            rf'/admin-static/{re.escape(asset)}(?:\?v=\d+)?',
+            rf'/admin-static/{re.escape(asset)}(?:\?v=[^"\']+)?',
             f'/admin-static/{asset}?v={ADMIN_ASSET_VERSION}',
             s,
         )
@@ -38,6 +38,7 @@ def _index(p: Path) -> None:
     css_assets=(
         ('admin_pin_verify.css','admin_pin_verify.css'),
         ('admin_ui_foundation.css','admin_ui_foundation.css'),
+        ('ops_dashboard.css','ops_dashboard.css'),
     )
     for marker,asset in css_assets:
         tag=f'<link rel="stylesheet" href="/admin-static/{asset}?v={ADMIN_ASSET_VERSION}">'
@@ -45,11 +46,12 @@ def _index(p: Path) -> None:
             if '</head>' not in s:raise RuntimeError('admin head marker missing')
             s=s.replace('</head>',tag+'\n</head>',1)
         else:
-            s=re.sub(rf'/admin-static/{re.escape(asset)}(?:\?v=\d+)?',f'/admin-static/{asset}?v={ADMIN_ASSET_VERSION}',s)
+            s=re.sub(rf'/admin-static/{re.escape(asset)}(?:\?v=[^"\']+)?',f'/admin-static/{asset}?v={ADMIN_ASSET_VERSION}',s)
 
     js_assets=(
         ('admin_pin_verify.js','admin_pin_verify.js'),
         ('admin_ui_foundation.js','admin_ui_foundation.js'),
+        ('ops_dashboard.js','ops_dashboard.js'),
     )
     for marker,asset in js_assets:
         tag=f'<script src="/admin-static/{asset}?v={ADMIN_ASSET_VERSION}"></script>'
@@ -57,7 +59,7 @@ def _index(p: Path) -> None:
             if '</body>' not in s:raise RuntimeError('admin body marker missing')
             s=s.replace('</body>',tag+'\n</body>',1)
         else:
-            s=re.sub(rf'/admin-static/{re.escape(asset)}(?:\?v=\d+)?',f'/admin-static/{asset}?v={ADMIN_ASSET_VERSION}',s)
+            s=re.sub(rf'/admin-static/{re.escape(asset)}(?:\?v=[^"\']+)?',f'/admin-static/{asset}?v={ADMIN_ASSET_VERSION}',s)
     p.write_text(s,encoding='utf-8')
 
 
