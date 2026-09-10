@@ -177,3 +177,16 @@ UI改善だけの場合はgame engineを触らないこと。game rule変更時�
 [ ] WebSocket connects
 [ ] no new ERROR logs
 ```
+
+## 12. Learning content sharing rules
+
+ホームの「今日の学び」は次の基準で運用します。
+
+- 記事は日本語を最優先する。通常は `GTO Wizard Japan` の日本語フィードを第一ソースとする。
+- 英語記事で枠を埋めない。日本語フィード取得に失敗した場合は、検証済みの日本語GTO Wizard記事をフォールバック表示する。
+- YouTubeを一般検索して無差別に掲載しない。許可した信頼ソースのみを使う。
+- 現在の許可ソースは `GTO Wizard Japan`、`ヨコサワポーカーチャンネル`、`POKER BROTHERS`。
+- 動画は「戦略解説」と「モチベーション」を分ける。GTO・レンジ・ICM・ハンドレビュー等を戦略枠、大会・挑戦・遠征等をモチベーション枠として扱う。
+- 外部RSS/Atom取得は短いtimeoutと6時間cacheを使う。取得中や外部障害でホーム描画を待たせないため、stale-while-revalidate方式でフォールバックを即時返す。
+- 外部取得URLはコード内のallowlistだけを使用し、ユーザー入力URLをサーバーからfetchしない（SSRF防止）。
+- 外部コンテンツ本文を転載せず、タイトル・短い説明・公開日・リンクのみを共有する。

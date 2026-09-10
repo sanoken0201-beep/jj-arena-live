@@ -5,7 +5,9 @@ import sqlite3
 import tempfile
 from contextlib import contextmanager
 from pathlib import Path
+from urllib.parse import urlsplit
 
+import learning_content
 import online_results_cleanup
 from runtime_builder import RUNTIME_VERSION, build_runtime
 
@@ -20,8 +22,8 @@ css = (DEST / "static" / "styles.css").read_text(encoding="utf-8")
 index = (DEST / "static" / "index.html").read_text(encoding="utf-8")
 sw = (DEST / "static" / "sw.js").read_text(encoding="utf-8")
 
-assert RUNTIME_VERSION == "1.19.1"
-assert 'version="1.19.1"' in server or '"version":"1.19.1"' in server
+assert RUNTIME_VERSION == "1.19.2"
+assert 'version="1.19.2"' in server or '"version":"1.19.2"' in server
 
 # Quiz/ledger regression coverage from v1.18.6.
 assert 'JJ_QUIZ_REWARD = 10' in server
@@ -47,10 +49,53 @@ for value in (300, 400, 500, 600, 800, 1000):
     assert f'{value}: "{value} / tournament"' in server
 assert "else sel.value=String(game==='ring'?450:400)" in appjs
 
-# Asset cache version is bumped whenever app.js changes.
-assert '?v=40' in index
-assert 'jj-arena-live-v40' in sw
-assert 'request.url.query == "v=40"' in server
+# Japanese-first learning share UI and cache-busting.
+assert 'v1.19.2 Japanese-first learning share' in appjs
+assert 'id=\'jjLearningShare\'' in appjs or 'shell.id=\'jjLearningShare\'' in appjs
+assert '今日の学び' in appjs
+assert '記事は日本語を優先' in appjs
+assert "api('/learning-content')" in appjs
+assert 'STRATEGY' in appjs and 'MOTIVATION' in appjs
+assert 'v1.19.2 Japanese-first learning share' in css
+assert '?v=41' in index
+assert 'jj-arena-live-v41' in sw
+assert 'request.url.query == "v=41"' in server
+
+# The content service never accepts a caller-supplied fetch URL. All remote
+# sources are hard-coded and validated against allow-listed HTTPS hosts.
+fallback = learning_content._fallback_payload()
+assert fallback["policy"]["articles"] == "ja-first"
+assert fallback["articles"] and fallback["videos"]
+assert all(a["language"] == "ja" for a in fallback["articles"])
+assert all(urlsplit(a["url"]).hostname == "japan.gtowizard.com" for a in fallback["articles"])
+trusted_video_sources = {"GTO Wizard Japan", "ヨコサワポーカーチャンネル", "POKER BROTHERS"}
+assert all(v["source"] in trusted_video_sources for v in fallback["videos"])
+assert {v["category"] for v in fallback["videos"]} == {"strategy", "motivation"}
+assert learning_content._safe_https_url("http://japan.gtowizard.com/blog/test/", {"japan.gtowizard.com"}) is None
+assert learning_content._safe_https_url("https://evil.example/blog/test/", {"japan.gtowizard.com"}) is None
+
+# Feed parsing keeps Japanese GTO Wizard articles and rejects news/English rows.
+gto_feed = b'''<?xml version="1.0" encoding="UTF-8"?>
+<rss><channel>
+  <item><title>ICM\xe3\x81\xae\xe6\x97\xa5\xe6\x9c\xac\xe8\xaa\x9e\xe8\xa7\xa3\xe8\xaa\xac</title><link>https://japan.gtowizard.com/blog/icm-test/</link><pubDate>Thu, 10 Sep 2026 00:00:00 +0000</pubDate><category>ICM</category><description>Japanese poker article</description></item>
+  <item><title>\xe6\x96\xb0\xe6\xa9\x9f\xe8\x83\xbd\xe3\x81\xae\xe3\x81\x8a\xe7\x9f\xa5\xe3\x82\x89\xe3\x81\x9b</title><link>https://japan.gtowizard.com/blog/news/product/</link><pubDate>Thu, 10 Sep 2026 01:00:00 +0000</pubDate></item>
+  <item><title>English only title</title><link>https://japan.gtowizard.com/blog/english/</link><pubDate>Thu, 10 Sep 2026 02:00:00 +0000</pubDate></item>
+</channel></rss>'''
+parsed_articles = learning_content._parse_gtowizard_articles(gto_feed)
+assert len(parsed_articles) == 1
+assert parsed_articles[0]["title"] == "ICMの日本語解説"
+assert parsed_articles[0]["topic"] == "ICM"
+
+youtube_feed = b'''<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom" xmlns:yt="http://www.youtube.com/xml/schemas/2015">
+ <entry><yt:videoId>abc123xyz00</yt:videoId><title>GTO\xe6\x88\xa6\xe7\x95\xa5\xe3\x81\xae\xe3\x83\x8f\xe3\x83\xb3\xe3\x83\x89\xe8\xa7\xa3\xe8\xaa\xac</title><link rel="alternate" href="https://www.youtube.com/watch?v=abc123xyz00"/><published>2026-09-10T00:00:00+00:00</published></entry>
+ <entry><yt:videoId>def456xyz00</yt:videoId><title>\xe4\xb8\x96\xe7\x95\x8c\xe5\xa4\xa7\xe4\xbc\x9aWSOP\xe3\x81\xb8\xe6\x8c\x91\xe6\x88\xa6</title><link rel="alternate" href="https://www.youtube.com/watch?v=def456xyz00"/><published>2026-09-09T00:00:00+00:00</published></entry>
+ <entry><yt:videoId>skip0000000</yt:videoId><title>\xe9\x9b\x91\xe8\xab\x87\xe9\x85\x8d\xe4\xbf\xa1</title><link rel="alternate" href="https://www.youtube.com/watch?v=skip0000000"/><published>2026-09-08T00:00:00+00:00</published></entry>
+</feed>'''
+parsed_videos = learning_content._parse_youtube_feed(youtube_feed, "POKER BROTHERS", "motivation")
+assert len(parsed_videos) == 2
+assert {v["category"] for v in parsed_videos} == {"strategy", "motivation"}
+assert all(urlsplit(v["url"]).hostname == "www.youtube.com" for v in parsed_videos)
 
 # Regression that caused the 2026-09 administrator lockout recovery failure.
 assert '# v1.19.0 deterministic administrator recovery' in db
@@ -105,6 +150,8 @@ assert 'from runtime_builder import build_runtime' in app_source
 assert 'DEST = build_runtime()' in app_source
 assert 'online_results_cleanup.apply(db)' in app_source
 assert 'admin_ledger_stabilization.install(app, admin_console)' in app_source
+assert 'learning_content.install(app)' in app_source
+assert '"/api/learning-content"' in app_source
 
 ledger_patch = (ROOT / "admin_ledger_stabilization.py").read_text(encoding="utf-8")
 assert "l.kind='quiz_reward'" in ledger_patch
@@ -114,9 +161,11 @@ assert 'row.update(categories)' in ledger_patch
 
 for filename in [
     "runtime_builder.py",
+    "v41_patch.py",
     "v40_patch.py",
     "v39_patch.py",
     "v38_patch.py",
+    "learning_content.py",
     "admin_ledger_stabilization.py",
     "online_results_cleanup.py",
     "admin_delete.py",
@@ -132,4 +181,5 @@ import smoke_test_user_management
 
 smoke_test_user_management.run()
 
+print("JJ_LEARNING_CONTENT_SMOKE_OK")
 print("JJ_ARENA_CURRENT_SMOKE_OK")
