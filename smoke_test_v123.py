@@ -168,7 +168,11 @@ def main() -> None:
         assert "advance_forced_runout" in server
         assert "v1.23.0 mobile poker second-pass engine UX" in (root / "poker_engine.py").read_text(encoding="utf-8")
 
-        assert "suit-club" in appjs and "suit-spade" in appjs and "suit-diamond" in appjs
+        # JS generates suit classes dynamically; validate its suit map and the
+        # concrete CSS classes together instead of searching JS for fixed names.
+        assert "jjV123SuitName" in appjs
+        assert "{s:'spade',h:'heart',d:'diamond',c:'club'}" in appjs
+        assert all(f".suit-{name}" in css for name in ("club", "spade", "diamond", "heart"))
         assert "Math.ceil(Number(chips||0)/big)" in appjs
         assert "もう一度タップで確定" in appjs
         assert "送信中… サーバーの確認を待っています" in appjs
