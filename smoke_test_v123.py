@@ -110,6 +110,47 @@ def test_staged_allin_runout(engine) -> None:
         engine._showdown = original_showdown
 
 
+def test_real_allin_runout_settles(engine) -> None:
+    """Exercise the reconstructed engine end-to-end, including real showdown."""
+    state = engine.blank_table_state(
+        table_id="v123-real-allin",
+        name="v123 real all-in",
+        max_seats=2,
+        small_blind=50,
+        big_blind=100,
+        min_buyin=100,
+        max_buyin=2000,
+    )
+    engine.seat_player(state, user_id=101, name="アリス", seat=0, stack=1000)
+    engine.seat_player(state, user_id=202, name="ボブ", seat=1, stack=1000)
+    engine.start_hand(state)
+
+    actor_seat = int(state["hand"]["action_seat"])
+    actor = next(p for p in state["seats"] if int(p["seat"]) == actor_seat)
+    engine.apply_action(state, int(actor["user_id"]), "allin")
+    caller_seat = int(state["hand"]["action_seat"])
+    caller = next(p for p in state["seats"] if int(p["seat"]) == caller_seat)
+    engine.apply_action(state, int(caller["user_id"]), "call")
+
+    assert state["status"] == "playing"
+    assert state["hand"].get("forced_runout") is True
+    assert len(state["hand"].get("board") or []) == 0
+    assert sum(int(p.get("contributed", 0) or 0) for p in state["seats"]) == 2000
+
+    seen = []
+    for _ in range(4):
+        state["hand"]["runout_due_at_epoch"] = engine.time.time() - 1
+        assert engine.advance_forced_runout(state) is True
+        seen.append(len((state.get("hand") or {}).get("board") or []))
+
+    assert seen[:3] == [3, 4, 5]
+    assert state["status"] == "waiting"
+    assert (state.get("last_result") or {}).get("type") == "showdown"
+    assert not (state.get("hand") or {}).get("forced_runout")
+    assert all(int(p.get("contributed", 0) or 0) == 0 for p in state["seats"])
+    assert float(state.get("showdown_hold_until_epoch") or 0) > engine.time.time()
+
+
 def test_showdown_hold_and_reasons(engine) -> None:
     original_finish = engine._jj_v123_base_finish_hand
     original_legal = engine._jj_v123_base_legal_actions
@@ -184,6 +225,7 @@ def main() -> None:
 
         test_no_flop_no_drop(engine)
         test_staged_allin_runout(engine)
+        test_real_allin_runout_settles(engine)
         test_showdown_hold_and_reasons(engine)
 
     print("v1.23 mobile poker UX smoke: ok")
