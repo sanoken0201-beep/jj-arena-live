@@ -44,6 +44,7 @@ jobs:
           python -m py_compile v39_patch.py
           python -m py_compile v38_patch.py
           python -m py_compile smoke_test_hand_analytics.py
+          python -m py_compile smoke_test_card_privacy.py
 
       - name: Check reconstructed browser JavaScript syntax
         run: |
@@ -55,6 +56,9 @@ jobs:
 
       - name: Run hand analytics integration smoke test
         run: python smoke_test_hand_analytics.py
+
+      - name: Run completed-hand card privacy smoke test
+        run: python smoke_test_card_privacy.py
 
       - name: Run prior v1.18.6 regression smoke test
         run: python smoke_test_v186.py
