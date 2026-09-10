@@ -49,6 +49,7 @@ jobs:
           python -m py_compile app.py
           python -m py_compile hand_analytics.py
           python -m py_compile hand_analytics_hardening.py
+          python -m py_compile v47_patch.py
           python -m py_compile v46_patch.py
           python -m py_compile v45_patch.py
           python -m py_compile v44_patch.py
@@ -62,6 +63,7 @@ jobs:
           python -m py_compile smoke_test_stat_definitions.py
           python -m py_compile smoke_test_card_privacy.py
           python -m py_compile smoke_test_hand_analytics_postgres_v2.py
+          python -m py_compile smoke_test_websocket_auth.py
 
       - name: Check reconstructed browser JavaScript syntax
         run: |
@@ -70,6 +72,9 @@ jobs:
 
       - name: Run latest reconstruction smoke test
         run: python smoke_test_v190.py
+
+      - name: Run WebSocket authentication security smoke test
+        run: python smoke_test_websocket_auth.py
 
       - name: Run hand analytics SQLite integration smoke test
         run: python smoke_test_hand_analytics.py
