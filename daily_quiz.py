@@ -11,11 +11,12 @@ from fastapi import Depends, HTTPException
 from pydantic import BaseModel, Field
 
 from quiz_bank import POOLS
+from quiz_readability import make_readable
 
 JST = ZoneInfo("Asia/Tokyo")
 DAILY_QUIZ_SIZE = 10
 DAILY_QUIZ_REWARD = 10
-BANK_VERSION = "2026-09-11-v1"
+BANK_VERSION = "2026-09-11-v2-readable"
 MIN_STAT_SAMPLES = 30
 
 
@@ -43,7 +44,7 @@ def build_daily_questions(day):
         # A fixed permutation avoids immediate repeats across cycle boundaries.
         # Each category visits every item once before repeating it.
         ordered = sorted(pool, key=lambda q: hashlib.sha256((category + q["key"]).encode()).hexdigest())
-        q = copy.deepcopy(ordered[ordinal % len(ordered)])
+        q = make_readable(copy.deepcopy(ordered[ordinal % len(ordered)]))
         q["revision"] = hashlib.sha256(_json(q).encode()).hexdigest()[:16]
         # Do not expose authoring labels (e.g. 'a') that could identify the key.
         values = {c['value']: hashlib.sha256(f'{day}:{q["key"]}:{c["value"]}'.encode()).hexdigest()[:12] for c in q['choices']}
@@ -82,11 +83,21 @@ def _lock_user(con, db, uid):
 
 
 def _daily_set(con, day):
-    row = con.execute("SELECT questions_json FROM quiz_daily_sets WHERE quiz_date=?", (day,)).fetchone()
+    row = con.execute("SELECT bank_version,questions_json FROM quiz_daily_sets WHERE quiz_date=?", (day,)).fetchone()
+    generated = None
     if not row:
+        generated = _json(build_daily_questions(day))
         con.execute("INSERT INTO quiz_daily_sets(quiz_date,bank_version,questions_json) VALUES (?,?,?) ON CONFLICT(quiz_date) DO NOTHING",
-                    (day, BANK_VERSION, _json(build_daily_questions(day))))
-        row = con.execute("SELECT questions_json FROM quiz_daily_sets WHERE quiz_date=?", (day,)).fetchone()
+                    (day, BANK_VERSION, generated))
+        row = con.execute("SELECT bank_version,questions_json FROM quiz_daily_sets WHERE quiz_date=?", (day,)).fetchone()
+    if row and str(row["bank_version"]) != BANK_VERSION:
+        # A readability fix must take effect on the same JST day. Already answered
+        # rows retain their own question_json; only the shared set and outstanding
+        # unanswered rows are refreshed when the user next loads the quiz.
+        generated = generated or _json(build_daily_questions(day))
+        con.execute("UPDATE quiz_daily_sets SET bank_version=?,questions_json=? WHERE quiz_date=?",
+                    (BANK_VERSION, generated, day))
+        row = {"bank_version": BANK_VERSION, "questions_json": generated}
     return json.loads(row["questions_json"])
 
 
@@ -113,7 +124,7 @@ def _public(q, uid, day, progress):
     identifier = "dqa-" + hashlib.sha256(f'{uid}:{day}:{q["slot"]}'.encode()).hexdigest()[:32]
     return dict(id=identifier, date=day, slot=q["slot"], category=q["category"],
                 category_label=q["category_label"], prompt=q["prompt"], choices=q["choices"],
-                reward=10, progress=progress, done=False)
+                glossary=q.get("glossary") or [], reward=10, progress=progress, done=False)
 
 
 def _result(row, q, progress, duplicate):
@@ -162,13 +173,18 @@ def install(app, server, db):
             progress = _progress(con, uid, day)
             if not progress["remaining"] or progress["earned"] + 10 > 100:
                 return dict(done=True,date=day,progress=progress,reward=10)
-            rows = con.execute("SELECT slot,answer FROM quiz_daily_answers WHERE user_id=? AND quiz_date=?",(uid,day)).fetchall()
+            rows = con.execute("SELECT slot,answer,revision FROM quiz_daily_answers WHERE user_id=? AND quiz_date=?",(uid,day)).fetchall()
             answered = {int(r["slot"]) for r in rows if r["answer"] is not None}
             # Preserve an outstanding question when another tab refreshes.
             pending = [int(r["slot"]) for r in rows if r["answer"] is None]
             slot = min(pending) if pending else next(i for i in range(1,11) if i not in answered)
             q = questions[slot-1]
             public = _public(q,uid,day,progress)
+            # If today's set was regenerated for a readability fix, replace only an
+            # unanswered pending row. Already answered question snapshots stay intact.
+            con.execute("""UPDATE quiz_daily_answers SET question_key=?,revision=?,question_json=?
+                WHERE user_id=? AND quiz_date=? AND slot=? AND answer IS NULL AND revision<>?""",
+                (q["key"],q["revision"],_json(q),uid,day,slot,q["revision"]))
             con.execute("""INSERT INTO quiz_daily_answers(id,user_id,quiz_date,slot,question_key,revision,question_json,created_at)
                 VALUES (?,?,?,?,?,?,?,?) ON CONFLICT(user_id,quiz_date,slot) DO NOTHING""",
                 (public["id"],uid,day,slot,q["key"],q["revision"],_json(q),utc_now().isoformat()))
