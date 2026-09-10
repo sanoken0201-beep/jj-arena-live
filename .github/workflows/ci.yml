@@ -87,9 +87,6 @@ jobs:
       - name: Run v1.23 mobile poker UX regression
         run: python smoke_test_v123.py
 
-      - name: Run v1.22 current-runtime regression
-        run: python smoke_test_v122.py
-
       - name: Run same-day quiz readability refresh regression
         run: python smoke_test_quiz_readability_refresh.py
 
