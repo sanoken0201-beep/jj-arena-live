@@ -1,4 +1,4 @@
-"""Production entrypoint for JJ Arena Live v1.19.4.
+"""Production entrypoint for JJ Arena Live v1.20.0.
 
 The application runtime is reconstructed deterministically by runtime_builder.py
 from the verified v1.4 release bundle plus the ordered patch chain. Keep this
@@ -15,6 +15,7 @@ from pathlib import Path
 import admin_copy_patch
 import admin_ledger_stabilization
 import admin_pin_verification
+import hand_analytics
 import learning_content
 import online_results_cleanup
 from runtime_builder import build_runtime
@@ -30,6 +31,7 @@ os.environ.pop("JJ_ADMIN_LOGIN_PASSWORD", None)
 os.environ.pop("JJ_ADMIN_LOGIN_EMAIL", None)
 
 sys.path.insert(0, str(DEST))
+import server as runtime_server  # noqa: E402
 from server import app  # noqa: E402
 import admin_console  # noqa: E402
 import db  # noqa: E402
@@ -50,6 +52,7 @@ def _prioritize_extension_routes(fastapi_app) -> None:
             path in {"/admin", "/admin/", "/api/learning-content"}
             or path.startswith("/admin-static")
             or path.startswith("/api/admin/console")
+            or path.startswith("/api/analysis")
         )
 
     extension_routes = [route for route in routes if is_extension_route(route)]
@@ -62,4 +65,5 @@ admin_ledger_stabilization.install(app, admin_console)
 install_account_deletion(app)
 admin_pin_verification.install(app, admin_console)
 learning_content.install(app)
+hand_analytics.install(app, runtime_server, db)
 _prioritize_extension_routes(app)
