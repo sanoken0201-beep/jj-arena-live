@@ -17,7 +17,7 @@ css = (DEST / "static" / "styles.css").read_text(encoding="utf-8")
 index = (DEST / "static" / "index.html").read_text(encoding="utf-8")
 sw = (DEST / "static" / "sw.js").read_text(encoding="utf-8")
 
-assert RUNTIME_VERSION == "1.22.0"
+assert RUNTIME_VERSION == "1.23.0"
 marker = "v1.20.3 mobile bet-marker/call-amount hotfix"
 assert marker in appjs
 
@@ -40,11 +40,11 @@ assert "if(visual===3)return {left:p.left,top:27};" in appjs
 assert "jjMobileHotfixBetPos(actual)" in appjs
 assert "pointer-events:none!important" in css
 
-# v1.22 owns the active cache key. The mobile hotfix still applies after v50,
-# but its older cache-key replacement intentionally becomes a no-op.
-assert "?v=50" in index
-assert "jj-arena-live-v50" in sw
-assert 'request.url.query == "v=50"' in server
+# v1.23 owns the active cache key. The older mobile hotfix remains layered into
+# the runtime, while the final v51 release is authoritative for browser caching.
+assert "?v=51" in index
+assert "jj-arena-live-v51" in sw
+assert 'request.url.query == "v=51"' in server
 
 py_compile.compile(str(ROOT / "mobile_poker_hotfix.py"), doraise=True)
 py_compile.compile(str(ROOT / "runtime_builder.py"), doraise=True)
