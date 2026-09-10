@@ -35,6 +35,7 @@ jobs:
           python -m py_compile app.py
           python -m py_compile hand_analytics.py
           python -m py_compile hand_analytics_hardening.py
+          python -m py_compile v45_patch.py
           python -m py_compile v44_patch.py
           python -m py_compile v43_patch.py
           python -m py_compile v42_patch.py
