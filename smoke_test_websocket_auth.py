@@ -11,18 +11,14 @@ from starlette.websockets import WebSocketDisconnect
 from runtime_builder import build_runtime
 
 
-def expect_close(client: TestClient, first_payload, code: int, path: str = "/ws/tables/jj-table-a") -> None:
+def expect_close(client: TestClient, code: int, path: str = "/ws/tables/jj-table-a", headers=None) -> None:
     try:
-        with client.websocket_connect(path) as ws:
-            if isinstance(first_payload, str):
-                ws.send_text(first_payload)
-            else:
-                ws.send_json(first_payload)
+        with client.websocket_connect(path, headers=headers or {}) as ws:
             ws.receive_json()
     except WebSocketDisconnect as exc:
         assert exc.code == code, exc
     else:
-        raise AssertionError(f"websocket unexpectedly accepted payload for close code {code}")
+        raise AssertionError(f"websocket unexpectedly accepted connection for close code {code}")
 
 
 def run() -> None:
@@ -50,48 +46,79 @@ def run() -> None:
         appjs = (runtime / "static" / "app.js").read_text(encoding="utf-8")
         server_source = (runtime / "server.py").read_text(encoding="utf-8")
 
-        # The browser must never place the session token in a WebSocket URL.
+        # WSS must rely on the server-managed same-origin session cookie rather
+        # than exposing a bearer credential in the URL or in browser JS.
         assert "v1.20.2 websocket token privacy" in appjs
         assert "?token=${encodeURIComponent(token)}" not in appjs
-        assert "JSON.stringify({type:'auth',token})" in appjs
+        assert "JSON.stringify({type:'auth',token})" not in appjs
         assert 'ws.query_params.get("token")' not in server_source
-        assert 'await asyncio.wait_for(ws.receive_text(), timeout=5.0)' in server_source
-        assert 'if not isinstance(payload, dict)' in server_source
-        assert 'if not token or len(token) > 512' in server_source
+        assert 'token = request_token(ws)' in server_source
+        assert 'origin = str(ws.headers.get("origin") or "").rstrip("/")' in server_source
         assert 'JJ_TIMEOUT_LOOP_ERROR' in server_source
         assert 'finally:\n        hub.remove(table_id, ws)' in server_source
 
-        with db.connect() as con:
-            uid = db.insert_returning_id(
-                con,
-                "INSERT INTO users(name,email,password_hash,role,arena_chips,xp,approved,disabled,ranking_name,created_at) VALUES (?,?,?,?,?,?,?,?,?,?)",
-                ("テストユーザー", "ws-test@jj.invalid", db.hash_password("123456"), "member", 0, 0, 1, 0, "テストユーザー", db.utcnow()),
+        # Use HTTPS so Secure cookies, if configured, behave exactly like the
+        # production browser path. Logging in through the real PIN endpoint also
+        # guards against a false-positive test that bypasses normal auth wiring.
+        with TestClient(server.app, base_url="https://testserver") as client:
+            login = client.post(
+                "/api/auth/pin",
+                json={"name": "テストユーザー", "pin": "123456"},
             )
-        token = db.create_session(uid)
+            assert login.status_code == 200, login.text
+            user = login.json()["user"]
+            uid = int(user["id"])
+            set_cookie = login.headers.get("set-cookie", "").lower()
+            assert "httponly" in set_cookie
+            assert client.cookies
 
-        with TestClient(server.app) as client:
-            # New protocol: connect without credentials in the URL, then send a
-            # short authentication frame before any table state is returned.
-            with client.websocket_connect("/ws/tables/jj-table-a") as ws:
-                ws.send_json({"type": "auth", "token": token})
+            # No token is sent by JavaScript. The cookie on the WSS handshake is
+            # enough to authenticate and the first server frame is table state.
+            with client.websocket_connect(
+                "/ws/tables/jj-table-a",
+                headers={"origin": "https://testserver"},
+            ) as ws:
                 payload = ws.receive_json()
                 assert payload["type"] == "state"
                 assert payload["state"]["id"] == "jj-table-a"
                 ws.send_text("ping")
 
-            expect_close(client, {"type": "auth", "token": "invalid-token"}, 4401)
-            expect_close(client, [], 4401)
-            expect_close(client, "not-json", 4401)
-            expect_close(client, {"type": "auth", "token": "x" * 513}, 4401)
-            expect_close(client, {"type": "ping", "token": token}, 4401)
+            # Explicit cross-origin browser handshakes are rejected even when a
+            # valid session cookie is present.
+            expect_close(
+                client,
+                4403,
+                headers={"origin": "https://evil.example"},
+            )
 
-            # The old query-string transport is intentionally not accepted.
-            expect_close(client, "ping", 4401, f"/ws/tables/jj-table-a?token={token}")
+            # Capture only this ephemeral test token so we can verify that the
+            # old query-string transport is no longer honored. A separate client
+            # has no session cookie, therefore a valid token in the URL must fail.
+            cookie_values = [value for _, value in client.cookies.items()]
+            assert cookie_values
+            test_token = cookie_values[0]
+            with TestClient(server.app, base_url="https://testserver") as anonymous:
+                expect_close(
+                    anonymous,
+                    4401,
+                    path=f"/ws/tables/jj-table-a?token={test_token}",
+                    headers={"origin": "https://testserver"},
+                )
+                expect_close(
+                    anonymous,
+                    4401,
+                    headers={"origin": "https://testserver"},
+                )
 
-            # Disabled accounts are rejected even with a valid session token.
+            # Disabled accounts are rejected even while their old browser cookie
+            # still exists, matching the HTTP authorization lifecycle.
             with db.connect() as con:
                 con.execute("UPDATE users SET disabled=1 WHERE id=?", (uid,))
-            expect_close(client, {"type": "auth", "token": token}, 4403)
+            expect_close(
+                client,
+                4403,
+                headers={"origin": "https://testserver"},
+            )
 
         print("JJ_WEBSOCKET_AUTH_SMOKE_OK")
     finally:
