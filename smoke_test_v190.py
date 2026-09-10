@@ -22,8 +22,8 @@ css = (DEST / "static" / "styles.css").read_text(encoding="utf-8")
 index = (DEST / "static" / "index.html").read_text(encoding="utf-8")
 sw = (DEST / "static" / "sw.js").read_text(encoding="utf-8")
 
-assert RUNTIME_VERSION == "1.19.3"
-assert 'version="1.19.3"' in server or '"version":"1.19.3"' in server
+assert RUNTIME_VERSION == "1.19.4"
+assert 'version="1.19.4"' in server or '"version":"1.19.4"' in server
 
 # Quiz/ledger regression coverage from v1.18.6.
 assert 'JJ_QUIZ_REWARD = 10' in server
@@ -49,7 +49,7 @@ for value in (300, 400, 500, 600, 800, 1000):
     assert f'{value}: "{value} / tournament"' in server
 assert "else sel.value=String(game==='ring'?450:400)" in appjs
 
-# Japanese-first learning share remains present after the security patch.
+# Japanese-first learning share remains present.
 assert 'v1.19.2 Japanese-first learning share' in appjs
 assert 'id=\'jjLearningShare\'' in appjs or 'shell.id=\'jjLearningShare\'' in appjs
 assert '今日の学び' in appjs
@@ -65,9 +65,23 @@ assert 'id="pinChangeConfirmForm"' in appjs
 assert "post('/auth/change-pin',{current_pin:current,new_pin:next})" in appjs
 assert '新しいPINが一致しません' in appjs
 assert 'v1.19.3 member PIN self-service' in css
-assert '?v=42' in index
-assert 'jj-arena-live-v42' in sw
-assert 'request.url.query == "v=42"' in server
+
+# v1.19.4 is presentation-only UI hardening. Keep these basics in every later
+# release: keyboard focus, mobile touch sizing, reduced motion, connection state,
+# safer external links, and semantic labels for dynamic poker/quiz controls.
+assert 'v1.19.4 UI foundation and accessibility' in appjs
+assert 'jjV194UpdateConnectionStatus' in appjs
+assert 'オフラインです。接続が戻るまで操作結果は確定しない場合があります。' in appjs
+assert "actionBar.setAttribute('aria-label','ポーカー操作')" in appjs
+assert "quiz.setAttribute('aria-label','クイズの回答候補')" in appjs
+assert "rel.add('noopener');rel.add('noreferrer')" in appjs
+assert 'v1.19.4 UI foundation and accessibility' in css
+assert ':focus-visible' in css
+assert 'min-height:44px' in css
+assert 'prefers-reduced-motion:reduce' in css
+assert '?v=43' in index
+assert 'jj-arena-live-v43' in sw
+assert 'request.url.query == "v=43"' in server
 
 # The content service never accepts a caller-supplied fetch URL. All remote
 # sources are hard-coded and validated against allow-listed HTTPS hosts.
@@ -154,6 +168,7 @@ with cleanup_db.connect() as con:
     assert con.execute("SELECT COUNT(*) AS c FROM online_hand_results").fetchone()["c"] == 1
 
 app_source = (ROOT / "app.py").read_text(encoding="utf-8")
+assert 'Production entrypoint for JJ Arena Live v1.19.4' in app_source
 assert 'from runtime_builder import build_runtime' in app_source
 assert 'DEST = build_runtime()' in app_source
 assert 'online_results_cleanup.apply(db)' in app_source
@@ -169,13 +184,28 @@ assert 'password_hash' in pin_verify_source
 assert 'result="match" if matched else "no_match"' in pin_verify_source
 assert 'candidate PIN or password hash' in pin_verify_source
 
+# Admin visual basics are isolated assets so they can be rolled back without
+# touching account/point APIs. They must stay injected with cache-busting.
 admin_copy_source = (ROOT / "admin_copy_patch.py").read_text(encoding="utf-8")
 assert 'admin_pin_verify.css' in admin_copy_source
 assert 'admin_pin_verify.js' in admin_copy_source
+assert 'admin_ui_foundation.css' in admin_copy_source
+assert 'admin_ui_foundation.js' in admin_copy_source
+assert '<th>アカウント</th><th>状態</th><th>ランキング</th>' in admin_copy_source
 admin_pin_js = (ROOT / "admin_static" / "admin_pin_verify.js").read_text(encoding="utf-8")
 assert 'type="password"' in admin_pin_js
 assert '/verify-pin' in admin_pin_js
 assert '現在のPINそのものは表示できません' in admin_pin_js
+admin_ui_js = (ROOT / "admin_static" / "admin_ui_foundation.js").read_text(encoding="utf-8")
+admin_ui_css = (ROOT / "admin_static" / "admin_ui_foundation.css").read_text(encoding="utf-8")
+assert 'jjUserCount' in admin_ui_js
+assert 'jjUserSearchClear' in admin_ui_js
+assert "setAttribute('aria-current','page')" in admin_ui_js
+assert 'lastUserOpener.focus' in admin_ui_js
+assert ':focus-visible' in admin_ui_css
+assert 'min-height:44px' in admin_ui_css
+assert 'prefers-reduced-motion:reduce' in admin_ui_css
+assert 'button[data-account-delete]' in admin_ui_css
 
 ledger_patch = (ROOT / "admin_ledger_stabilization.py").read_text(encoding="utf-8")
 assert "l.kind='quiz_reward'" in ledger_patch
@@ -185,6 +215,7 @@ assert 'row.update(categories)' in ledger_patch
 
 for filename in [
     "runtime_builder.py",
+    "v43_patch.py",
     "v42_patch.py",
     "v41_patch.py",
     "v40_patch.py",
@@ -209,4 +240,5 @@ smoke_test_user_management.run()
 
 print("JJ_LEARNING_CONTENT_SMOKE_OK")
 print("JJ_PIN_MANAGEMENT_SMOKE_OK")
+print("JJ_UI_FOUNDATION_SMOKE_OK")
 print("JJ_ARENA_CURRENT_SMOKE_OK")
