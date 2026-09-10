@@ -21,9 +21,7 @@ def test_no_flop_no_drop(engine) -> None:
     original_finish = engine._jj_v123_base_finish_hand
     original_award = engine._jj_v123_base_award_uncontested
     try:
-        engine._jj_v123_base_finish_hand = lambda state, winner: state.update(
-            {"status": "waiting", "last_result": {"type": "uncontested", "winner": winner}}
-        )
+        engine._jj_v123_base_finish_hand = lambda state: state.update({"status": "waiting"})
 
         def forbidden_legacy_award(_state):
             raise AssertionError("preflop uncontested pot must bypass legacy rake settlement")
@@ -42,7 +40,9 @@ def test_no_flop_no_drop(engine) -> None:
         assert state["hand"]["rake"] == 0
         assert state["seats"][0]["stack"] == 1050
         assert all(int(p["contributed"]) == 0 and int(p["round_bet"]) == 0 for p in state["seats"])
-        assert state["last_result"]["type"] == "uncontested"
+        result = state.get("last_result") or {}
+        assert result.get("type") == "uncontested"
+        assert int((result.get("winners") or [{}])[0].get("amount") or 0) == 150
 
         delegated = {"value": False}
         engine._jj_v123_base_award_uncontested = lambda _state: delegated.__setitem__("value", True)
@@ -58,14 +58,9 @@ def test_no_flop_no_drop(engine) -> None:
 
 
 def test_staged_allin_runout(engine) -> None:
-    original_consume = engine._consume_bets_into_pot
-    original_deal = engine._deal_next_street
+    original_advance = engine._jj_v123_base_advance_round
     original_showdown = engine._showdown
     try:
-        engine._consume_bets_into_pot = lambda state: state["hand"].update(
-            {"pot": sum(int(p.get("contributed", 0) or 0) for p in state["seats"])}
-        )
-
         def deal_one_stage(state):
             hand = state["hand"]
             n = len(hand["board"])
@@ -81,7 +76,7 @@ def test_staged_allin_runout(engine) -> None:
             else:
                 raise AssertionError(f"unexpected staged board length: {n}")
 
-        engine._deal_next_street = deal_one_stage
+        engine._jj_v123_base_advance_round = deal_one_stage
         engine._showdown = lambda state: state.__setitem__("jj_test_showdown", True)
 
         state = {
@@ -97,6 +92,8 @@ def test_staged_allin_runout(engine) -> None:
         engine._auto_progress_if_needed(state)
         assert state["hand"]["forced_runout"] is True
         assert state["hand"]["board"] == [], "preflop all-in must not expose the full board immediately"
+        assert all(int(p["contributed"]) == 15000 for p in state["seats"]), "cumulative pot contributions must survive runout staging"
+        assert all(int(p["round_bet"]) == 0 for p in state["seats"]), "street bets must be cleared during forced runout"
 
         expected_lengths = [3, 4, 5]
         for length in expected_lengths:
@@ -109,8 +106,7 @@ def test_staged_allin_runout(engine) -> None:
         assert engine.advance_forced_runout(state) is True
         assert state.get("jj_test_showdown") is True
     finally:
-        engine._consume_bets_into_pot = original_consume
-        engine._deal_next_street = original_deal
+        engine._jj_v123_base_advance_round = original_advance
         engine._showdown = original_showdown
 
 
@@ -118,12 +114,12 @@ def test_showdown_hold_and_reasons(engine) -> None:
     original_finish = engine._jj_v123_base_finish_hand
     original_legal = engine._jj_v123_base_legal_actions
     try:
-        engine._jj_v123_base_finish_hand = lambda state, _winner: state.update(
+        engine._jj_v123_base_finish_hand = lambda state: state.update(
             {"status": "waiting", "next_hand_at_epoch": engine.time.time() + 2.4, "last_result": {"type": "showdown"}}
         )
         now = engine.time.time()
         state = {"hand": {"showdown": {"scores": {"1": [1], "2": [0]}}}}
-        engine._finish_hand(state, "アリス")
+        engine._finish_hand(state)
         hold = float(state.get("showdown_hold_until_epoch") or 0)
         assert hold >= now + 7.0
         assert float(state.get("next_hand_at_epoch") or 0) >= hold
@@ -158,6 +154,7 @@ def main() -> None:
         root = build_runtime(Path(td) / "runtime")
         engine = load_engine(root)
         server = (root / "server.py").read_text(encoding="utf-8")
+        engine_src = (root / "poker_engine.py").read_text(encoding="utf-8")
         appjs = (root / "static" / "app.js").read_text(encoding="utf-8")
         css = (root / "static" / "styles.css").read_text(encoding="utf-8")
         index = (root / "static" / "index.html").read_text(encoding="utf-8")
@@ -166,7 +163,8 @@ def main() -> None:
         assert 'version="1.23.0"' in server or '"version":"1.23.0"' in server
         assert "v1.23.0 staged forced-runout scheduler" in server
         assert "advance_forced_runout" in server
-        assert "v1.23.0 mobile poker second-pass engine UX" in (root / "poker_engine.py").read_text(encoding="utf-8")
+        assert "v1.23.0 mobile poker second-pass engine UX" in engine_src
+        assert "v1.23.0 reconstructed-engine compatibility final" in engine_src
 
         # JS generates suit classes dynamically; validate its suit map and the
         # concrete CSS classes together instead of searching JS for fixed names.
