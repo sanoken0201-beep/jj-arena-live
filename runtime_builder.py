@@ -49,6 +49,7 @@ import v50_patch
 import v51_patch
 import v51_post_patch
 import v51_final_patch
+import v51_engine_compat_patch
 
 ROOT = Path(__file__).resolve().parent
 RELEASE_DIR = ROOT / "release_v14"
@@ -132,6 +133,9 @@ def _apply_patches(dest: Path) -> None:
     v51_patch.apply(dest)
     v51_post_patch.apply(dest)
     v51_final_patch.apply(dest)
+    # Adapt the final v1.23 wrappers to the verified reconstructed engine's
+    # concrete helper contracts before the runtime is imported by FastAPI/tests.
+    v51_engine_compat_patch.apply(dest)
 
 
 def build_runtime(dest: Path | None = None) -> Path:
