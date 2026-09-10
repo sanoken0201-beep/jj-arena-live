@@ -17,6 +17,7 @@ def apply(root: Path) -> None:
 # `_can_act` accepts one player, `_advance_round` deals exactly one street, and
 # `_finish_hand` accepts the state only. These final wrappers intentionally adapt
 # v1.23 to those contracts so staging never depends on invented helper APIs.
+import inspect
 import time
 
 
@@ -59,6 +60,47 @@ def _jj_v123_prepare_runout(state: dict) -> None:
     hand["acted"] = []
     hand["raise_closed_for"] = []
     _jj_v123_queue_runout(state)
+
+
+def _jj_v123_call_base_award(state: dict, winner: dict | None = None):
+    """Delegate postflop settlement without assuming a historical wrapper signature."""
+    fn = _jj_v123_base_award_uncontested
+    params = [
+        p for p in inspect.signature(fn).parameters.values()
+        if p.kind in (inspect.Parameter.POSITIONAL_ONLY, inspect.Parameter.POSITIONAL_OR_KEYWORD)
+    ]
+    if len(params) >= 2:
+        return fn(state, winner or (_in_hand_players(state)[0] if _in_hand_players(state) else None))
+    return fn(state)
+
+
+def _award_uncontested(state: dict) -> None:
+    """No Flop, No Drop while preserving the normal winner/result payload."""
+    hand = state.get("hand")
+    alive = _in_hand_players(state)
+    if not hand or len(alive) != 1:
+        return _jj_v123_call_base_award(state, alive[0] if alive else None)
+    if len(hand.get("board") or []) != 0:
+        return _jj_v123_call_base_award(state, alive[0])
+
+    winner = alive[0]
+    pot = sum(int(player.get("contributed", 0) or 0) for player in _occupied(state))
+    hand["rake"] = 0
+    winner["stack"] = int(winner.get("stack", 0) or 0) + max(0, int(pot))
+    state["last_result"] = {
+        "type": "uncontested",
+        "winners": [{
+            "user_id": winner.get("user_id"),
+            "name": winner.get("name") or "",
+            "amount": int(pot),
+        }],
+        "board": list(hand.get("board") or []),
+        "message": f"{winner.get('name') or ''} wins {bb_text(state, pot)}",
+    }
+    for player in _occupied(state):
+        player["contributed"] = 0
+        player["round_bet"] = 0
+    _finish_hand(state, winner.get("name") or "")
 
 
 def _auto_progress_if_needed(state: dict) -> None:
