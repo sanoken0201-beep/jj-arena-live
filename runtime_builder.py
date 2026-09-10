@@ -47,6 +47,7 @@ import v49_patch
 import v49_post_patch
 import v50_patch
 import v51_patch
+import v51_post_patch
 
 ROOT = Path(__file__).resolve().parent
 RELEASE_DIR = ROOT / "release_v14"
@@ -128,6 +129,7 @@ def _apply_patches(dest: Path) -> None:
     # v1.23 deliberately runs after the mobile hotfix because it owns the final
     # action-bar/card presentation and the staged all-in table lifecycle.
     v51_patch.apply(dest)
+    v51_post_patch.apply(dest)
 
 
 def build_runtime(dest: Path | None = None) -> Path:
