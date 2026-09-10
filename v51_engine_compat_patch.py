@@ -4,7 +4,11 @@ from pathlib import Path
 
 
 def apply(root: Path) -> None:
-    path = root / "poker_engine.py"
+    _engine(root / "poker_engine.py")
+    _server(root / "server.py")
+
+
+def _engine(path: Path) -> None:
     text = path.read_text(encoding="utf-8")
     marker = "v1.23.0 reconstructed-engine compatibility final"
     if marker in text:
@@ -172,5 +176,63 @@ def _finish_hand(state: dict, winner_name: str | None = None) -> None:
         hold_until = time.time() + JJ_V123_SHOWDOWN_HOLD_SECONDS
         state["showdown_hold_until_epoch"] = hold_until
         state["next_hand_at_epoch"] = max(float(state.get("next_hand_at_epoch") or 0), hold_until)
+'''
+    path.write_text(text.rstrip() + addon + "\n", encoding="utf-8")
+
+
+def _server(path: Path) -> None:
+    text = path.read_text(encoding="utf-8")
+    marker = "v1.23.0 reconstructed-server scheduler compatibility final"
+    if marker in text:
+        return
+    addon = r'''
+
+# v1.23.0 reconstructed-server scheduler compatibility final.
+# The verified server exposes fixed tables through db.FIXED_TABLES, locking via
+# get_table_lock(), and broadcast via hub.broadcast(). Replace the earlier
+# provisional scheduler wrapper with one that uses those actual contracts.
+_jj_v123_server_base_auto_deal_loop = _jj_v123_base_auto_deal_loop
+
+
+async def auto_deal_loop():
+    base_task = asyncio.create_task(_jj_v123_server_base_auto_deal_loop())
+    try:
+        while True:
+            await asyncio.sleep(0.18)
+            now = time.time()
+            for table_id, _table_name in db.FIXED_TABLES:
+                changed = False
+                try:
+                    async with get_table_lock(table_id):
+                        state = load_table(table_id)
+                        hand = state.get("hand") or {}
+                        due = float(hand.get("runout_due_at_epoch") or 0)
+                        if (
+                            state.get("status") == "playing"
+                            and hand.get("forced_runout")
+                            and due
+                            and due <= now
+                            and advance_forced_runout(state)
+                        ):
+                            # Forced runout frames have no player decision, so do
+                            # not arm an action timeout here. Normal next-hand
+                            # dealing remains owned by the established base loop.
+                            save_table(state)
+                            changed = True
+                    if changed:
+                        await hub.broadcast(table_id)
+                except asyncio.CancelledError:
+                    raise
+                except Exception as exc:
+                    import resilience as _jj_v123_resilience
+                    _jj_v123_resilience.record_error(
+                        db,
+                        "forced_runout",
+                        f"{type(exc).__name__}: {exc}",
+                        path=table_id,
+                    )
+    finally:
+        base_task.cancel()
+        await asyncio.gather(base_task, return_exceptions=True)
 '''
     path.write_text(text.rstrip() + addon + "\n", encoding="utf-8")
