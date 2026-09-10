@@ -42,6 +42,7 @@ import v45_patch
 import v46_patch
 import v47_patch
 import v48_patch
+import v49_compat_patch
 import v49_patch
 
 ROOT = Path(__file__).resolve().parent
@@ -114,6 +115,7 @@ def _apply_patches(dest: Path) -> None:
         v46_patch,
         v47_patch,
         v48_patch,
+        v49_compat_patch,
         v49_patch,
     ):
         module.apply(dest)
