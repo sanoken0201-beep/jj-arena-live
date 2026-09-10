@@ -8,20 +8,10 @@ ASSET_VERSION_NEW = "48-hotfix1"
 
 
 def apply(root: Path) -> None:
-    _server(root / "server.py")
     _app(root / "static" / "app.js")
     _styles(root / "static" / "styles.css")
     _index(root / "static" / "index.html")
     _sw(root / "static" / "sw.js")
-
-
-def _server(path: Path) -> None:
-    text = path.read_text(encoding="utf-8")
-    text = text.replace(
-        f'request.url.query == "v={ASSET_VERSION_OLD}"',
-        f'request.url.query == "v={ASSET_VERSION_NEW}"',
-    )
-    path.write_text(text, encoding="utf-8")
 
 
 def _app(path: Path) -> None:
