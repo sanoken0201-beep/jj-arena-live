@@ -168,10 +168,12 @@ UI改善だけの場合はgame engineを触らないこと。game rule変更時�
 ### WebSocket authentication
 
 - v1.20.2以降、session tokenを `/ws/tables/...?...` のquery stringへ入れない。
-- WebSocketはcredentialなしURLでWSS接続し、接続直後の最初のJSON frame `{type:"auth", token:"..."}` で認証する。
+- PINログイン時にサーバーが設定する既存のsame-origin session cookieをWebSocket handshakeでも使用する。JavaScriptへWebSocket専用tokenを返さない。
+- WebSocket URL自体はcredentialなしの `/ws/tables/{table_id}` とする。
+- ブラウザが明示した `Origin` が現在の `Host` と一致しない場合は4403で拒否する。
+- session cookieが無い、失効済み、または無効な場合は4401、disabled accountは4403、存在しないtableは4404でcloseする。
 - 認証成功前にtable state、message、player dataを送らない。
-- auth frameは5秒以内、4KB以下、JSON object、token長512文字以下に制限する。
-- 無効tokenは4401、disabled accountは4403、存在しないtableは4404でcloseする。
+- query stringに有効な旧tokenを付与しても認証手段として扱わない。
 - 接続終了時は成功・例外を問わずHubから必ずremoveする。
 - credential値をWebSocket URL、timeout error log、connection error logへ出さない。
 
@@ -211,9 +213,11 @@ UI改善だけの場合はgame engineを触らないこと。game rule変更時�
 [ ] poker lobby loads
 [ ] table state loads
 [ ] WebSocket URL contains no token query parameter
-[ ] WebSocket first-frame authentication succeeds
-[ ] invalid/disabled WebSocket sessions are rejected
+[ ] authenticated browser session opens WebSocket using its existing session cookie
+[ ] cross-origin WebSocket handshake is rejected
+[ ] query-string-only / invalid / disabled WebSocket sessions are rejected
 [ ] no new ERROR logs
+[ ] no JJ_TIMEOUT_LOOP_ERROR / JJ_WS_CONNECTION_ERROR during normal play
 ```
 
 ## 12. Learning content sharing rules
