@@ -1,5 +1,6 @@
 from __future__ import annotations
 from pathlib import Path
+import json
 import re
 
 
@@ -26,7 +27,7 @@ def _patch_index(p: Path) -> None:
 
 def _patch_appjs(p: Path) -> None:
     s=p.read_text(encoding='utf-8')
-    if 'const wizardStudyLibrary=' in s:
+    if 'const jjJapaneseArticleFallback=' in s:
         return
     marker='})();'
     pos=s.rfind(marker)
@@ -34,52 +35,59 @@ def _patch_appjs(p: Path) -> None:
         raise RuntimeError('v1.9 app.js closing marker not found')
     addon=r'''
 
-  // v1.9 — curated external study spotlight. The selection is deterministic per ISO-like
-  // week so every member sees the same Cash/MTT pair and it rotates automatically.
-  const wizardStudyLibrary={
-    cash:[
-      {title:'OOP 4-Betting in Deep-Stacked Cash Games',date:'2025-01-27',minutes:'8 min',url:'https://blog.gtowizard.com/oop-4-betting-in-deep-stacked-cash-games/',summary:'ディープスタックの4bet potで、OOP側がどのボードで強くベットできるかを整理する週。'},
-      {title:'Check-Raising a Single Pair',date:'2024-02-26',minutes:'7 min',url:'https://blog.gtowizard.com/check-raising-a-single-pair/',summary:'100bb前後でワンペアをチェックレイズへ回す条件を、レンジとインセンティブから考える。'},
-      {title:'The 5 Levels of Trainer Mastery for Cash Games',date:'2024-06-17',minutes:'9 min',url:'https://blog.gtowizard.com/the-5-levels-of-trainer-mastery/',summary:'Trainer学習を難易度順に組み立て、ただ解くだけではなく反復設計まで見直す。'},
-      {title:'Live Cash Solutions and 4,000 New Scenarios',date:'2024-06-18',minutes:'4 min',url:'https://blog.gtowizard.com/live-cash-solutions-and-4000-new-scenarios-for-cash-mtt-formats/',summary:'ライブキャッシュ特有の深いスタック・大きなオープンサイズをどう学習対象にするか確認する。'},
-      {title:'Introducing Nodelocking',date:'2023-10-11',minutes:'11 min',url:'https://blog.gtowizard.com/introducing-nodelocking/',summary:'均衡戦略から相手のリークを固定して、エクスプロイトへ橋渡しする考え方を確認する。'}
-    ],
-    mtt:[
-      {title:'Playing Under 10bb – Part 2: ICM',date:'2026-07-13',minutes:'12 min',url:'https://blog.gtowizard.com/playing-under-10bb-part-2-icm/',summary:'10bb未満の終盤戦。バブルとFTで同じショート戦略にならない理由をICMから確認する。'},
-      {title:'Playing Under 10bb – Part 1: cEV',date:'2026-06-29',minutes:'14 min',url:'https://blog.gtowizard.com/playing-under-10bb-part-1-cev/',summary:'ICMが薄い局面の超ショート戦略を先に整理し、Part 2との違いを見る。'},
-      {title:'How ICM Quietly Shapes Postflop Strategy From the Start',date:'2025-12-23',minutes:'13 min',url:'https://blog.gtowizard.com/how-icm-quietly-shapes-postflop-strategy-from-the-start/',summary:'トーナメント序盤にも小さなリスクプレミアムが存在するという視点からcEVとの差を考える。'},
-      {title:'How ICM Reshapes 3-Bet Pots',date:'2025-12-08',minutes:'11 min',url:'https://blog.gtowizard.com/how-icm-reshapes-3-bet-pots-and-why-you-cant-trust-chipev/',summary:'3bet potでICMがプリフロップレンジとポストフロップ双方に与える影響を切り分ける。'},
-      {title:'Register Late, Win More',date:'2025-07-28',minutes:'10 min',url:'https://blog.gtowizard.com/register-late-win-more-the-math-behind-smarter-tournament-entry/',summary:'レイトレジがスタックのICM価値と収益性にどう作用するか、参加タイミングの数学を見る。'},
-      {title:'Mastering Postflop ICM: Avoid These Common Mistakes',date:'2025-02-11',minutes:'13 min',url:'https://blog.gtowizard.com/mastering-postflop-icm-avoid-these-common-mistakes/',summary:'ポストフロップICMをcEVと比較せず読む危険など、学習時の代表的な落とし穴を整理する。'},
-      {title:'When to Just Shove Postflop in ICM Spots',date:'2025-04-15',minutes:'9 min',url:'https://blog.gtowizard.com/when-to-just-shove-post-flop-in-icm-spots/',summary:'ICMでは小さく打つ傾向だけでなく、極端なオールインが選ばれる条件もあることを学ぶ。'},
-      {title:'The 5 Levels of Trainer Mastery for MTTs',date:'2024-08-12',minutes:'9 min',url:'https://blog.gtowizard.com/5-levels-of-trainer-mastery-for-mtts/',summary:'スタック深度・ICM・PKOまで含むMTT学習を段階化して、毎週の学習ルーティンを作る。'}
-    ]
-  };
+  // Japanese article fallbacks are embedded from the server's verified list.
+  // Both study surfaces stay Japanese even when the API is unavailable.
+  const jjJapaneseArticleFallback=__JJ_JAPANESE_ARTICLE_FALLBACK__;
+  function jjStudyJapaneseText(value){
+    const text=String(value||'').normalize('NFKC'),letters=text.match(/\p{L}/gu)||[],japanese=text.match(/[ぁ-んァ-ヶ一-龠々]/g)||[];
+    return /[ぁ-んァ-ヶ]/.test(text)&&japanese.length>=2&&japanese.length/Math.max(1,letters.length)>=0.3;
+  }
+  function jjJapaneseStudyArticles(items){
+    const seen=new Set();
+    return (Array.isArray(items)?items:[]).filter(item=>{
+      if(!item||!/^ja(?:[-_]jp)?$/i.test(String(item.language||''))||!jjStudyJapaneseText(item.title)||(item.summary&&!jjStudyJapaneseText(item.summary)))return false;
+      try{
+        const url=new URL(item.url);
+        const path=decodeURIComponent(url.pathname),parts=path.replace(/^\/+|\/+$/g,'').split('/');
+        if(url.protocol!=='https:'||url.hostname!=='japan.gtowizard.com'||url.port||url.username||url.password||!path.startsWith('/blog/')||parts.length!==2||['','.','..','news','videos'].includes(parts[1].toLowerCase())||path.includes('\\')||url.search)return false;
+        url.hash='';
+        if(seen.has(url.href))return false;
+        seen.add(url.href);
+        return true;
+      }catch{return false}
+    }).map(item=>({...item,source:'GTO Wizard Japan',summary:jjStudyJapaneseText(item.summary)?item.summary:''}));
+  }
   function studyWeekSeed(){
     const now=new Date(),d=new Date(now.getFullYear(),now.getMonth(),now.getDate());
     const day=(d.getDay()+6)%7; d.setDate(d.getDate()-day);
     return Number(`${d.getFullYear()}${String(d.getMonth()+1).padStart(2,'0')}${String(d.getDate()).padStart(2,'0')}`);
   }
-  function studyIndex(kind,length){let x=(studyWeekSeed()^(kind==='cash'?0x43a5f17:0x19b7c31))>>>0;x^=x<<13;x^=x>>>17;x^=x<<5;return Math.abs(x>>>0)%length}
-  function studyArticle(kind){const list=wizardStudyLibrary[kind],a=list[studyIndex(kind,list.length)];return a}
-  function studyCard(kind,a,compact=false){const label=kind==='cash'?'CASH':'MTT',jp=kind==='cash'?'キャッシュ':'トーナメント';return `<article class="study-card ${kind} ${compact?'compact':''}"><div class="study-card-top"><span class="study-kind">${label}</span><span class="study-time">${safe(a.minutes)}</span></div><h4>${safe(a.title)}</h4><p>${safe(a.summary)}</p><div class="study-meta"><span>${jp} · ${safe(a.date)}</span><a href="${safe(a.url)}" target="_blank" rel="noopener noreferrer">GTO Wizardで読む <b>↗</b></a></div></article>`}
+  function studyIndex(length){let x=(studyWeekSeed()^0x43a5f17)>>>0;x^=x<<13;x^=x>>>17;x^=x<<5;return Math.abs(x>>>0)%length}
+  function studyCard(a,compact=false){return `<article class="study-card ${compact?'compact':''}"><div class="study-card-top"><span class="study-kind">日本語記事</span><span class="study-time">${safe(a.topic||'ポーカー学習')}</span></div><h4>${safe(a.title)}</h4><p>${safe(a.summary)}</p><div class="study-meta"><span>GTO Wizard Japan · ${safe(String(a.published_at||'').slice(0,10))}</span><a href="${safe(a.url)}" target="_blank" rel="noopener noreferrer">日本語で読む <b>↗</b></a></div></article>`}
   function renderWeeklyStudy(){
-    const cash=studyArticle('cash'),mtt=studyArticle('mtt');
+    const articles=jjJapaneseStudyArticles(jjJapaneseArticleFallback);
+    const offset=articles.length?studyIndex(articles.length):0;
+    const selected=articles.slice(offset).concat(articles.slice(0,offset)).slice(0,2);
+    const cards=compact=>selected.map(a=>studyCard(a,compact)).join('')||'<div class="empty">共有できる日本語記事がありません</div>';
     const home=$('#homeView');
     if(home&&!$('#weeklyStudyHome')){
       const block=document.createElement('section');block.id='weeklyStudyHome';block.className='weekly-study weekly-study-home';
-      block.innerHTML=`<div class="study-head"><div><div class="eyebrow">WEEKLY STUDY</div><h3>今週の2本</h3><p>CashとMTTを1本ずつ。毎週月曜に自動で切り替わります。</p></div><button class="soft" data-jump="lab">Poker Labで見る</button></div><div class="study-grid">${studyCard('cash',cash,true)}${studyCard('mtt',mtt,true)}</div>`;
+      block.innerHTML=`<div class="study-head"><div><div class="eyebrow">WEEKLY STUDY</div><h3>今週の日本語記事</h3><p>公開日にかかわらず、日本語で読める記事から毎週選んでいます。</p></div><button class="soft" data-jump="lab">Poker Labで見る</button></div><div class="study-grid">${cards(true)}</div>`;
       const anchor=home.querySelector('.home-columns');if(anchor)anchor.insertAdjacentElement('beforebegin',block);else home.appendChild(block);
     }
     const lab=$('#labView');
     if(lab&&!$('#weeklyStudyLab')){
       const block=document.createElement('section');block.id='weeklyStudyLab';block.className='weekly-study weekly-study-lab card';
-      block.innerHTML=`<div class="study-head"><div><div class="eyebrow">CURATED BY JJ · EXTERNAL</div><h3>今週のGTO Wizard</h3><p>原文への入口だけをJJ Arenaに置きます。本文転載はせず、学習テーマをCash / MTTで分離しています。</p></div><a class="study-all" href="https://blog.gtowizard.com/articles/" target="_blank" rel="noopener noreferrer">記事一覧 ↗</a></div><div class="study-grid">${studyCard('cash',cash)}${studyCard('mtt',mtt)}</div><div class="study-foot">GTO Wizardの外部記事を紹介する非提携の学習リンクです。JJ Arenaのポイントやオンライン対戦結果には影響しません。</div>`;
+      block.innerHTML=`<div class="study-head"><div><div class="eyebrow">CURATED BY JJ · EXTERNAL</div><h3>今週のGTO Wizard Japan</h3><p>日本語記事への入口を紹介します。本文の転載はしていません。</p></div><a class="study-all" href="https://japan.gtowizard.com/blog/" target="_blank" rel="noopener noreferrer">日本語の記事一覧 ↗</a></div><div class="study-grid">${cards(false)}</div><div class="study-foot">GTO Wizard Japanの外部記事を紹介する非提携の学習リンクです。JJ Arenaのポイントやオンライン対戦結果には影響しません。</div>`;
       const first=lab.firstElementChild;if(first)first.insertAdjacentElement('beforebegin',block);else lab.appendChild(block);
     }
   }
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',renderWeeklyStudy,{once:true});else renderWeeklyStudy();
 '''
+    from learning_content import _fallback_payload
+
+    fallback_json = json.dumps(_fallback_payload()['articles'], ensure_ascii=False).replace('<', '\\u003c')
+    addon = addon.replace('__JJ_JAPANESE_ARTICLE_FALLBACK__', fallback_json)
     s=s[:pos]+addon+s[pos:]
     p.write_text(s,encoding='utf-8')
 

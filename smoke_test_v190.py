@@ -51,7 +51,7 @@ assert "else sel.value=String(game==='ring'?450:400)" in appjs
 # Japanese-first learning share remains present.
 assert 'v1.19.2 Japanese-first learning share' in appjs
 assert '今日の学び' in appjs
-assert '記事は日本語を優先' in appjs
+assert '記事は日本語で読めるものだけを表示' in appjs
 assert "api('/learning-content')" in appjs
 assert 'STRATEGY' in appjs and 'MOTIVATION' in appjs
 assert 'v1.19.2 Japanese-first learning share' in css
@@ -124,13 +124,13 @@ timeout_start = server.index('async def timeout_loop():')
 timeout_end = server.index('@app.websocket("/ws/tables/{table_id}")', timeout_start)
 timeout_block = server[timeout_start:timeout_end]
 assert 'except Exception:\n            pass' not in timeout_block
-assert '?v=47' in index
-assert 'jj-arena-live-v47' in sw
-assert 'request.url.query == "v=47"' in server
+assert '?v=47-ja1' in index
+assert 'jj-arena-live-v47-ja1' in sw
+assert 'request.url.query == "v=47-ja1"' in server
 
 # Learning-content outbound security policy.
 fallback = learning_content._fallback_payload()
-assert fallback["policy"]["articles"] == "ja-first"
+assert fallback["policy"]["articles"] == "ja-only"
 assert fallback["articles"] and fallback["videos"]
 assert all(a["language"] == "ja" for a in fallback["articles"])
 assert all(urlsplit(a["url"]).hostname == "japan.gtowizard.com" for a in fallback["articles"])
@@ -146,6 +146,7 @@ gto_feed = b'''<?xml version="1.0" encoding="UTF-8"?>
   <item><title>\xe6\x96\xb0\xe6\xa9\x9f\xe8\x83\xbd\xe3\x81\xae\xe3\x81\x8a\xe7\x9f\xa5\xe3\x82\x89\xe3\x81\x9b</title><link>https://japan.gtowizard.com/blog/news/product/</link><pubDate>Thu, 10 Sep 2026 01:00:00 +0000</pubDate></item>
   <item><title>English only title</title><link>https://japan.gtowizard.com/blog/english/</link><pubDate>Thu, 10 Sep 2026 02:00:00 +0000</pubDate></item>
 </channel></rss>'''
+gto_feed = gto_feed.replace(b"Japanese poker article", "ICMの日本語解説です。".encode("utf-8"))
 parsed_articles = learning_content._parse_gtowizard_articles(gto_feed)
 assert len(parsed_articles) == 1
 assert parsed_articles[0]["title"] == "ICMの日本語解説"
@@ -275,6 +276,10 @@ for filename in [
 # Existing auth/account lifecycle regression remains part of every production build.
 import smoke_test_user_management
 smoke_test_user_management.run()
+
+# Fail the Render build if RSS, fallback, or cache can leak English articles.
+import smoke_test_learning_language
+smoke_test_learning_language.run()
 
 print("JJ_LEARNING_CONTENT_SMOKE_OK")
 print("JJ_PIN_MANAGEMENT_SMOKE_OK")

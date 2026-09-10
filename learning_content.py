@@ -6,10 +6,11 @@ import html
 import re
 import threading
 import time
+import unicodedata
 import urllib.request
 import xml.etree.ElementTree as ET
 from datetime import datetime, timezone
-from urllib.parse import urlsplit
+from urllib.parse import unquote, urlsplit
 
 from fastapi import Depends
 
@@ -156,10 +157,10 @@ def _with_thumbnails(videos: list[dict]) -> list[dict]:
 def _fallback_payload() -> dict:
     return {
         "updated_at": _now_iso(),
-        "articles": [dict(x) for x in ARTICLE_FALLBACK],
+        "articles": _validated_articles(ARTICLE_FALLBACK),
         "videos": _with_thumbnails([dict(x) for x in VIDEO_FALLBACK[:5]]),
         "policy": {
-            "articles": "ja-first",
+            "articles": "ja-only",
             "article_source": "GTO Wizard Japan",
             "video_sources": ["GTO Wizard Japan", "ヨコサワポーカーチャンネル", "POKER BROTHERS"],
             "stale_while_revalidate": True,
@@ -217,7 +218,77 @@ def _published_iso(value: str | None) -> str:
 
 
 def _has_japanese(text: str) -> bool:
-    return bool(re.search(r"[ぁ-んァ-ヶ一-龠々ー]", text or ""))
+    """Conservative prose check, not a single CJK character/language label.
+
+    Kana distinguishes Japanese from Chinese; the ratio rejects English prose
+    with a Japanese brand/suffix. Latin poker terms (GTO, ICM, SPR) are allowed.
+    Uncertain items are omitted in favor of the reviewed Japanese fallback.
+    """
+    text = unicodedata.normalize("NFKC", text or "")
+    japanese = len(re.findall(r"[ぁ-んァ-ヶ一-龠々]", text))
+    letters = sum(char.isalpha() for char in text)
+    return (
+        japanese >= 2
+        and bool(re.search(r"[ぁ-んァ-ヶ]", text))
+        and japanese / max(letters, 1) >= 0.30
+    )
+
+
+def _article_url(value: str) -> str | None:
+    url = _safe_https_url(value, {"japan.gtowizard.com"})
+    if not url:
+        return None
+    parsed = urlsplit(url)
+    try:
+        if parsed.username or parsed.password or parsed.port not in (None, 443):
+            return None
+    except ValueError:
+        return None
+    path = unquote(parsed.path).lower()
+    # Queries can select another locale. Only direct Japanese article links
+    # belong here, never the English blog, index, news, videos or redirects.
+    parts = path.strip("/").split("/")
+    if (
+        parsed.query or "\\" in path or not path.startswith("/blog/")
+        or len(parts) != 2 or parts[1] in {"", ".", "..", "news", "videos"}
+    ):
+        return None
+    return parsed._replace(fragment="").geturl()
+
+
+def _article_text(value: str | None) -> str:
+    value = html.unescape(value or "")
+    value = re.sub(r"<(script|style|template)\b[^>]*>.*?</\1\s*>", " ", value,
+                   flags=re.IGNORECASE | re.DOTALL)
+    return _clean_text(value, MAX_RESPONSE_BYTES)
+
+
+def _validated_articles(items) -> list[dict]:
+    """Apply the same output policy to RSS, fallback and already-cached data."""
+    results = []
+    for item in items:
+        if not isinstance(item, dict):
+            continue
+        title = _article_text(str(item.get("title") or ""))[:150]
+        summary = _article_text(str(item.get("summary") or ""))[:180]
+        url = _article_url(str(item.get("url") or ""))
+        language = str(item.get("language") or "").lower().replace("_", "-")
+        if (
+            language.split("-")[0] != "ja" or not url or not _has_japanese(title)
+            or (summary and not _has_japanese(summary))
+        ):
+            continue
+        result = dict(item)
+        result.update(title=title, summary=summary, url=url, language="ja", source="GTO Wizard Japan")
+        results.append(result)
+    return _dedupe(results, "url")[:6]
+
+
+def _declared_languages(node: ET.Element) -> list[str]:
+    values = [node.get("{http://www.w3.org/XML/1998/namespace}lang", ""),
+              node.findtext("language", ""),
+              node.findtext("{http://purl.org/dc/elements/1.1/}language", "")]
+    return [value.strip().lower().replace("_", "-") for value in values if value.strip()]
 
 
 def _article_topic(item: ET.Element) -> str:
@@ -228,15 +299,24 @@ def _article_topic(item: ET.Element) -> str:
 def _parse_gtowizard_articles(raw: bytes) -> list[dict]:
     root = ET.fromstring(raw)
     results: list[dict] = []
+    channel = root.find("channel")
+    feed_languages = _declared_languages(root)
+    if channel is not None:
+        feed_languages += _declared_languages(channel)
     for item in root.findall(".//item"):
-        title = _clean_text(item.findtext("title"), 150)
-        url = _safe_https_url(item.findtext("link") or "", {"japan.gtowizard.com"})
-        if not title or not url or not _has_japanese(title):
+        title = _article_text(item.findtext("title"))[:150]
+        url = _article_url(item.findtext("link") or "")
+        languages = _declared_languages(item) or feed_languages
+        if not url or not _has_japanese(title) or any(lang.split("-")[0] != "ja" for lang in languages):
             continue
-        path = urlsplit(url).path.lower()
-        if "/blog/news/" in path or "/blog/videos" in path:
+        description = _article_text(item.findtext("description"))
+        body = _article_text(item.findtext("{http://purl.org/rss/1.0/modules/content/}encoded"))
+        # WordPress currently supplies an empty description and the full body
+        # in content:encoded. A Japanese title alone cannot vouch for the body.
+        if not (description or body) or any(
+            text and not _has_japanese(text) for text in (description, body)
+        ):
             continue
-        description = _clean_text(item.findtext("description"), 180)
         results.append(
             {
                 "title": title,
@@ -245,11 +325,11 @@ def _parse_gtowizard_articles(raw: bytes) -> list[dict]:
                 "language": "ja",
                 "published_at": _published_iso(item.findtext("pubDate")),
                 "topic": _article_topic(item),
-                "summary": description,
+                "summary": description[:180],
             }
         )
     results.sort(key=lambda x: x.get("published_at") or "", reverse=True)
-    return _dedupe(results, "url")[:6]
+    return _validated_articles(results)
 
 
 def _parse_youtube_feed(raw: bytes, source: str, default_category: str) -> list[dict]:
@@ -339,10 +419,7 @@ def _refresh_payload() -> dict:
         except Exception:
             continue
 
-    if articles:
-        articles = _dedupe(articles + [dict(x) for x in ARTICLE_FALLBACK], "url")[:6]
-    else:
-        articles = base["articles"]
+    articles = _validated_articles(articles + base["articles"])
 
     return {
         "updated_at": _now_iso(),
@@ -374,6 +451,9 @@ def get_learning_content() -> dict:
             _refreshing = True
             start_refresh = True
         payload = copy.deepcopy(_cache)
+    # A stale cache or fallback entry never bypasses the Japanese-only policy.
+    payload["articles"] = _validated_articles(payload.get("articles", []) + list(ARTICLE_FALLBACK))
+    payload["policy"] = dict(payload.get("policy") or {}, articles="ja-only")
     if start_refresh:
         threading.Thread(target=_refresh_worker, name="jj-learning-refresh", daemon=True).start()
     return payload
