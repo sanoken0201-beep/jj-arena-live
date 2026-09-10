@@ -46,13 +46,14 @@ import v49_compat_patch
 import v49_patch
 import v49_post_patch
 import v50_patch
+import v51_patch
 
 ROOT = Path(__file__).resolve().parent
 RELEASE_DIR = ROOT / "release_v14"
 EXPECTED_PARTS = 62
 EXPECTED_SHA256 = "3ccb973f9ab146ce1c0d7da598242b0c1521a8ecc85c091caa10c1f1ebc9ddfd"
-RUNTIME_VERSION = "1.22.0"
-DEFAULT_DEST = Path("/tmp/jj_arena_v50_runtime")
+RUNTIME_VERSION = "1.23.0"
+DEFAULT_DEST = Path("/tmp/jj_arena_v51_runtime")
 
 
 def _release_bytes() -> bytes:
@@ -124,6 +125,9 @@ def _apply_patches(dest: Path) -> None:
     ):
         module.apply(dest)
     mobile_poker_hotfix.apply(dest)
+    # v1.23 deliberately runs after the mobile hotfix because it owns the final
+    # action-bar/card presentation and the staged all-in table lifecycle.
+    v51_patch.apply(dest)
 
 
 def build_runtime(dest: Path | None = None) -> Path:
