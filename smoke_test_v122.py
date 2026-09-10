@@ -68,8 +68,9 @@ def main() -> None:
         assert "YOUR HAND" in appjs
         assert "YOUR REVIEW" in appjs
         assert "Pot ${safe(pot)}" in appjs
+        assert "mine?'hero':''" in appjs
+        assert ".jj-v122-action.hero" in css
         assert "jj-v122-street" in css
-        assert "jj-v122-action hero" in appjs
         assert "jj-v122-review-grid" in css
         assert "@media(max-width:640px)" in css
         assert "?v=50" in index
