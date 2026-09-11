@@ -53,13 +53,14 @@ import v51_engine_compat_patch
 import v51_call_signature_patch
 import v52_patch
 import v52_post_patch
+import v53_patch
 
 ROOT = Path(__file__).resolve().parent
 RELEASE_DIR = ROOT / "release_v14"
 EXPECTED_PARTS = 62
 EXPECTED_SHA256 = "3ccb973f9ab146ce1c0d7da598242b0c1521a8ecc85c091caa10c1f1ebc9ddfd"
-RUNTIME_VERSION = "1.24.1"
-DEFAULT_DEST = Path("/tmp/jj_arena_v52_runtime")
+RUNTIME_VERSION = "1.24.2"
+DEFAULT_DEST = Path("/tmp/jj_arena_v54_runtime")
 
 
 def _release_bytes() -> bytes:
@@ -137,11 +138,11 @@ def _apply_patches(dest: Path) -> None:
     v51_final_patch.apply(dest)
     v51_engine_compat_patch.apply(dest)
     v51_call_signature_patch.apply(dest)
-    # v1.24 is the final presentation layer. It intentionally runs after all
-    # legacy compatibility renderers, then receives a tiny environment guard so
-    # non-poker isolated JS tests can still evaluate the shared app bundle.
+    # v1.24 owns the final poker presentation layer.
     v52_patch.apply(dest)
     v52_post_patch.apply(dest)
+    # v1.24.2 hardens home learning-card contrast and refreshes cached assets.
+    v53_patch.apply(dest)
 
 
 def build_runtime(dest: Path | None = None) -> Path:
