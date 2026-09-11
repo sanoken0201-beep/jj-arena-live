@@ -50,26 +50,26 @@ def main() -> None:
         fresh_legacy_files = collect_manifest(legacy_root)
         assert fresh_legacy_files == recorded_files, "materialized core has drifted from reconstructed v1.24.4"
 
-        legacy = _run_contract("app", tmp / "legacy-contract.json")
-        candidate = _run_contract("app_materialized", tmp / "candidate-contract.json")
+        legacy = _run_contract("app_legacy", tmp / "legacy-contract.json")
+        materialized = _run_contract("app_materialized", tmp / "materialized-contract.json")
 
-    assert legacy["routes"] == candidate["routes"], "HTTP/WebSocket route contract mismatch"
-    assert legacy["middleware"] == candidate["middleware"], "middleware ordering mismatch"
-    assert legacy["sqlite"]["columns"] == candidate["sqlite"]["columns"], "SQLite table/column schema mismatch"
-    assert legacy["sqlite"]["objects"] == candidate["sqlite"]["objects"], "SQLite schema/index SQL mismatch"
-    assert _migration_keys(legacy) == _migration_keys(candidate), "migration-key contract mismatch"
+    assert legacy["routes"] == materialized["routes"], "HTTP/WebSocket route contract mismatch"
+    assert legacy["middleware"] == materialized["middleware"], "middleware ordering mismatch"
+    assert legacy["sqlite"]["columns"] == materialized["sqlite"]["columns"], "SQLite table/column schema mismatch"
+    assert legacy["sqlite"]["objects"] == materialized["sqlite"]["objects"], "SQLite schema/index SQL mismatch"
+    assert _migration_keys(legacy) == _migration_keys(materialized), "migration-key contract mismatch"
 
     legacy_server = Path(legacy["runtime_files"]["server"])
-    candidate_server = Path(candidate["runtime_files"]["server"])
-    candidate_db = Path(candidate["runtime_files"]["db"])
+    materialized_server = Path(materialized["runtime_files"]["server"])
+    materialized_db = Path(materialized["runtime_files"]["db"])
     assert legacy_server.parent != MATERIALIZED, "legacy inventory unexpectedly loaded materialized server"
-    assert candidate_server.parent == MATERIALIZED, f"candidate server did not load from materialized core: {candidate_server}"
-    assert candidate_db.parent == MATERIALIZED, f"candidate db did not load from materialized core: {candidate_db}"
+    assert materialized_server.parent == MATERIALIZED, f"materialized server did not load from committed core: {materialized_server}"
+    assert materialized_db.parent == MATERIALIZED, f"materialized db did not load from committed core: {materialized_db}"
 
     print(
         "JJ_V2_PHASE1_PARITY_OK "
-        f"files={len(recorded_files)} routes={len(candidate['routes'])} "
-        f"tables={len(candidate['sqlite']['columns'])} middleware={len(candidate['middleware'])}"
+        f"files={len(recorded_files)} routes={len(materialized['routes'])} "
+        f"tables={len(materialized['sqlite']['columns'])} middleware={len(materialized['middleware'])}"
     )
 
 
