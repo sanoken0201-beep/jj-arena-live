@@ -37,4 +37,16 @@ def apply(root: Path) -> None:
         raise RuntimeError("v1.24 duplicate all-in action target missing")
     text = text.replace(allin_old, allin_new, 1)
 
+    # Active seats are not proof that a hand is in progress.
+    lobby_old = 'プレイ中 ${active}/6'
+    if lobby_old not in text:
+        raise RuntimeError("v1.24 lobby occupancy target missing")
+    text = text.replace(lobby_old, '参加者 ${active}/6')
+
+    # An empty table must not keep announcing the previous session's winner.
+    result_old = "classList.toggle('hidden',!result)"
+    if result_old not in text:
+        raise RuntimeError("v1.24 result visibility target missing")
+    text = text.replace(result_old, "classList.toggle('hidden',!result||!(tableState.seats||[]).length)")
+
     path.write_text(text, encoding="utf-8")

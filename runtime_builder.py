@@ -58,7 +58,7 @@ ROOT = Path(__file__).resolve().parent
 RELEASE_DIR = ROOT / "release_v14"
 EXPECTED_PARTS = 62
 EXPECTED_SHA256 = "3ccb973f9ab146ce1c0d7da598242b0c1521a8ecc85c091caa10c1f1ebc9ddfd"
-RUNTIME_VERSION = "1.24.0"
+RUNTIME_VERSION = "1.24.1"
 DEFAULT_DEST = Path("/tmp/jj_arena_v52_runtime")
 
 
