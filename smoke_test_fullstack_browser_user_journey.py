@@ -101,7 +101,13 @@ DRIVER = r'''
     document.getElementById('loginName').value = 'ブラウザユーザー';
     document.getElementById('loginPin').value = '999999';
     document.getElementById('pinForm').requestSubmit();
-    await waitFor(() => document.getElementById('loginError').textContent.trim().length > 0, 'wrong pin error');
+    await waitFor(() =>
+      !document.getElementById('authView').classList.contains('hidden') &&
+      document.getElementById('appView').classList.contains('hidden') &&
+      document.getElementById('toast').classList.contains('show') &&
+      document.getElementById('toast').textContent.trim().length > 0,
+      'wrong pin feedback'
+    );
     checks.wrongPinRejected = true;
 
     document.getElementById('loginPin').value = '123456';
