@@ -70,7 +70,7 @@ def load_engine(root: Path):
 
 
 def main() -> None:
-    assert RUNTIME_VERSION == "1.24.1"
+    assert RUNTIME_VERSION == "1.24.2"
     with tempfile.TemporaryDirectory() as td:
         root = build_runtime(Path(td) / "runtime")
         engine = load_engine(root)
@@ -80,10 +80,10 @@ def main() -> None:
         index = (root / "static" / "index.html").read_text(encoding="utf-8")
         sw = (root / "static" / "sw.js").read_text(encoding="utf-8")
 
-        assert 'version="1.24.1"' in server or '"version":"1.24.1"' in server
-        assert 'request.url.query == "v=53"' in server
-        assert "?v=53" in index
-        assert "jj-arena-live-v53" in sw
+        assert 'version="1.24.2"' in server or '"version":"1.24.2"' in server
+        assert 'request.url.query == "v=54"' in server
+        assert "?v=54" in index
+        assert "jj-arena-live-v54" in sw
 
         marker = "v1.24.0 unified online-poker presentation layer"
         assert marker in app

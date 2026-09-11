@@ -7,7 +7,7 @@ from runtime_builder import RUNTIME_VERSION, build_runtime
 
 
 def main() -> None:
-    assert RUNTIME_VERSION == "1.24.1"
+    assert RUNTIME_VERSION == "1.24.2"
     with tempfile.TemporaryDirectory() as td:
         root = build_runtime(Path(td) / "runtime")
         app = (root / "static" / "app.js").read_text(encoding="utf-8")
@@ -57,7 +57,8 @@ def main() -> None:
         assert "payload.action_id" in server
         assert "jjV121ActionId" in app
 
-        # v1.24 must be the last presentation owner.
+        # v1.24 must be the last poker presentation owner. The v1.24.2 contrast
+        # patch changes only home learning-card CSS and cache/version metadata.
         assert app.rfind("v1.24.0 unified online-poker presentation layer") > app.rfind("v1.23.0 final mobile interaction audit")
 
     print("v1.24 safety and interaction audit smoke: ok")
