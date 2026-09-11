@@ -61,7 +61,7 @@ jobs:
           python -m py_compile hand_analytics.py hand_analytics_hardening.py
           python -m py_compile v47_patch.py v46_patch.py v45_patch.py v44_patch.py v43_patch.py v42_patch.py v41_patch.py v40_patch.py v39_patch.py v38_patch.py
           python -m py_compile smoke_test_hand_analytics.py smoke_test_stat_definitions.py smoke_test_card_privacy.py smoke_test_hand_analytics_postgres_v2.py smoke_test_websocket_auth.py smoke_test_mobile_poker_hotfix.py
-          python -m py_compile tools/v2_runtime_snapshot.py smoke_test_v2_materialization_prep.py
+          python -m py_compile tools/v2_runtime_snapshot.py smoke_test_v2_materialization_prep.py smoke_test_production_entrypoint_isolated.py
 
       - name: Check reconstructed browser JavaScript syntax
         run: |
@@ -74,6 +74,9 @@ jobs:
 
       - name: Run v2 materialization reproducibility gate
         run: python smoke_test_v2_materialization_prep.py
+
+      - name: Run isolated production entrypoint startup gate
+        run: python smoke_test_production_entrypoint_isolated.py
 
       - name: Run v1.24.4 analysis UX release regression
         run: python smoke_test_v1244.py
