@@ -21,8 +21,6 @@ from smoke_test_v123_engine_integration import (
 
 
 def test_legal_action_buttons(engine, app):
-    # Feed actual engine states into the production button renderer. A short
-    # all-in raise must remain available even when a full raise is impossible.
     start = app.index("  function jjV124ActionButtons(l){")
     end = app.index("  function jjV124DecisionMeta", start)
     renderer = app[start:end]
@@ -33,7 +31,7 @@ def test_legal_action_buttons(engine, app):
                             (500, ["fold", "call", "raise"])):
         state = _new_table(engine, "action-buttons", [max(100, stack), 1000, 1000])
         hero = next(p for p in state["seats"] if p["user_id"] == 100)
-        hero["stack"] = stack  # Includes a stack depleted below minimum buy-in.
+        hero["stack"] = stack
         legal = engine.legal_actions(state, 100)
         assert legal["can_act"]
         cases.append({"hero": dict(hero), "legal": legal, "expected": expected})
@@ -70,7 +68,7 @@ def load_engine(root: Path):
 
 
 def main() -> None:
-    assert RUNTIME_VERSION == "1.24.2"
+    assert RUNTIME_VERSION == "1.24.3"
     with tempfile.TemporaryDirectory() as td:
         root = build_runtime(Path(td) / "runtime")
         engine = load_engine(root)
@@ -80,18 +78,15 @@ def main() -> None:
         index = (root / "static" / "index.html").read_text(encoding="utf-8")
         sw = (root / "static" / "sw.js").read_text(encoding="utf-8")
 
-        assert 'version="1.24.2"' in server or '"version":"1.24.2"' in server
-        assert 'request.url.query == "v=54"' in server
-        assert "?v=54" in index
-        assert "jj-arena-live-v54" in sw
+        assert 'version="1.24.3"' in server or '"version":"1.24.3"' in server
+        assert 'request.url.query == "v=55"' in server
+        assert "?v=55" in index
+        assert "jj-arena-live-v55" in sw
 
         marker = "v1.24.0 unified online-poker presentation layer"
         assert marker in app
         v124 = app.split(marker, 1)[1]
         assert app.rfind(marker) > app.rfind("v1.20.3 mobile bet-marker/call-amount hotfix")
-
-        # Regression for the screenshot bug: no rank is a <b> descendant that an
-        # old generic call-amount selector can overwrite. Call amount has its own id.
         assert '<span class="jj-card-rank">' in v124
         assert '<b class="jj-card-rank">' not in v124
         assert 'id="jjV124CallAmount"' in v124
@@ -100,8 +95,6 @@ def main() -> None:
         assert "Number(chips||0)/big" in v124
         assert "$('#actionBar .jj-action-context b')" not in v124
         assert "jj-hero-cards" not in v124
-
-        # Desktop action system: one fact row, one sizing row, one primary action row.
         for token in ("STREET", "POT", "TO CALL", "STACK", "EFFECTIVE", "TIME"):
             assert token in v124
         assert "jj-v124-stepper" in v124
@@ -109,26 +102,19 @@ def main() -> None:
         assert "jj-actions-${actions.length}" in v124
         assert "jj-main-actions.jj-actions-3" in css
         assert "grid-template-columns:repeat(3,minmax(0,1fr))" in css
-
-        # A stack-consuming call is one decision, not duplicate CALL + ALL-IN buttons.
         assert "callIsAllin" in v124
         assert "ALL-IN CALL" in v124
         assert "オールインコール" in v124
         test_legal_action_buttons(engine, app)
-
-        # Cards and units are structural non-wrapping elements on desktop.
         assert "white-space:nowrap!important" in css
         assert "writing-mode:horizontal-tb!important" in css
         assert "jj-v124-stepper label span" in css
         assert "word-break:keep-all!important" in css
-
-        # Bet chips and hole cards must occupy separate desktop visual lanes.
         assert "{left:61,top:68}" in v124
         assert "{left:61,top:25}" in v124
         assert "jj-v124-desktop-poker #pokerRoom .jj-seat.is-hero .jj-hole{z-index:20" in css
         assert "jj-v124-desktop-poker #pokerRoom .jj-bet-marker{z-index:9" in css
 
-        # Existing v1.23 game rules and safety remain authoritative.
         test_no_flop_no_drop(engine)
         test_staged_allin_runout(engine)
         test_real_allin_runout_settles(engine)
@@ -136,7 +122,7 @@ def main() -> None:
         test_real_no_flop_no_drop(engine)
         test_real_three_way_sidepot_runout(engine)
 
-    print("v1.24 unified online poker redesign smoke: ok")
+    print("v1.24.3 poker regression preservation: ok")
 
 
 if __name__ == "__main__":
