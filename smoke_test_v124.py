@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import importlib.util
+import json
+import subprocess
 import tempfile
 from pathlib import Path
 
@@ -12,9 +14,49 @@ from smoke_test_v123 import (
     test_staged_allin_runout,
 )
 from smoke_test_v123_engine_integration import (
+    _new_table,
     test_real_no_flop_no_drop,
     test_real_three_way_sidepot_runout,
 )
+
+
+def test_legal_action_buttons(engine, app):
+    # Feed actual engine states into the production button renderer. A short
+    # all-in raise must remain available even when a full raise is impossible.
+    start = app.index("  function jjV124ActionButtons(l){")
+    end = app.index("  function jjV124DecisionMeta", start)
+    renderer = app[start:end]
+    cases = []
+    for stack, expected in ((150, ["fold", "call", "allin"]),
+                            (100, ["fold", "call"]),
+                            (75, ["fold", "call"]),
+                            (500, ["fold", "call", "raise"])):
+        state = _new_table(engine, "action-buttons", [max(100, stack), 1000, 1000])
+        hero = next(p for p in state["seats"] if p["user_id"] == 100)
+        hero["stack"] = stack  # Includes a stack depleted below minimum buy-in.
+        legal = engine.legal_actions(state, 100)
+        assert legal["can_act"]
+        cases.append({"hero": dict(hero), "legal": legal, "expected": expected})
+        if stack == 150:
+            assert not legal["can_raise"] and legal["can_all_in"]
+            engine.apply_action(state, 100, "allin")
+            assert hero["stack"] == 0 and hero["round_bet"] == 150
+    script = """
+const assert = require('node:assert/strict');
+let hero;
+const jjV124Hero=()=>hero, jjV124RawBb=n=>`${n/100}bb`;
+const jjRaiseBounds=()=>({min:2}), $=()=>null;
+const safe=String, jjV185FmtBb=String;
+""" + renderer + "\nconst cases=" + json.dumps(cases) + """;
+for (const c of cases) {
+  hero=c.hero;
+  const html=jjV124ActionButtons(c.legal);
+  const actions=[...html.matchAll(/data-action="([^"]+)"/g)].map(m=>m[1]);
+  assert.deepEqual(actions,c.expected);
+  assert.equal(html.includes('ALL-IN CALL'),c.legal.call_amount>=hero.stack);
+}
+"""
+    subprocess.run(["node", "-e", script], check=True)
 
 
 def load_engine(root: Path):
@@ -72,7 +114,7 @@ def main() -> None:
         assert "callIsAllin" in v124
         assert "ALL-IN CALL" in v124
         assert "オールインコール" in v124
-        assert "l.can_all_in&&!l.can_call" in v124
+        test_legal_action_buttons(engine, app)
 
         # Cards and units are structural non-wrapping elements on desktop.
         assert "white-space:nowrap!important" in css

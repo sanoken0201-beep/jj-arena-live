@@ -32,7 +32,7 @@ def apply(root: Path) -> None:
     text = text.replace(label_old, label_new, 1)
 
     allin_old = """    }else if(l.can_all_in){\n      actions.push('<button class=\"jj-action-btn jj-allin\" data-action=\"allin\"><small>ALL-IN</small><b>オールイン</b></button>');\n    }"""
-    allin_new = """    }else if(l.can_all_in&&!l.can_call){\n      actions.push('<button class=\"jj-action-btn jj-allin\" data-action=\"allin\"><small>ALL-IN</small><b>オールイン</b></button>');\n    }"""
+    allin_new = """    }else if(l.can_all_in&&!callIsAllin){\n      actions.push('<button class=\"jj-action-btn jj-allin\" data-action=\"allin\"><small>ALL-IN</small><b>オールイン</b></button>');\n    }"""
     if allin_old not in text:
         raise RuntimeError("v1.24 duplicate all-in action target missing")
     text = text.replace(allin_old, allin_new, 1)
