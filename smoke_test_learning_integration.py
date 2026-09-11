@@ -1,7 +1,9 @@
 """Exercise Japanese article sharing through the complete production entrypoint.
 
-All users, sessions, points and runtime files belong to a temporary SQLite app.
-External article/video requests are blocked; no production credentials are used.
+All users, sessions and points belong to a temporary SQLite app. Production
+source/static files are read from the committed materialized core only; admin
+copy output is redirected to temporary assets. External article/video requests
+are blocked and no production credentials are used.
 """
 from __future__ import annotations
 
@@ -24,16 +26,16 @@ from fastapi.testclient import TestClient
 from starlette.websockets import WebSocketDisconnect
 
 import admin_copy_patch
-import runtime_builder
 
 
 ROOT = Path(__file__).resolve().parent
+MATERIALIZED = (ROOT / "materialized_v1244").resolve()
 
 
 @contextmanager
 def isolated_production_app(database_url=""):
     modules = (
-        "app", "server", "db", "poker_engine", "admin_console", "admin_delete",
+        "app", "app_materialized", "server", "db", "poker_engine", "admin_console", "admin_delete",
         "admin_pin_verification", "admin_ledger_stabilization", "learning_content",
         "online_results_cleanup", "hand_analytics", "hand_analytics_hardening",
     )
@@ -42,7 +44,7 @@ def isolated_production_app(database_url=""):
     try:
         with tempfile.TemporaryDirectory(prefix="jj-learning-integration-") as directory:
             work = Path(directory)
-            # app.py also normalizes admin copy at startup. Exercise that operation
+            # Production normalizes admin copy at startup. Exercise that operation
             # on a copy so a smoke test never edits the repository's static files.
             admin_assets = work / "admin_static"
             shutil.copytree(ROOT / "admin_static", admin_assets)
@@ -55,11 +57,12 @@ def isolated_production_app(database_url=""):
                     "JJ_ADMIN_PIN": "654321",
                     "JJ_ENABLE_DEMO_MEMBER": "0",
                 }),
-                patch.object(runtime_builder, "DEFAULT_DEST", work / "runtime"),
                 patch.object(admin_copy_patch, "apply", side_effect=lambda _: apply_admin_copy(admin_assets)),
             ):
                 production = importlib.import_module("app")
-                assert production.DEST == work / "runtime"
+                assert Path(production.DEST).resolve() == MATERIALIZED
+                assert Path(production.runtime_server.__file__).resolve().parent == MATERIALIZED
+                assert Path(production.db.__file__).resolve().parent == MATERIALIZED
                 assert production.db.DB_PATH == work / "learning.sqlite3"
                 assert production.db.IS_POSTGRES == bool(database_url)
                 yield production
