@@ -68,6 +68,12 @@ def main() -> None:
         assert "jj-main-actions.jj-actions-3" in css
         assert "grid-template-columns:repeat(3,minmax(0,1fr))" in css
 
+        # A stack-consuming call is one decision, not duplicate CALL + ALL-IN buttons.
+        assert "callIsAllin" in v124
+        assert "ALL-IN CALL" in v124
+        assert "オールインコール" in v124
+        assert "l.can_all_in&&!l.can_call" in v124
+
         # Cards and units are structural non-wrapping elements on desktop.
         assert "white-space:nowrap!important" in css
         assert "writing-mode:horizontal-tb!important" in css
