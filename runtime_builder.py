@@ -55,13 +55,14 @@ import v52_patch
 import v52_post_patch
 import v53_patch
 import v54_patch
+import v55_patch
 
 ROOT = Path(__file__).resolve().parent
 RELEASE_DIR = ROOT / "release_v14"
 EXPECTED_PARTS = 62
 EXPECTED_SHA256 = "3ccb973f9ab146ce1c0d7da598242b0c1521a8ecc85c091caa10c1f1ebc9ddfd"
-RUNTIME_VERSION = "1.24.3"
-DEFAULT_DEST = Path("/tmp/jj_arena_v55_runtime")
+RUNTIME_VERSION = "1.24.4"
+DEFAULT_DEST = Path("/tmp/jj_arena_v56_runtime")
 
 
 def _release_bytes() -> bytes:
@@ -133,19 +134,17 @@ def _apply_patches(dest: Path) -> None:
     ):
         module.apply(dest)
     mobile_poker_hotfix.apply(dest)
-    # v1.23 owns the stable game lifecycle and mobile interaction safety.
     v51_patch.apply(dest)
     v51_post_patch.apply(dest)
     v51_final_patch.apply(dest)
     v51_engine_compat_patch.apply(dest)
     v51_call_signature_patch.apply(dest)
-    # v1.24 owns the final poker presentation layer.
     v52_patch.apply(dest)
     v52_post_patch.apply(dest)
-    # v1.24.2 hardens home learning-card contrast and refreshes cached assets.
     v53_patch.apply(dest)
-    # v1.24.3 improves Home, Daily Quiz, Ranking and shared non-poker states.
     v54_patch.apply(dest)
+    # v1.24.4 adds analysis guidance and review hierarchy without changing play.
+    v55_patch.apply(dest)
 
 
 def build_runtime(dest: Path | None = None) -> Path:
