@@ -52,6 +52,7 @@ import v51_final_patch
 import v51_engine_compat_patch
 import v51_call_signature_patch
 import v52_patch
+import v52_post_patch
 
 ROOT = Path(__file__).resolve().parent
 RELEASE_DIR = ROOT / "release_v14"
@@ -136,9 +137,11 @@ def _apply_patches(dest: Path) -> None:
     v51_final_patch.apply(dest)
     v51_engine_compat_patch.apply(dest)
     v51_call_signature_patch.apply(dest)
-    # v1.24 is the final presentation layer. It intentionally runs last so old
-    # compatibility renderers cannot mutate the new cards/action console.
+    # v1.24 is the final presentation layer. It intentionally runs after all
+    # legacy compatibility renderers, then receives a tiny environment guard so
+    # non-poker isolated JS tests can still evaluate the shared app bundle.
     v52_patch.apply(dest)
+    v52_post_patch.apply(dest)
 
 
 def build_runtime(dest: Path | None = None) -> Path:
