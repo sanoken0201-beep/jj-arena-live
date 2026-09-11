@@ -1,0 +1,54 @@
+{
+  "files": {
+    "README.md": {
+      "sha256": "aef810fc0bf208868c134428292e73a60a99129445dc19de8eaba69387b74db4",
+      "size": 4760
+    },
+    "TEST-REPORT.md": {
+      "sha256": "7aab32b115d428a55b88a827a4c9a65d7cac878322b56896917670e447e648df",
+      "size": 2099
+    },
+    "db.py": {
+      "sha256": "90af471bac1c8b0f23016de8dd51666fe3c16592184138ebfd0fe00d3db25012",
+      "size": 28882
+    },
+    "poker_engine.py": {
+      "sha256": "332a48ae1ab2ce54c5b019266105afd67e830b901089981fd1859640270d3ab3",
+      "size": 45355
+    },
+    "requirements.txt": {
+      "sha256": "79000f2625a80f3f1762dc648bfa7ce96983456a4f9583ec4c98b17bbe84fa77",
+      "size": 102
+    },
+    "server.py": {
+      "sha256": "b8dcb6e9f6a29617f8e0113d3585fdd57266fcbc74226abbe289fd62a9672a62",
+      "size": 68460
+    },
+    "static/app.js": {
+      "sha256": "69371a6fe8bf7de2842f99b332aa5a192e495e6a202d04fefcaa18ff0bff7a5d",
+      "size": 207823
+    },
+    "static/icon.svg": {
+      "sha256": "73881d1c67715e44bbc161814df309affea8dc30096839f21a9235f0375a78f6",
+      "size": 340
+    },
+    "static/index.html": {
+      "sha256": "d2045c146612b54550c4fe391972f9aa7a68d0f5353b76c931e96cbd6feb4ed2",
+      "size": 13564
+    },
+    "static/manifest.webmanifest": {
+      "sha256": "67ab816106c3992d4343a051639b99e6c5a37fe97b51746e5fc3d775cbe1611b",
+      "size": 464
+    },
+    "static/styles.css": {
+      "sha256": "17e9d1419b8f3e14d387e751713c92841d4b436675672a62845877f1a231ac3a",
+      "size": 159882
+    },
+    "static/sw.js": {
+      "sha256": "f5fa1cf3ad4110065c1ad0e3406c648bfbd4b981255a5b0e3ba40dcecfaf36ee",
+      "size": 1012
+    }
+  },
+  "runtime_version": "1.24.4",
+  "source_commit": "b8f6968a8509ba111966203a3477123bc9646b3f"
+}

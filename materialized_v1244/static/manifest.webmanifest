@@ -1,0 +1,18 @@
+{
+  "name": "JJ Arena Live",
+  "short_name": "JJ Arena",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#f4f2ec",
+  "theme_color": "#12221b",
+  "description": "JJ club app for Fall ranking, schedule, learning, strategy discussion and two realtime 6-max play-money NLH tables",
+  "icons": [
+    {
+      "src": "/static/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

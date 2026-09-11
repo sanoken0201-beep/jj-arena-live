@@ -5,9 +5,14 @@ import hashlib
 import json
 import shutil
 import subprocess
+import sys
 import tempfile
 from pathlib import Path
 from typing import Any
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
 
 from runtime_builder import RUNTIME_VERSION, build_runtime
 
@@ -124,12 +129,11 @@ def _parse_args() -> argparse.Namespace:
 
 def main() -> None:
     args = _parse_args()
-    repo_root = Path(__file__).resolve().parents[1]
 
     if args.command == "snapshot":
         with tempfile.TemporaryDirectory(prefix="jj-v2-snapshot-") as td:
             root = build_runtime(Path(td) / "runtime")
-            payload = write_manifest(root, args.output, repo_root=repo_root)
+            payload = write_manifest(root, args.output, repo_root=REPO_ROOT)
         print(f"JJ_V2_SNAPSHOT_OK version={payload['runtime_version']} files={len(payload['files'])}")
         return
 
@@ -137,7 +141,7 @@ def main() -> None:
     if args.manifest:
         payload = {
             "runtime_version": RUNTIME_VERSION,
-            "source_commit": current_git_commit(repo_root),
+            "source_commit": current_git_commit(REPO_ROOT),
             "files": manifest,
         }
         args.manifest.parent.mkdir(parents=True, exist_ok=True)
