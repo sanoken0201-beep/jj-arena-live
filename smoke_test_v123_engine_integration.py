@@ -7,6 +7,10 @@ from pathlib import Path
 from runtime_builder import RUNTIME_VERSION, build_runtime
 
 
+def _version_tuple(value: str) -> tuple[int, ...]:
+    return tuple(int(part) for part in value.split("."))
+
+
 def _load_engine(root: Path):
     path = root / "poker_engine.py"
     spec = importlib.util.spec_from_file_location("jj_v124_engine_integration", path)
@@ -93,13 +97,15 @@ def test_real_three_way_sidepot_runout(engine) -> None:
 
 
 def main() -> None:
-    assert RUNTIME_VERSION == "1.24.3"
+    # These are behavior/integration contracts introduced before v1.24.4 and
+    # must continue to hold in every later release.
+    assert _version_tuple(RUNTIME_VERSION) >= (1, 23, 0)
     with tempfile.TemporaryDirectory() as td:
         root = build_runtime(Path(td) / "runtime")
         engine = _load_engine(root)
         test_real_no_flop_no_drop(engine)
         test_real_three_way_sidepot_runout(engine)
-    print("v1.24.3 real engine integration: ok")
+    print("real poker engine integration regression: ok")
 
 
 if __name__ == "__main__":

@@ -25,8 +25,14 @@ def _contrast(fg: str, bg: str) -> float:
     return (light + 0.05) / (dark + 0.05)
 
 
+def _version_tuple(value: str) -> tuple[int, ...]:
+    return tuple(int(part) for part in value.split("."))
+
+
 def main() -> None:
-    assert RUNTIME_VERSION == "1.24.3"
+    # Contrast hardening was introduced in v1.24.2 and must survive later
+    # releases; this is intentionally not an exact release-number gate.
+    assert _version_tuple(RUNTIME_VERSION) >= (1, 24, 2)
     with tempfile.TemporaryDirectory() as td:
         root = build_runtime(Path(td) / "runtime")
         css = (root / "static" / "styles.css").read_text(encoding="utf-8")
@@ -56,10 +62,10 @@ def main() -> None:
         assert _contrast("#aebeb6", bg) >= 4.5
         assert _contrast("#f3d981", bg) >= 4.5
 
-        assert 'version="1.24.3"' in server or '"version":"1.24.3"' in server
-        assert 'request.url.query == "v=55"' in server
-        assert "?v=55" in index
-        assert "jj-arena-live-v55" in sw
+        assert f'version="{RUNTIME_VERSION}"' in server or f'"version":"{RUNTIME_VERSION}"' in server
+        assert 'request.url.query == "v=' in server
+        assert "?v=" in index
+        assert "jj-arena-live-v" in sw
         assert "v1.24.3 focused non-poker product UX" in css
 
     print("JJ_LEARNING_CONTRAST_SMOKE_OK")

@@ -6,8 +6,12 @@ from pathlib import Path
 from runtime_builder import RUNTIME_VERSION, build_runtime
 
 
+def _version_tuple(value: str) -> tuple[int, ...]:
+    return tuple(int(part) for part in value.split("."))
+
+
 def main() -> None:
-    assert RUNTIME_VERSION == "1.24.3"
+    assert _version_tuple(RUNTIME_VERSION) >= (1, 23, 0)
     with tempfile.TemporaryDirectory() as td:
         root = build_runtime(Path(td) / "runtime")
         app = (root / "static" / "app.js").read_text(encoding="utf-8")
@@ -48,7 +52,7 @@ def main() -> None:
         assert app.rfind("v1.24.0 unified online-poker presentation layer") > app.rfind("v1.23.0 final mobile interaction audit")
         assert "v1.24.3 focused non-poker product UX" in app
 
-    print("v1.24.3 safety and interaction audit smoke: ok")
+    print("poker safety and interaction audit smoke: ok")
 
 
 if __name__ == "__main__":

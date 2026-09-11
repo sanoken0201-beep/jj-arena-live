@@ -20,6 +20,10 @@ from smoke_test_v123_engine_integration import (
 )
 
 
+def _version_tuple(value: str) -> tuple[int, ...]:
+    return tuple(int(part) for part in value.split("."))
+
+
 def test_legal_action_buttons(engine, app):
     start = app.index("  function jjV124ActionButtons(l){")
     end = app.index("  function jjV124DecisionMeta", start)
@@ -68,7 +72,9 @@ def load_engine(root: Path):
 
 
 def main() -> None:
-    assert RUNTIME_VERSION == "1.24.3"
+    # Preserve the v1.24 poker behavior in every later release. Version/cache
+    # identity belongs to the current release-specific smoke test.
+    assert _version_tuple(RUNTIME_VERSION) >= (1, 24, 0)
     with tempfile.TemporaryDirectory() as td:
         root = build_runtime(Path(td) / "runtime")
         engine = load_engine(root)
@@ -78,10 +84,10 @@ def main() -> None:
         index = (root / "static" / "index.html").read_text(encoding="utf-8")
         sw = (root / "static" / "sw.js").read_text(encoding="utf-8")
 
-        assert 'version="1.24.3"' in server or '"version":"1.24.3"' in server
-        assert 'request.url.query == "v=55"' in server
-        assert "?v=55" in index
-        assert "jj-arena-live-v55" in sw
+        assert f'version="{RUNTIME_VERSION}"' in server or f'"version":"{RUNTIME_VERSION}"' in server
+        assert 'request.url.query == "v=' in server
+        assert "?v=" in index
+        assert "jj-arena-live-v" in sw
 
         marker = "v1.24.0 unified online-poker presentation layer"
         assert marker in app
@@ -122,7 +128,7 @@ def main() -> None:
         test_real_no_flop_no_drop(engine)
         test_real_three_way_sidepot_runout(engine)
 
-    print("v1.24.3 poker regression preservation: ok")
+    print("v1.24 poker regression preservation: ok")
 
 
 if __name__ == "__main__":
