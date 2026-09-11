@@ -13,7 +13,9 @@ Therefore a safe v2 materialization cannot stop after copying the reconstructed 
 
 A second critical detail is that stale legacy core files still exist at repository root. For example, root `server.py` identifies itself as version `1.1.0`. Current production avoids importing that stale file only because `app.py` inserts the reconstructed runtime directory at the front of `sys.path` before importing `server` and `db`.
 
-**v2 implication:** the materialized core should initially live under an explicit new package/directory and use explicit package imports. Removing the `sys.path` override while leaving ambiguous root `server.py` / `db.py` imports would risk silently booting the wrong implementation.
+The reconstructed v1.24.4 `server.py` also contains bare imports such as `import db` and `from poker_engine import ...`. Therefore changing to package-relative imports at the same time as materialization would combine two migrations and make parity failures harder to localize.
+
+**v2 implication:** use two explicit steps. The first candidate should materialize the verified runtime into a dedicated source directory while temporarily preserving its current import-resolution semantics. Only after behavioral parity is proven should a second refactor convert the materialized core to explicit package-relative imports and remove the path-precedence dependency.
 
 ## Mutation / installation points
 
@@ -79,7 +81,8 @@ It creates/uses `app_migrations` and, only on first application, deletes old `on
 | Risk | Impact | Required control |
 | --- | --- | --- |
 | Copy only reconstructed core | Missing Quiz/Admin/Analytics/Resilience behavior | extension parity inventory + startup test |
-| Remove `sys.path` override without resolving root-module collisions | stale root `server.py` / `db.py` may be imported | explicit v2 package imports; keep legacy modules isolated |
+| Remove `sys.path` precedence too early | stale root `server.py` / `db.py` can win bare imports | first preserve import semantics inside dedicated materialized directory; package-refactor later |
+| Convert bare imports while materializing | unnecessarily mixes structural refactor with source freeze | split package/import cleanup into a second parity-tested PR |
 | Remove hardening shims too early | statistic/learning semantics regress | fold final wrapped behavior first |
 | Change startup order | route shadowing or missing durability wrapper | explicit app factory / deterministic install order |
 | Run migration against wrong DB | destructive historical result cleanup | preserve existing migration key and isolated CI DB |
@@ -89,10 +92,22 @@ It creates/uses `app_migrations` and, only on first application, deletes old `on
 
 ## Recommended initial materialized location
 
-Do not overwrite ambiguous root modules in the first cutover. Prefer an explicit package boundary such as:
+Do not overwrite ambiguous root modules in the first materialization. Prefer an isolated source directory such as:
 
 ```text
-jj_arena_v2/
+materialized_v1244/
+  server.py
+  db.py
+  poker_engine.py
+  static/
+```
+
+For the first parity candidate, the bootstrap may still put this directory ahead of stale root modules exactly as current production puts the generated `/tmp` runtime ahead of them. The material difference is that the code is now committed, inspectable source rather than reconstructed by dozens of historical patches on every startup.
+
+After parity is proven, move to a normal package such as:
+
+```text
+jj_arena/
   app.py
   server.py
   db.py
@@ -100,11 +115,11 @@ jj_arena_v2/
   static/
 ```
 
-The exact final package name can change later, but the first materialized candidate should make it impossible for Python import resolution to fall back to the stale root core accidentally.
+and convert internal imports to explicit package-relative imports in a separate refactor.
 
 ## Recommended v2 application-factory target
 
-The first clean architecture should make installation order explicit rather than relying on import side effects. Example conceptual order:
+The eventual clean architecture should make installation order explicit rather than relying on import side effects. Example conceptual order:
 
 ```text
 create_app()
