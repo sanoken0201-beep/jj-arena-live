@@ -16,7 +16,8 @@ def _route_inventory(app) -> list[dict[str, Any]]:
     for route in app.router.routes:
         path = str(getattr(route, "path", "") or "")
         methods = sorted(str(x) for x in (getattr(route, "methods", None) or []))
-        kind = "websocket" if route.__class__.__name__.lower().startswith("websocket") else "http"
+        class_name = route.__class__.__name__.lower()
+        kind = "websocket" if "websocket" in class_name else "http"
         rows.append(
             {
                 "kind": kind,
