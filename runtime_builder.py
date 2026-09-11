@@ -62,10 +62,8 @@ ROOT = Path(__file__).resolve().parent
 RELEASE_DIR = ROOT / "release_v14"
 EXPECTED_PARTS = 62
 EXPECTED_SHA256 = "3ccb973f9ab146ce1c0d7da598242b0c1521a8ecc85c091caa10c1f1ebc9ddfd"
-# Stacked branch: final release/cache identifiers are assigned after rebasing on
-# the concurrent online-poker Work output.
-RUNTIME_VERSION = "1.24.3"
-DEFAULT_DEST = Path("/tmp/jj_arena_v55_runtime")
+RUNTIME_VERSION = "1.24.4"
+DEFAULT_DEST = Path("/tmp/jj_arena_v56_runtime")
 
 
 def _release_bytes() -> bytes:
