@@ -36,7 +36,7 @@ jobs:
           python -m pip install httpx==0.28.1
 
       - name: Compile user-journey tests
-        run: python -m py_compile smoke_test_member_user_journey.py smoke_test_browser_user_journey.py
+        run: python -m py_compile smoke_test_member_user_journey.py smoke_test_browser_user_journey.py smoke_test_fullstack_browser_user_journey.py
 
       - name: Repeat member journey three times
         run: |
@@ -45,9 +45,16 @@ jobs:
             python smoke_test_member_user_journey.py
           done
 
-      - name: Repeat real-browser journey three times
+      - name: Repeat deterministic real-browser journey three times
         run: |
           for round in 1 2 3; do
-            echo "=== browser journey round ${round} ==="
+            echo "=== browser fixture journey round ${round} ==="
             python smoke_test_browser_user_journey.py
+          done
+
+      - name: Repeat full-stack browser journey twice
+        run: |
+          for round in 1 2; do
+            echo "=== full-stack browser journey round ${round} ==="
+            python smoke_test_fullstack_browser_user_journey.py
           done
