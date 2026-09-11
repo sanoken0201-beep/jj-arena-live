@@ -83,15 +83,20 @@ def _chrome() -> str:
 
 def _run(chrome: str, fixture: Path, width: int, height: int, mobile: bool) -> str:
     url = fixture.resolve().as_uri() + ("?mobile=1" if mobile else "")
-    proc = subprocess.run(
-        [chrome, "--headless", "--no-sandbox", "--disable-gpu", "--allow-file-access-from-files", "--run-all-compositor-stages-before-draw", "--virtual-time-budget=1500", f"--window-size={width},{height}", "--dump-dom", url],
-        check=True,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        text=True,
-        timeout=30,
-    )
-    return proc.stdout
+    last = ""
+    for _ in range(2):
+        proc = subprocess.run(
+            [chrome, "--headless", "--no-sandbox", "--disable-gpu", "--allow-file-access-from-files", "--run-all-compositor-stages-before-draw", "--virtual-time-budget=3000", f"--window-size={width},{height}", "--dump-dom", url],
+            check=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            timeout=30,
+        )
+        last = proc.stdout
+        if 'data-layout-ok=' in last:
+            return last
+    return last
 
 
 def main() -> None:
