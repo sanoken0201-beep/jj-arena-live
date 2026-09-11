@@ -1,12 +1,12 @@
-"""Parity candidate entrypoint for JJ Arena's materialized v1.24.4 core.
+"""Canonical JJ Arena production implementation backed by the materialized v1.24.4 core.
 
-This module intentionally mirrors production ``app.py``. The only architectural
-change in Phase 1 is that the core runtime is loaded from committed source under
-``materialized_v1244`` instead of being reconstructed from the historical patch
-chain on every startup.
+The core runtime is loaded from committed source under ``materialized_v1244``
+instead of being reconstructed from the historical patch chain on every
+startup. Root-level extension modules remain installed in the same effective
+order proven by the Phase 1 legacy/materialized parity gates.
 
-Do not use this as the Render production entrypoint until the legacy-vs-
-materialized parity gates are green and the cutover is reviewed separately.
+``app.py`` is the stable Render-facing shim. ``app_legacy.py`` retains the
+former reconstructed startup path for parity checks and emergency rollback.
 """
 from __future__ import annotations
 
@@ -40,8 +40,8 @@ os.environ["JJ_ADMIN_PASSWORD"] = secrets.token_urlsafe(32)
 os.environ.pop("JJ_ADMIN_LOGIN_PASSWORD", None)
 os.environ.pop("JJ_ADMIN_LOGIN_EMAIL", None)
 
-# Phase 1 deliberately preserves the legacy bare-import resolution semantics.
-# Package-relative import cleanup is a later refactor after behavioral parity.
+# Preserve the proven bare-import resolution semantics during the cutover.
+# Package-relative import cleanup is a later refactor after production burn-in.
 sys.path.insert(0, str(DEST))
 import server as runtime_server  # noqa: E402
 from server import app  # noqa: E402
@@ -67,7 +67,7 @@ online_results_cleanup.apply(db)
 
 
 def _prioritize_extension_routes(fastapi_app) -> None:
-    """Move extension/API routes ahead of the reconstructed SPA catch-all."""
+    """Move extension/API routes ahead of the materialized SPA catch-all."""
     routes = list(fastapi_app.router.routes)
 
     def is_extension_route(route) -> bool:
