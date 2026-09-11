@@ -93,7 +93,7 @@ def test_real_three_way_sidepot_runout(engine) -> None:
 
 
 def main() -> None:
-    assert RUNTIME_VERSION == "1.24.1"
+    assert RUNTIME_VERSION == "1.24.2"
     with tempfile.TemporaryDirectory() as td:
         root = build_runtime(Path(td) / "runtime")
         engine = _load_engine(root)
