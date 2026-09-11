@@ -12,6 +12,7 @@ ROOT = Path(__file__).resolve().parent
 
 def main() -> None:
     assert RUNTIME_VERSION == "1.24.3"
+    patch_source = (ROOT / "v54_patch.py").read_text(encoding="utf-8")
     with tempfile.TemporaryDirectory() as td:
         root = build_runtime(Path(td) / "runtime")
         app = (root / "static" / "app.js").read_text(encoding="utf-8")
@@ -67,11 +68,14 @@ def main() -> None:
         for forbidden in ("#actionBar", "pokerTable", "doAction=", "/tables/${currentTableId}/action"):
             assert forbidden not in final, forbidden
 
-        # Existing authoritative endpoints are reused; no parallel reward/ranking API.
-        assert '/api/home/overview' in server
-        assert '/api/rankings' in server
-        assert '/api/quiz/question' in server
-        assert '/api/quiz/answer' in server
+        # Existing modular endpoints are reused. v54_patch must not introduce a
+        # new FastAPI route/reward path merely to support presentation changes.
+        for endpoint in ("/home/overview", "/quiz/answer", "/rankings?season=fall"):
+            assert endpoint in final, endpoint
+        assert "@app.get(" not in patch_source
+        assert "@app.post(" not in patch_source
+        assert "@app.put(" not in patch_source
+        assert "@app.delete(" not in patch_source
         assert 'version="1.24.3"' in server or '"version":"1.24.3"' in server
         assert 'request.url.query == "v=55"' in server
         assert "?v=55" in index
