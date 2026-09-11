@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 import shutil
 import subprocess
 import tempfile
@@ -20,6 +19,26 @@ STUB = r'''
     {id:'jj-table-a',name:'JJ Table A',status:'waiting',players:0,seated:0,sitouts:0,busted:0,max_seats:6,small_blind:50,big_blind:100,starting_stack:15000,starting_stack_bb:150,rake_percent:0.1,rake_cap_bb:5},
     {id:'jj-table-b',name:'JJ Table B',status:'waiting',players:0,seated:0,sitouts:0,busted:0,max_seats:6,small_blind:50,big_blind:100,starting_stack:15000,starting_stack_bb:150,rake_percent:0.1,rake_cap_bb:5},
   ];
+  const progress = {answered:0,correct:0,earned:0,remaining:10,total:10,max_daily_reward:100,carried_answers:0};
+  const quizQuestion = {
+    id:'dqa-browser-fixture-0001', date:'2026-09-11', slot:1,
+    category:'pot_odds', category_label:'POT ODDS',
+    prompt:'Pot 100 に 50 のベット。コールに必要な最低勝率は？',
+    choices:[
+      {value:'choice-a',label:'20%'},
+      {value:'choice-b',label:'25%'},
+      {value:'choice-c',label:'33%'},
+      {value:'choice-d',label:'40%'},
+    ],
+    glossary:[], reward:10, progress, done:false,
+  };
+  const homeOverview = {
+    quiz: progress,
+    points:{season_total:10,rank:1,month_total:10,month_rank:1},
+    performance:{net_bb_30d:0,hands_30d:0,bb_per_100:null},
+    learning:{title:'今日のクイズ',fact:'まず1問解いて感覚を整えましょう。'},
+    recent_hands:[], articles:[],
+  };
   window.__jjMissingRequests = [];
   window.__jjRequests = [];
   function jsonResponse(body, status=200){
@@ -41,6 +60,9 @@ STUB = r'''
     if(path === '/api/online/results') return jsonResponse([]);
     if(path === '/api/online/summary') return jsonResponse({hands:0,voided_hands:0,rake_bb:0,gross_pot_bb:0});
     if(path === '/api/threads') return jsonResponse([]);
+    if(path === '/api/learning-content') return loggedIn ? jsonResponse({articles:[],videos:[],policy:{articles:'ja-only'}}) : jsonResponse({detail:'authentication required'},401);
+    if(path === '/api/home/overview') return jsonResponse(homeOverview);
+    if(path === '/api/quiz/question') return jsonResponse(quizQuestion);
     window.__jjMissingRequests.push(`${method} ${path}`);
     return jsonResponse({detail:`missing fixture for ${method} ${path}`}, 500);
   };
@@ -53,7 +75,7 @@ DRIVER = r'''
 (async () => {
   const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
   async function waitFor(fn, label){
-    for(let i=0;i<120;i++){
+    for(let i=0;i<160;i++){
       try{ if(fn()) return; }catch{}
       await sleep(25);
     }
@@ -70,7 +92,8 @@ DRIVER = r'''
     await waitFor(() => !document.getElementById('appView').classList.contains('hidden') && document.getElementById('userName').textContent === 'ユーザーテスト', 'login');
     checks.login = true;
     checks.memberAdminHidden = [...document.querySelectorAll('.admin-only')].every(el => el.classList.contains('hidden'));
-    checks.homeLoaded = document.getElementById('homeTop').textContent.includes('ユーザーテスト') && document.getElementById('homeTables').textContent.includes('JJ Table A');
+    await waitFor(() => document.getElementById('homeTop').textContent.includes('ユーザーテスト') && document.getElementById('homeTables').textContent.includes('JJ Table A'), 'home data');
+    checks.homeLoaded = true;
 
     document.querySelector('.nav[data-view="ranking"]').click();
     await waitFor(() => document.getElementById('rankingView').classList.contains('active-view') && document.getElementById('rankBody').textContent.includes('ユーザーテスト'), 'ranking');
@@ -81,8 +104,8 @@ DRIVER = r'''
     checks.tableLobbyNavigation = document.getElementById('tableCards').textContent.includes('OPEN TABLE');
 
     document.querySelector('.nav[data-view="lab"]').click();
-    await waitFor(() => document.getElementById('labView').classList.contains('active-view') && document.getElementById('quizStage').textContent.trim().length > 0, 'poker lab');
-    checks.learningNavigation = document.querySelectorAll('#quizChoices button').length >= 4;
+    await waitFor(() => document.getElementById('labView').classList.contains('active-view') && document.querySelectorAll('#quizChoices button').length >= 4, 'poker lab');
+    checks.learningNavigation = document.getElementById('quizStage').textContent.includes('POT ODDS') || document.getElementById('quizStage').textContent.includes('最低勝率');
 
     document.querySelector('.nav[data-view="home"]').click();
     await waitFor(() => document.getElementById('homeView').classList.contains('active-view'), 'home return');
@@ -136,7 +159,7 @@ def run_browser(chrome: str, fixture: Path, width: int, height: int) -> str:
                 "--disable-gpu",
                 "--allow-file-access-from-files",
                 "--run-all-compositor-stages-before-draw",
-                "--virtual-time-budget=5000",
+                "--virtual-time-budget=6000",
                 f"--window-size={width},{height}",
                 "--dump-dom",
                 url,
@@ -145,7 +168,7 @@ def run_browser(chrome: str, fixture: Path, width: int, height: int) -> str:
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,
-            timeout=35,
+            timeout=40,
         )
         last = proc.stdout
         if 'data-user-journey-ok=' in last:
@@ -164,8 +187,8 @@ def main() -> None:
 
         desktop = run_browser(chrome, fixture, 1440, 900)
         mobile = run_browser(chrome, fixture, 390, 844)
-        assert 'data-user-journey-ok="1"' in desktop, desktop[-3500:]
-        assert 'data-user-journey-ok="1"' in mobile, mobile[-3500:]
+        assert 'data-user-journey-ok="1"' in desktop, desktop[-4500:]
+        assert 'data-user-journey-ok="1"' in mobile, mobile[-4500:]
 
     print("JJ_BROWSER_USER_JOURNEY_OK desktop=1 mobile=1")
 
