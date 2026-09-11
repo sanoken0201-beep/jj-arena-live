@@ -1,0 +1,52 @@
+name: V2 Core Phase 1 Materialize
+
+on:
+  push:
+    branches:
+      - feature/v2-core-phase1
+    paths:
+      - .github/workflows/v2-materialize-phase1.yml
+      - runtime_builder.py
+      - release_v14/**
+      - v18_assets/**
+      - 'v*_patch.py'
+      - tools/v2_runtime_snapshot.py
+
+permissions:
+  contents: write
+
+jobs:
+  materialize:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout phase branch
+        uses: actions/checkout@v4
+        with:
+          ref: feature/v2-core-phase1
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version-file: .python-version
+
+      - name: Materialize verified runtime
+        run: |
+          python tools/v2_runtime_snapshot.py materialize \
+            --destination materialized_v1244 \
+            --manifest materialized_v1244.manifest.json \
+            --force
+          python smoke_test_v2_materialization_prep.py
+
+      - name: Commit generated source snapshot
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add materialized_v1244 materialized_v1244.manifest.json
+          if git diff --cached --quiet; then
+            echo "Materialized runtime already matches the verified source snapshot."
+            exit 0
+          fi
+          git commit -m "Materialize verified v1.24.4 runtime"
+          git push origin HEAD:feature/v2-core-phase1
