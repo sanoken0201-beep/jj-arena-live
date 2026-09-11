@@ -52,28 +52,14 @@ jobs:
         run: |
           python -m py_compile app.py admin_copy_patch.py
           python -m py_compile operations_learning.py operations_learning_hardening.py resilience.py
-          python -m py_compile quiz_readability.py v50_patch.py v51_patch.py v51_post_patch.py v51_final_patch.py v51_engine_compat_patch.py v51_call_signature_patch.py v52_patch.py v52_post_patch.py v53_patch.py smoke_test_v124.py smoke_test_v124_layout.py smoke_test_learning_contrast.py smoke_test_v123.py smoke_test_v123_final_audit.py smoke_test_v123_engine_integration.py smoke_test_v122.py smoke_test_v190.py smoke_test_quiz_readability_refresh.py
+          python -m py_compile quiz_readability.py v50_patch.py v51_patch.py v51_post_patch.py v51_final_patch.py v51_engine_compat_patch.py v51_call_signature_patch.py v52_patch.py v52_post_patch.py v53_patch.py v54_patch.py
+          python -m py_compile smoke_test_v1243_non_poker_ui.py smoke_test_v1243_non_poker_layout.py smoke_test_v124.py smoke_test_v124_layout.py smoke_test_learning_contrast.py smoke_test_v123.py smoke_test_v123_final_audit.py smoke_test_v123_engine_integration.py smoke_test_v122.py smoke_test_v190.py smoke_test_quiz_readability_refresh.py
           python -m py_compile v49_compat_patch.py v49_patch.py v49_post_patch.py smoke_test_v121.py
           python -m py_compile daily_quiz.py quiz_bank.py v48_patch.py
           python -m py_compile mobile_poker_hotfix.py
-          python -m py_compile hand_analytics.py
-          python -m py_compile hand_analytics_hardening.py
-          python -m py_compile v47_patch.py
-          python -m py_compile v46_patch.py
-          python -m py_compile v45_patch.py
-          python -m py_compile v44_patch.py
-          python -m py_compile v43_patch.py
-          python -m py_compile v42_patch.py
-          python -m py_compile v41_patch.py
-          python -m py_compile v40_patch.py
-          python -m py_compile v39_patch.py
-          python -m py_compile v38_patch.py
-          python -m py_compile smoke_test_hand_analytics.py
-          python -m py_compile smoke_test_stat_definitions.py
-          python -m py_compile smoke_test_card_privacy.py
-          python -m py_compile smoke_test_hand_analytics_postgres_v2.py
-          python -m py_compile smoke_test_websocket_auth.py
-          python -m py_compile smoke_test_mobile_poker_hotfix.py
+          python -m py_compile hand_analytics.py hand_analytics_hardening.py
+          python -m py_compile v47_patch.py v46_patch.py v45_patch.py v44_patch.py v43_patch.py v42_patch.py v41_patch.py v40_patch.py v39_patch.py v38_patch.py
+          python -m py_compile smoke_test_hand_analytics.py smoke_test_stat_definitions.py smoke_test_card_privacy.py smoke_test_hand_analytics_postgres_v2.py smoke_test_websocket_auth.py smoke_test_mobile_poker_hotfix.py
 
       - name: Check reconstructed browser JavaScript syntax
         run: |
@@ -84,13 +70,19 @@ jobs:
           node smoke_test_learning_ui.js "$RUNTIME/static/app.js"
           node smoke_test_daily_quiz_ui.js "$RUNTIME/static/app.js"
 
+      - name: Run focused Home Quiz Ranking UX regression
+        run: python smoke_test_v1243_non_poker_ui.py
+
+      - name: Run real-browser non-poker responsive layout regression
+        run: python smoke_test_v1243_non_poker_layout.py
+
       - name: Run Today's JJ learning-card contrast regression
         run: python smoke_test_learning_contrast.py
 
-      - name: Run v1.24 unified online poker redesign regression
+      - name: Run v1.24 poker regression preservation
         run: python smoke_test_v124.py
 
-      - name: Run v1.24 real-browser desktop/mobile layout regression
+      - name: Run v1.24 real-browser desktop/mobile poker layout regression
         run: python smoke_test_v124_layout.py
 
       - name: Run v1.24 real engine integration regression
