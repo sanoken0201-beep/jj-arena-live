@@ -1,0 +1,53 @@
+name: JJ Arena User Journey
+
+on:
+  push:
+    branches:
+      - main
+      - 'feature/**'
+      - 'fix/**'
+      - 'hotfix/**'
+      - 'chore/**'
+      - 'cutover/**'
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  user-journey:
+    runs-on: ubuntu-latest
+    timeout-minutes: 14
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version-file: .python-version
+          cache: pip
+
+      - name: Install production and journey dependencies
+        run: |
+          python -m pip install -r requirements.txt
+          python -m pip install httpx==0.28.1
+
+      - name: Compile user-journey tests
+        run: python -m py_compile smoke_test_member_user_journey.py smoke_test_browser_user_journey.py
+
+      - name: Repeat member journey three times
+        run: |
+          for round in 1 2 3; do
+            echo "=== member journey round ${round} ==="
+            python smoke_test_member_user_journey.py
+          done
+
+      - name: Repeat real-browser journey three times
+        run: |
+          for round in 1 2 3; do
+            echo "=== browser journey round ${round} ==="
+            python smoke_test_browser_user_journey.py
+          done
