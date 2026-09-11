@@ -67,7 +67,7 @@ DRIVER = r'''
     await waitFor(() => document.getElementById('rankBody').textContent.includes('ブラウザユーザー'), 'ranking row');
     checks.rankingAfterQuiz = document.getElementById('rankBody').textContent.includes('10');
 
-    await go('threads');
+    await go('discussion');
     document.getElementById('newThreadBtn').click();
     await waitFor(() => document.getElementById('threadForm'), 'thread modal');
     document.querySelector('#threadForm [name="title"]').value = 'ブラウザからの戦略相談';
