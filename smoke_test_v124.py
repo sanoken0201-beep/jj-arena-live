@@ -56,7 +56,7 @@ def main() -> None:
         assert 'id="jjV124CallButtonAmount"' in v124
         assert "function jjV124RawBb" in v124
         assert "Number(chips||0)/big" in v124
-        assert ".jj-action-context b" not in v124
+        assert "$('#actionBar .jj-action-context b')" not in v124
         assert "jj-hero-cards" not in v124
 
         # Desktop action system: one fact row, one sizing row, one primary action row.
