@@ -8,62 +8,63 @@ from fastapi.testclient import TestClient
 from smoke_test_learning_integration import isolated_production_app, json_response
 
 
-def login(client: TestClient, name: str, pin: str) -> dict:
+def auth(token: str) -> dict[str, str]:
+    return {"Authorization": f"Bearer {token}"}
+
+
+def login(client: TestClient, name: str, pin: str) -> tuple[dict, str]:
     response = client.post("/api/auth/pin", json={"name": name, "pin": pin})
     payload = json_response(response)
     cookie = response.headers.get("set-cookie", "").lower()
     assert "httponly" in cookie, cookie
     assert payload["user"]["name"] == name
-    return payload
+    token = response.cookies.get("jj_session") or client.cookies.get("jj_session")
+    assert token, "PIN login did not issue a session token"
+    return payload, str(token)
 
 
-def rank_row(client: TestClient, name: str) -> dict | None:
-    rows = json_response(client.get("/api/rankings", params={"season": "fall"}))
+def rank_row(client: TestClient, token: str, name: str) -> dict | None:
+    rows = json_response(client.get("/api/rankings", params={"season": "fall"}, headers=auth(token)))
     return next((row for row in rows if row["name"] == name), None)
 
 
 def run() -> None:
     with isolated_production_app() as production:
         app, db = production.app, production.db
-        with (
-            TestClient(app, base_url="https://testserver") as alice,
-            TestClient(app, base_url="https://testserver") as bob,
-            TestClient(app, base_url="https://testserver") as anonymous,
-        ):
-            # First visit: visible PIN login and authenticated APIs closed.
-            root = anonymous.get("/")
+        # A single TestClient gives the production app one lifespan/event loop,
+        # matching the runtime model used by one Uvicorn worker. Alice/Bob switch
+        # identity through their real bearer session tokens.
+        with TestClient(app, base_url="https://testserver") as client:
+            root = client.get("/")
             assert root.status_code == 200
             assert 'id="pinForm"' in root.text
             assert 'id="loginName"' in root.text
             assert 'id="loginPin"' in root.text
             assert "JJ Arenaへ入る" in root.text
-            json_response(anonymous.get("/api/me"), 401)
+            json_response(client.get("/api/me"), 401)
 
-            # First-time account creation and ordinary login state.
-            alice_login = login(alice, "ユーザーテスト", "123456")
+            alice_login, alice_token = login(client, "ユーザーテスト", "123456")
             assert alice_login["created"] is True
             alice_user = alice_login["user"]
             alice_id = int(alice_user["id"])
-            assert json_response(alice.get("/api/me"))["id"] == alice_id
+            assert json_response(client.get("/api/me", headers=auth(alice_token)))["id"] == alice_id
 
-            bob_login = login(bob, "ユーザーベータ", "234567")
+            bob_login, bob_token = login(client, "ユーザーベータ", "234567")
             assert bob_login["created"] is True
             bob_user = bob_login["user"]
             bob_id = int(bob_user["id"])
             assert bob_id != alice_id
 
-            # Home-screen data sources available to a normal member.
             for path in ("/api/rankings", "/api/schedules", "/api/announcements", "/api/tables"):
-                assert alice.get(path).status_code == 200, path
-            tables = json_response(alice.get("/api/tables"))
+                assert client.get(path, headers=auth(alice_token)).status_code == 200, path
+            tables = json_response(client.get("/api/tables", headers=auth(alice_token)))
             assert [t["id"] for t in tables] == ["jj-table-a", "jj-table-b"]
             assert all(int(t["max_seats"]) == 6 for t in tables)
 
-            # Daily Quiz: exactly +10 once, reflected in ranking.
             ranking_name = alice_user["ranking_name"] or alice_user["name"]
-            before_rank = rank_row(alice, ranking_name)
+            before_rank = rank_row(client, alice_token, ranking_name)
             before_points = float((before_rank or {}).get("points", 0))
-            question = json_response(alice.get("/api/quiz/question"))
+            question = json_response(client.get("/api/quiz/question", headers=auth(alice_token)))
             assert question["reward"] == 10
             assert "correct_answer" not in question
             with db.connect() as con:
@@ -75,51 +76,54 @@ def run() -> None:
                 )
             correct = json.loads(attempt["question_json"])["correct"]
             answer = {"question_id": question["id"], "answer": correct}
-            first = json_response(alice.post("/api/quiz/answer", json=answer))
-            duplicate = json_response(alice.post("/api/quiz/answer", json=answer))
+            first = json_response(client.post("/api/quiz/answer", json=answer, headers=auth(alice_token)))
+            duplicate = json_response(client.post("/api/quiz/answer", json=answer, headers=auth(alice_token)))
             assert first["awarded"] == 10 and first["already_answered"] is False
             assert duplicate["awarded"] == 0 and duplicate["already_answered"] is True
-            after_rank = rank_row(alice, ranking_name)
+            after_rank = rank_row(client, alice_token, ranking_name)
             assert after_rank is not None
             assert float(after_rank["points"]) == before_points + 10
 
-            # Strategy discussion: one member creates, another replies.
             thread = json_response(
-                alice.post(
+                client.post(
                     "/api/threads",
                     json={"title": "BTN vs BBの相談", "body": "このラインをどう考えますか？"},
+                    headers=auth(alice_token),
                 )
             )
             thread_id = int(thread["id"])
             json_response(
-                bob.post(
+                client.post(
                     f"/api/threads/{thread_id}/replies",
                     json={"body": "まずポットオッズから整理します。"},
+                    headers=auth(bob_token),
                 )
             )
-            threads = json_response(alice.get("/api/threads"))
+            threads = json_response(client.get("/api/threads", headers=auth(alice_token)))
             created = next(row for row in threads if int(row["id"]) == thread_id)
             assert created["title"] == "BTN vs BBの相談"
             assert any(reply["author_name"] == bob_user["name"] for reply in created["replies"])
 
-            # Real-time poker: seat, ready, start, private-card boundary, action,
-            # idempotency receipt, chat, and sit-out-next-hand behavior.
             table_id = "jj-table-a"
-            alice_seat = json_response(alice.post(f"/api/tables/{table_id}/seat", json={"seat": 0}))
-            bob_seat = json_response(bob.post(f"/api/tables/{table_id}/seat", json={"seat": 1}))
+            alice_seat = json_response(
+                client.post(f"/api/tables/{table_id}/seat", json={"seat": 0}, headers=auth(alice_token))
+            )
+            bob_seat = json_response(
+                client.post(f"/api/tables/{table_id}/seat", json={"seat": 1}, headers=auth(bob_token))
+            )
             assert any(int(p["user_id"]) == alice_id for p in alice_seat["seats"])
             assert any(int(p["user_id"]) == bob_id for p in bob_seat["seats"])
 
-            other_table = alice.post("/api/tables/jj-table-b/seat", json={"seat": 0})
+            other_table = client.post("/api/tables/jj-table-b/seat", json={"seat": 0}, headers=auth(alice_token))
             assert other_table.status_code == 400
 
-            json_response(alice.post(f"/api/tables/{table_id}/start"))
-            started = json_response(bob.post(f"/api/tables/{table_id}/start"))
+            json_response(client.post(f"/api/tables/{table_id}/start", headers=auth(alice_token)))
+            started = json_response(client.post(f"/api/tables/{table_id}/start", headers=auth(bob_token)))
             assert started["status"] == "playing"
             assert started["hand"] and started["hand"]["action_seat"] is not None
 
-            alice_state = json_response(alice.get(f"/api/tables/{table_id}"))["state"]
-            bob_state = json_response(bob.get(f"/api/tables/{table_id}"))["state"]
+            alice_state = json_response(client.get(f"/api/tables/{table_id}", headers=auth(alice_token)))["state"]
+            bob_state = json_response(client.get(f"/api/tables/{table_id}", headers=auth(bob_token)))["state"]
             for state, own_id, other_id in (
                 (alice_state, alice_id, bob_id),
                 (bob_state, bob_id, alice_id),
@@ -131,55 +135,53 @@ def run() -> None:
 
             action_seat = int(alice_state["hand"]["action_seat"])
             actor_player = next(p for p in alice_state["seats"] if int(p["seat"]) == action_seat)
-            actor = alice if int(actor_player["user_id"]) == alice_id else bob
-            actor_state = json_response(actor.get(f"/api/tables/{table_id}"))["state"]
+            actor_token = alice_token if int(actor_player["user_id"]) == alice_id else bob_token
+            actor_state = json_response(client.get(f"/api/tables/{table_id}", headers=auth(actor_token)))["state"]
             legal = actor_state["legal"]
             assert legal["can_act"] is True
-            if legal.get("can_call"):
-                action_name = "call"
-            elif legal.get("can_check"):
-                action_name = "check"
-            else:
-                action_name = "fold"
+            action_name = "call" if legal.get("can_call") else "check" if legal.get("can_check") else "fold"
             action_id = "journey-" + uuid.uuid4().hex[:16]
+            payload = {"action": action_name, "action_id": action_id}
             acted = json_response(
-                actor.post(
-                    f"/api/tables/{table_id}/action",
-                    json={"action": action_name, "action_id": action_id},
-                )
+                client.post(f"/api/tables/{table_id}/action", json=payload, headers=auth(actor_token))
             )
             repeated = json_response(
-                actor.post(
-                    f"/api/tables/{table_id}/action",
-                    json={"action": action_name, "action_id": action_id},
-                )
+                client.post(f"/api/tables/{table_id}/action", json=payload, headers=auth(actor_token))
             )
             assert repeated["hand_no"] == acted["hand_no"]
 
             json_response(
-                alice.post(
+                client.post(
                     f"/api/tables/{table_id}/chat",
                     json={"body": "ナイスハンド、テストです"},
+                    headers=auth(alice_token),
                 )
             )
-            bob_view = json_response(bob.get(f"/api/tables/{table_id}"))
+            bob_view = json_response(client.get(f"/api/tables/{table_id}", headers=auth(bob_token)))
             assert any(msg["body"] == "ナイスハンド、テストです" for msg in bob_view["messages"])
 
             sitout = json_response(
-                alice.post(f"/api/tables/{table_id}/presence", json={"mode": "sitout"})
+                client.post(
+                    f"/api/tables/{table_id}/presence",
+                    json={"mode": "sitout"},
+                    headers=auth(alice_token),
+                )
             )
             alice_row = next(p for p in sitout["seats"] if int(p["user_id"]) == alice_id)
             assert alice_row.get("sit_out_next") is True or alice_row.get("sitting_out") is True
             json_response(
-                alice.post(f"/api/tables/{table_id}/presence", json={"mode": "cancel_sitout"})
+                client.post(
+                    f"/api/tables/{table_id}/presence",
+                    json={"mode": "cancel_sitout"},
+                    headers=auth(alice_token),
+                )
             )
 
-            # Logout and wrong-PIN recovery path.
-            json_response(alice.post("/api/auth/logout"))
-            json_response(alice.get("/api/me"), 401)
-            wrong = alice.post("/api/auth/pin", json={"name": alice_user["name"], "pin": "999999"})
+            json_response(client.post("/api/auth/logout", headers=auth(alice_token)))
+            json_response(client.get("/api/me", headers=auth(alice_token)), 401)
+            wrong = client.post("/api/auth/pin", json={"name": alice_user["name"], "pin": "999999"})
             assert wrong.status_code == 401
-            relogin = login(alice, alice_user["name"], "123456")
+            relogin, _ = login(client, alice_user["name"], "123456")
             assert relogin["created"] is False
 
     print("JJ_MEMBER_USER_JOURNEY_OK")
