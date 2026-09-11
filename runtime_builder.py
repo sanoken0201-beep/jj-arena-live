@@ -56,13 +56,16 @@ import v52_post_patch
 import v53_patch
 import v54_patch
 import v55_patch
+import v55_post_patch
 
 ROOT = Path(__file__).resolve().parent
 RELEASE_DIR = ROOT / "release_v14"
 EXPECTED_PARTS = 62
 EXPECTED_SHA256 = "3ccb973f9ab146ce1c0d7da598242b0c1521a8ecc85c091caa10c1f1ebc9ddfd"
-RUNTIME_VERSION = "1.24.4"
-DEFAULT_DEST = Path("/tmp/jj_arena_v56_runtime")
+# Stacked branch: final release/cache identifiers are assigned after rebasing on
+# the concurrent online-poker Work output.
+RUNTIME_VERSION = "1.24.3"
+DEFAULT_DEST = Path("/tmp/jj_arena_v55_runtime")
 
 
 def _release_bytes() -> bytes:
@@ -143,8 +146,8 @@ def _apply_patches(dest: Path) -> None:
     v52_post_patch.apply(dest)
     v53_patch.apply(dest)
     v54_patch.apply(dest)
-    # v1.24.4 adds analysis guidance and review hierarchy without changing play.
     v55_patch.apply(dest)
+    v55_post_patch.apply(dest)
 
 
 def build_runtime(dest: Path | None = None) -> Path:
