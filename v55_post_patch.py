@@ -4,18 +4,25 @@ from pathlib import Path
 
 
 def apply(root: Path) -> None:
-    # This branch is intentionally stacked on the non-poker PR while a separate
-    # Work stream is changing online poker. Keep the parent's release/cache IDs
-    # so final integration can assign one authoritative version after rebasing.
-    server = root / "server.py"
-    text = server.read_text(encoding="utf-8")
-    text = text.replace('version="1.24.4"', 'version="1.24.3"')
-    text = text.replace('"version":"1.24.4"', '"version":"1.24.3"')
-    text = text.replace('request.url.query == "v=56"', 'request.url.query == "v=55"')
-    server.write_text(text, encoding="utf-8")
+    """Final v1.24.4 accessibility/touch-target hardening.
 
-    index = root / "static" / "index.html"
-    index.write_text(index.read_text(encoding="utf-8").replace("?v=56", "?v=55"), encoding="utf-8")
+    The earlier stacked branch temporarily used this layer to roll release IDs
+    back while another Work stream was active. v1.24.4 is now the authoritative
+    release, so this final layer only strengthens interaction targets and never
+    changes version/cache identifiers.
+    """
+    styles = root / "static" / "styles.css"
+    text = styles.read_text(encoding="utf-8")
+    marker = "v1.24.4 final analysis touch targets"
+    if marker in text:
+        return
+    addon = r'''
 
-    sw = root / "static" / "sw.js"
-    sw.write_text(sw.read_text(encoding="utf-8").replace("jj-arena-live-v56", "jj-arena-live-v55"), encoding="utf-8")
+/* v1.24.4 final analysis touch targets */
+.jj-v1244-focus-card>button,
+.jj-v1244-focus-hand-grid>button,
+.jj-v1244-focus-hands-head .text-btn{
+  min-height:44px;
+}
+'''
+    styles.write_text(text.rstrip() + addon + "\n", encoding="utf-8")
