@@ -11,6 +11,10 @@ The production application is a two-layer system:
 
 Therefore a safe v2 materialization cannot stop after copying the reconstructed core files.
 
+A second critical detail is that stale legacy core files still exist at repository root. For example, root `server.py` identifies itself as version `1.1.0`. Current production avoids importing that stale file only because `app.py` inserts the reconstructed runtime directory at the front of `sys.path` before importing `server` and `db`.
+
+**v2 implication:** the materialized core should initially live under an explicit new package/directory and use explicit package imports. Removing the `sys.path` override while leaving ambiguous root `server.py` / `db.py` imports would risk silently booting the wrong implementation.
+
 ## Mutation / installation points
 
 ### `app.py`
@@ -75,12 +79,28 @@ It creates/uses `app_migrations` and, only on first application, deletes old `on
 | Risk | Impact | Required control |
 | --- | --- | --- |
 | Copy only reconstructed core | Missing Quiz/Admin/Analytics/Resilience behavior | extension parity inventory + startup test |
+| Remove `sys.path` override without resolving root-module collisions | stale root `server.py` / `db.py` may be imported | explicit v2 package imports; keep legacy modules isolated |
 | Remove hardening shims too early | statistic/learning semantics regress | fold final wrapped behavior first |
 | Change startup order | route shadowing or missing durability wrapper | explicit app factory / deterministic install order |
 | Run migration against wrong DB | destructive historical result cleanup | preserve existing migration key and isolated CI DB |
 | Import app in tests with production `DATABASE_URL` | accidental production mutation | force isolated SQLite/PostgreSQL test DB |
 | Refactor while materializing | parity failures hard to localize | no feature/refactor work in cutover PR |
 | Remove legacy patch chain at cutover | loses rollback/parity oracle | retain until post-cutover cleanup |
+
+## Recommended initial materialized location
+
+Do not overwrite ambiguous root modules in the first cutover. Prefer an explicit package boundary such as:
+
+```text
+jj_arena_v2/
+  app.py
+  server.py
+  db.py
+  poker_engine.py
+  static/
+```
+
+The exact final package name can change later, but the first materialized candidate should make it impossible for Python import resolution to fall back to the stale root core accidentally.
 
 ## Recommended v2 application-factory target
 
