@@ -52,7 +52,7 @@ jobs:
         run: |
           python -m py_compile app.py admin_copy_patch.py
           python -m py_compile operations_learning.py operations_learning_hardening.py resilience.py
-          python -m py_compile quiz_readability.py v50_patch.py v51_patch.py v51_post_patch.py v51_final_patch.py v51_engine_compat_patch.py v51_call_signature_patch.py v52_patch.py smoke_test_v124.py smoke_test_v123.py smoke_test_v123_final_audit.py smoke_test_v123_engine_integration.py smoke_test_v122.py smoke_test_v190.py smoke_test_quiz_readability_refresh.py
+          python -m py_compile quiz_readability.py v50_patch.py v51_patch.py v51_post_patch.py v51_final_patch.py v51_engine_compat_patch.py v51_call_signature_patch.py v52_patch.py smoke_test_v124.py smoke_test_v124_layout.py smoke_test_v123.py smoke_test_v123_final_audit.py smoke_test_v123_engine_integration.py smoke_test_v122.py smoke_test_v190.py smoke_test_quiz_readability_refresh.py
           python -m py_compile v49_compat_patch.py v49_patch.py v49_post_patch.py smoke_test_v121.py
           python -m py_compile daily_quiz.py quiz_bank.py v48_patch.py
           python -m py_compile mobile_poker_hotfix.py
@@ -86,6 +86,9 @@ jobs:
 
       - name: Run v1.24 unified online poker redesign regression
         run: python smoke_test_v124.py
+
+      - name: Run v1.24 real-browser desktop/mobile layout regression
+        run: python smoke_test_v124_layout.py
 
       - name: Run v1.24 real engine integration regression
         run: python smoke_test_v123_engine_integration.py
