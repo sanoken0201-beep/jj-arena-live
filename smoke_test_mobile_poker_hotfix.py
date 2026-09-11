@@ -17,7 +17,7 @@ css = (DEST / "static" / "styles.css").read_text(encoding="utf-8")
 index = (DEST / "static" / "index.html").read_text(encoding="utf-8")
 sw = (DEST / "static" / "sw.js").read_text(encoding="utf-8")
 
-assert RUNTIME_VERSION == "1.24.1"
+assert RUNTIME_VERSION == "1.24.2"
 legacy_marker = "v1.20.3 mobile bet-marker/call-amount hotfix"
 final_marker = "v1.24.0 unified online-poker presentation layer"
 assert legacy_marker in appjs
@@ -42,13 +42,14 @@ assert "if(visual===3)return {left:p.left,top:27};" in appjs
 assert "jjV124MobileBetPos(actual)" in final
 assert "pointer-events:none!important" in css
 
-# v1.24 owns browser caching and the production query key.
-assert "?v=53" in index
-assert "jj-arena-live-v53" in sw
-assert 'request.url.query == "v=53"' in server
+# v1.24.2 owns browser caching and the production query key.
+assert "?v=54" in index
+assert "jj-arena-live-v54" in sw
+assert 'request.url.query == "v=54"' in server
 
 py_compile.compile(str(ROOT / "mobile_poker_hotfix.py"), doraise=True)
 py_compile.compile(str(ROOT / "v52_patch.py"), doraise=True)
 py_compile.compile(str(ROOT / "v52_post_patch.py"), doraise=True)
+py_compile.compile(str(ROOT / "v53_patch.py"), doraise=True)
 py_compile.compile(str(ROOT / "runtime_builder.py"), doraise=True)
 print("MOBILE_POKER_HOTFIX_SMOKE_OK")
