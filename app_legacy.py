@@ -1,12 +1,9 @@
-"""Canonical JJ Arena production implementation backed by the materialized v1.24.4 core.
+"""Legacy reconstructed production entrypoint retained for rollback and parity.
 
-The core runtime is loaded from committed source under ``materialized_v1244``
-instead of being reconstructed from the historical patch chain on every
-startup. Root-level extension modules remain installed in the same effective
-order proven by the Phase 1 legacy/materialized parity gates.
-
-``app.py`` is the stable Render-facing shim. ``app_legacy.py`` retains the
-former reconstructed startup path for parity checks and emergency rollback.
+This is the pre-v2-cutover production entrypoint. It reconstructs the verified
+v1.24.4 runtime through runtime_builder.py and the historical patch chain.
+Keep it unchanged while the materialized production path is being proven so a
+single Git revert can restore the former startup behavior.
 """
 from __future__ import annotations
 
@@ -26,48 +23,32 @@ import online_results_cleanup
 import operations_learning
 import operations_learning_hardening
 import resilience
+from runtime_builder import build_runtime
 
 ROOT = Path(__file__).resolve().parent
-DEST = (ROOT / "materialized_v1244").resolve()
-
-if not (DEST / "server.py").is_file():
-    raise RuntimeError(f"materialized v1.24.4 core is missing: {DEST}")
-
+DEST = build_runtime()
 admin_copy_patch.apply(ROOT / "admin_static")
 
-# Preserve the current PIN-authentication bootstrap semantics exactly.
+# Legacy email/password bootstrap variables are not part of the current PIN
+# authentication model. Neutralize them before importing the reconstructed app.
 os.environ["JJ_ADMIN_PASSWORD"] = secrets.token_urlsafe(32)
 os.environ.pop("JJ_ADMIN_LOGIN_PASSWORD", None)
 os.environ.pop("JJ_ADMIN_LOGIN_EMAIL", None)
 
-# Preserve the proven bare-import resolution semantics during the cutover.
-# Package-relative import cleanup is a later refactor after production burn-in.
 sys.path.insert(0, str(DEST))
 import server as runtime_server  # noqa: E402
 from server import app  # noqa: E402
 import admin_console  # noqa: E402
 import db  # noqa: E402
-import poker_engine as runtime_poker_engine  # noqa: E402
 from admin_delete import install_account_deletion  # noqa: E402
 
-
-def _require_materialized_module(module, name: str) -> None:
-    path = Path(str(getattr(module, "__file__", ""))).resolve()
-    if path.parent != DEST:
-        raise RuntimeError(f"{name} resolved outside materialized core: {path}")
-
-
-_require_materialized_module(runtime_server, "server")
-_require_materialized_module(db, "db")
-_require_materialized_module(runtime_poker_engine, "poker_engine")
-
-# Preserve the already-applied historical migration key. This remains a no-op
-# for production databases on which the migration marker already exists.
+# One-time data migration requested for the online-ranking cleanup. The marker
+# makes this a no-op on all subsequent production restarts.
 online_results_cleanup.apply(db)
 
 
 def _prioritize_extension_routes(fastapi_app) -> None:
-    """Move extension/API routes ahead of the materialized SPA catch-all."""
+    """Move extension/API routes ahead of the reconstructed SPA catch-all."""
     routes = list(fastapi_app.router.routes)
 
     def is_extension_route(route) -> bool:
