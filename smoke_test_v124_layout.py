@@ -47,26 +47,24 @@ function check(){
   document.body.classList.toggle('jj-mobile-poker-can-act',mobile);
   document.body.classList.toggle('jj-v124-desktop-poker',!mobile);
   document.getElementById('fixture').classList.toggle('fixture-mobile',mobile);
-  requestAnimationFrame(()=>requestAnimationFrame(()=>{
-    const action=document.getElementById('actionBar'),cards=document.querySelector('.jj-seat.is-hero .jj-hole'),bet=document.getElementById('heroBet'),rank=document.getElementById('rankQ'),unit=document.getElementById('bbUnit'),call=document.getElementById('callText');
-    const buttons=[...document.querySelectorAll('.jj-main-actions .jj-action-btn')];
-    const widths=buttons.map(x=>x.getBoundingClientRect().width);
-    const maxW=Math.max(...widths),minW=Math.min(...widths);
-    const cardRect=cards.getBoundingClientRect(),betRect=bet.getBoundingClientRect(),rankRect=rank.getBoundingClientRect(),unitRect=unit.getBoundingClientRect(),actionRect=action.getBoundingClientRect();
-    const unitStyle=getComputedStyle(unit),callStyle=getComputedStyle(call);
-    const checks={
-      actionNoHorizontalOverflow:action.scrollWidth<=action.clientWidth+2,
-      equalPrimaryActions:maxW-minW<3,
-      cardBetSeparated:mobile?true:!intersects(cardRect,betRect),
-      rankVisible:rankRect.width>8&&rankRect.height>8&&rankRect.left>=cardRect.left-1&&rankRect.right<=cardRect.right+1,
-      bbHorizontal:unitStyle.writingMode==='horizontal-tb'&&unitRect.width>8&&unitRect.height<30,
-      callReadable:parseFloat(callStyle.fontSize)>=12,
-      actionWithinViewport:actionRect.left>=-1&&actionRect.right<=innerWidth+1,
-      threeActions:buttons.length===3,
-    };
-    const ok=Object.values(checks).every(Boolean);
-    document.body.insertAdjacentHTML('beforeend',`<pre id="layoutResult" data-layout-ok="${ok?'1':'0'}">${JSON.stringify(checks)}</pre>`);
-  }));
+  const action=document.getElementById('actionBar'),cards=document.querySelector('.jj-seat.is-hero .jj-hole'),bet=document.getElementById('heroBet'),rank=document.getElementById('rankQ'),unit=document.getElementById('bbUnit'),call=document.getElementById('callText');
+  const buttons=[...document.querySelectorAll('.jj-main-actions .jj-action-btn')];
+  const widths=buttons.map(x=>x.getBoundingClientRect().width);
+  const maxW=Math.max(...widths),minW=Math.min(...widths);
+  const cardRect=cards.getBoundingClientRect(),betRect=bet.getBoundingClientRect(),rankRect=rank.getBoundingClientRect(),unitRect=unit.getBoundingClientRect(),actionRect=action.getBoundingClientRect();
+  const unitStyle=getComputedStyle(unit),callStyle=getComputedStyle(call);
+  const checks={
+    actionNoHorizontalOverflow:action.scrollWidth<=action.clientWidth+2,
+    equalPrimaryActions:maxW-minW<3,
+    cardBetSeparated:mobile?true:!intersects(cardRect,betRect),
+    rankVisible:rankRect.width>8&&rankRect.height>8&&rankRect.left>=cardRect.left-1&&rankRect.right<=cardRect.right+1,
+    bbHorizontal:unitStyle.writingMode==='horizontal-tb'&&unitRect.width>8&&unitRect.height<30,
+    callReadable:parseFloat(callStyle.fontSize)>=12,
+    actionWithinViewport:actionRect.left>=-1&&actionRect.right<=innerWidth+1,
+    threeActions:buttons.length===3,
+  };
+  const ok=Object.values(checks).every(Boolean);
+  document.body.insertAdjacentHTML('beforeend',`<pre id="layoutResult" data-layout-ok="${ok?'1':'0'}">${JSON.stringify(checks)}</pre>`);
 }
 addEventListener('load',check);
 </script>
