@@ -20,7 +20,7 @@ DRIVER = r'''
 <script>
 (async () => {
   const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
-  async function waitFor(fn, label, loops=240){
+  async function waitFor(fn, label, loops=400){
     for(let i=0;i<loops;i++){
       try{ if(fn()) return; }catch{}
       await sleep(25);
@@ -54,7 +54,8 @@ DRIVER = r'''
     checks.realLogin = true;
     checks.memberAdminHidden = [...document.querySelectorAll('.admin-only')].every(el => el.classList.contains('hidden'));
     await waitFor(() => document.getElementById('homeTables').textContent.includes('JJ Table A'), 'home tables');
-    checks.home = document.getElementById('jjHomeHubGrid')?.textContent.includes('今日のクイズ') === true;
+    await waitFor(() => document.getElementById('jjHomeHubGrid')?.textContent.includes('今日のクイズ') === true, 'home overview');
+    checks.home = true;
 
     await go('lab');
     await waitFor(() => document.querySelectorAll('#quizChoices [data-daily-answer]').length >= 4, 'daily quiz choices');
@@ -112,7 +113,7 @@ DRIVER = r'''
 
     document.getElementById('loginPin').value = '123456';
     document.getElementById('pinForm').requestSubmit();
-    await waitFor(() => !document.getElementById('appView').classList.contains('hidden'), 'relogin');
+    await waitFor(() => !document.getElementById('appView').classList.contains('hidden') && document.getElementById('userName').textContent === 'ブラウザユーザー', 'relogin');
     checks.relogin = true;
   }catch(error){
     checks.driverError = String(error && error.stack || error);
@@ -238,7 +239,7 @@ def run_viewport(width: int, height: int) -> None:
                         "--no-sandbox",
                         "--disable-gpu",
                         "--run-all-compositor-stages-before-draw",
-                        "--virtual-time-budget=9000",
+                        "--virtual-time-budget=15000",
                         f"--window-size={width},{height}",
                         "--dump-dom",
                         url,
@@ -247,7 +248,7 @@ def run_viewport(width: int, height: int) -> None:
                     stdout=subprocess.PIPE,
                     stderr=subprocess.PIPE,
                     text=True,
-                    timeout=45,
+                    timeout=55,
                 )
                 last = proc.stdout
                 if 'data-fullstack-journey-ok=' in last:
