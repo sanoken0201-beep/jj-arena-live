@@ -86,20 +86,20 @@ def test_real_three_way_sidepot_runout(engine) -> None:
     assert (state.get("last_result") or {}).get("type") == "showdown"
     showdown = (state.get("hand") or {}).get("showdown") or {}
     pots = showdown.get("pots") or []
-    assert len(pots) >= 2, "unequal all-in contributions must create a side pot"
+    assert len(pots) >= 2
     assert all(int(p.get("contributed", 0) or 0) == 0 for p in state["seats"])
     assert not (state.get("hand") or {}).get("forced_runout")
     assert float(state.get("showdown_hold_until_epoch") or 0) > engine.time.time()
 
 
 def main() -> None:
-    assert RUNTIME_VERSION == "1.24.2"
+    assert RUNTIME_VERSION == "1.24.3"
     with tempfile.TemporaryDirectory() as td:
         root = build_runtime(Path(td) / "runtime")
         engine = _load_engine(root)
         test_real_no_flop_no_drop(engine)
         test_real_three_way_sidepot_runout(engine)
-    print("v1.24 real engine integration: ok")
+    print("v1.24.3 real engine integration: ok")
 
 
 if __name__ == "__main__":
