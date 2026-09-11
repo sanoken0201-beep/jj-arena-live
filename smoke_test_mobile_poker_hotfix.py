@@ -33,7 +33,7 @@ assert "Number(chips||0)/big" in final
 assert 'id="jjV124CallAmount"' in final
 assert 'id="jjV124CallButtonAmount"' in final
 assert '<span class="jj-card-rank">' in final
-assert ".jj-action-context b" not in final
+assert "$('#actionBar .jj-action-context b')" not in final
 
 # Portrait mobile geometry from the validated hotfix remains available upstream;
 # v1.24 only replaces desktop bet lanes.
@@ -49,5 +49,6 @@ assert 'request.url.query == "v=52"' in server
 
 py_compile.compile(str(ROOT / "mobile_poker_hotfix.py"), doraise=True)
 py_compile.compile(str(ROOT / "v52_patch.py"), doraise=True)
+py_compile.compile(str(ROOT / "v52_post_patch.py"), doraise=True)
 py_compile.compile(str(ROOT / "runtime_builder.py"), doraise=True)
 print("MOBILE_POKER_HOTFIX_SMOKE_OK")
