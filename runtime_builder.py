@@ -51,13 +51,15 @@ import v51_post_patch
 import v51_final_patch
 import v51_engine_compat_patch
 import v51_call_signature_patch
+import v52_patch
+import v52_post_patch
 
 ROOT = Path(__file__).resolve().parent
 RELEASE_DIR = ROOT / "release_v14"
 EXPECTED_PARTS = 62
 EXPECTED_SHA256 = "3ccb973f9ab146ce1c0d7da598242b0c1521a8ecc85c091caa10c1f1ebc9ddfd"
-RUNTIME_VERSION = "1.23.0"
-DEFAULT_DEST = Path("/tmp/jj_arena_v51_runtime")
+RUNTIME_VERSION = "1.24.0"
+DEFAULT_DEST = Path("/tmp/jj_arena_v52_runtime")
 
 
 def _release_bytes() -> bytes:
@@ -129,17 +131,17 @@ def _apply_patches(dest: Path) -> None:
     ):
         module.apply(dest)
     mobile_poker_hotfix.apply(dest)
-    # v1.23 deliberately runs after the mobile hotfix because it owns the final
-    # action-bar/card presentation and the staged all-in table lifecycle.
+    # v1.23 owns the stable game lifecycle and mobile interaction safety.
     v51_patch.apply(dest)
     v51_post_patch.apply(dest)
     v51_final_patch.apply(dest)
-    # Adapt the final v1.23 wrappers to the verified reconstructed engine's
-    # concrete helper contracts before the runtime is imported by FastAPI/tests.
     v51_engine_compat_patch.apply(dest)
-    # The established apply_action path passes the uncontested winner explicitly,
-    # while v1.23 also uses a one-argument internal call. Preserve both contracts.
     v51_call_signature_patch.apply(dest)
+    # v1.24 is the final presentation layer. It intentionally runs after all
+    # legacy compatibility renderers, then receives a tiny environment guard so
+    # non-poker isolated JS tests can still evaluate the shared app bundle.
+    v52_patch.apply(dest)
+    v52_post_patch.apply(dest)
 
 
 def build_runtime(dest: Path | None = None) -> Path:
