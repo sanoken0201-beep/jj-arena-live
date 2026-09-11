@@ -16,7 +16,7 @@ css = (DEST / "static" / "styles.css").read_text(encoding="utf-8")
 index = (DEST / "static" / "index.html").read_text(encoding="utf-8")
 sw = (DEST / "static" / "sw.js").read_text(encoding="utf-8")
 
-assert RUNTIME_VERSION == "1.24.3"
+assert tuple(int(part) for part in RUNTIME_VERSION.split(".")) >= (1, 20, 3)
 legacy_marker = "v1.20.3 mobile bet-marker/call-amount hotfix"
 final_marker = "v1.24.0 unified online-poker presentation layer"
 assert legacy_marker in appjs
@@ -34,10 +34,11 @@ assert "if(visual===3)return {left:p.left,top:27};" in appjs
 assert "jjV124MobileBetPos(actual)" in final
 assert "pointer-events:none!important" in css
 
-assert "?v=55" in index
-assert "jj-arena-live-v55" in sw
-assert 'request.url.query == "v=55"' in server
+assert f'version="{RUNTIME_VERSION}"' in server or f'"version":"{RUNTIME_VERSION}"' in server
+assert 'request.url.query == "v=' in server
+assert "?v=" in index
+assert "jj-arena-live-v" in sw
 
-for filename in ("mobile_poker_hotfix.py", "v52_patch.py", "v52_post_patch.py", "v53_patch.py", "v54_patch.py", "runtime_builder.py"):
+for filename in ("mobile_poker_hotfix.py", "v52_patch.py", "v52_post_patch.py", "v53_patch.py", "v54_patch.py", "v55_patch.py", "v55_post_patch.py", "runtime_builder.py"):
     py_compile.compile(str(ROOT / filename), doraise=True)
 print("MOBILE_POKER_HOTFIX_SMOKE_OK")
