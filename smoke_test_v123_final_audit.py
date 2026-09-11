@@ -7,7 +7,7 @@ from runtime_builder import RUNTIME_VERSION, build_runtime
 
 
 def main() -> None:
-    assert RUNTIME_VERSION == "1.24.0"
+    assert RUNTIME_VERSION == "1.24.1"
     with tempfile.TemporaryDirectory() as td:
         root = build_runtime(Path(td) / "runtime")
         app = (root / "static" / "app.js").read_text(encoding="utf-8")

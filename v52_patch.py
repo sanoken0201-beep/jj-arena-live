@@ -14,9 +14,9 @@ def apply(root: Path) -> None:
 
 def _server(path: Path) -> None:
     text = path.read_text(encoding="utf-8")
-    text = text.replace('version="1.23.0"', 'version="1.24.0"')
-    text = text.replace('"version":"1.23.0"', '"version":"1.24.0"')
-    text = text.replace('request.url.query == "v=51"', 'request.url.query == "v=52"')
+    text = text.replace('version="1.23.0"', 'version="1.24.1"')
+    text = text.replace('"version":"1.23.0"', '"version":"1.24.1"')
+    text = text.replace('request.url.query == "v=51"', 'request.url.query == "v=53"')
     path.write_text(text, encoding="utf-8")
 
 
@@ -312,11 +312,11 @@ def _styles(path: Path) -> None:
 
 
 def _index(path: Path) -> None:
-    text = path.read_text(encoding="utf-8").replace("?v=51", "?v=52")
+    text = path.read_text(encoding="utf-8").replace("?v=51", "?v=53")
     path.write_text(text, encoding="utf-8")
 
 
 def _sw(path: Path) -> None:
     text = path.read_text(encoding="utf-8")
-    text = re.sub(r"jj-arena-live-v(?:\d+)(?:-hotfix\d+)?", "jj-arena-live-v52", text)
+    text = re.sub(r"jj-arena-live-v(?:\d+)(?:-hotfix\d+)?", "jj-arena-live-v53", text)
     path.write_text(text, encoding="utf-8")
