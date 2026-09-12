@@ -27,6 +27,7 @@ import online_results_cleanup
 import operations_learning
 import operations_learning_hardening
 import resilience
+import runtime_performance
 import security_hardening
 
 ROOT = Path(__file__).resolve().parent
@@ -62,6 +63,10 @@ def _require_materialized_module(module, name: str) -> None:
 _require_materialized_module(runtime_server, "server")
 _require_materialized_module(db, "db")
 _require_materialized_module(runtime_poker_engine, "poker_engine")
+
+# Install runtime-only performance improvements after the verified materialized
+# modules resolve, without mutating the canonical v1.24.4 source tree or game rules.
+runtime_performance.install(db, runtime_server, runtime_poker_engine)
 
 # Preserve the already-applied historical migration key. This remains a no-op
 # for production databases on which the migration marker already exists.
