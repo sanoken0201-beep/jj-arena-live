@@ -149,22 +149,22 @@ def _patched_app_js() -> str:
     js = transform_hand_history_app_js(js)
     js = transform_phase5_app_js(transform_phase4_app_js(transform_phase3_app_js(transform_phase2_app_js(transform_app_js(js)))))
 
-    # A WebSocket state message already contains every table field required to
-    # render the poker room. Re-fetching /api/me after every state broadcast
-    # multiplied database work by the number of connected clients without
-    # changing what the player sees. Keep the explicit refreshes on table open
-    # and leave-seat, where account/session data can actually matter.
+    # The Phase 2 connection layer is the authoritative WebSocket handler after
+    # all UX transforms. Patch that exact final implementation so state frames
+    # keep connection-freshness semantics while chat-only frames avoid a full
+    # table rerender. State frames may omit chat after the first compatible frame.
+    ws_handler = "tableWS.onmessage=e=>{try{const m=JSON.parse(e.data);if(m.type==='state'){const previous=tableState;tableState=m.state;tableMessages=m.messages||[];renderPokerRoom();jjV2AcceptState('ws',previous);refreshMe().catch(()=>{})}}catch{}};"
+    ws_handler_optimized = "tableWS.onmessage=e=>{try{const m=JSON.parse(e.data);if(m.type==='state'){const previous=tableState;tableState=m.state;if(Array.isArray(m.messages))tableMessages=m.messages;renderPokerRoom();jjV2AcceptState('ws',previous)}else if(m.type==='chat'){tableMessages=m.messages||[];renderTableChat()}}catch{}};"
+    if js.count(ws_handler) != 1:
+        raise RuntimeError("production websocket handler drift: expected one Phase 2 state handler")
+    js = js.replace(ws_handler, ws_handler_optimized, 1)
+
+    # Keep the historical exact replacement as a compatibility guard for any
+    # remaining pre-Phase-2 renderer copy; it does not alter the authoritative
+    # handler patched above.
     js = js.replace(
         "renderPokerRoom();refreshMe().catch(()=>{})",
         "renderPokerRoom()",
-    )
-
-    # State frames and chat frames are independent after the server-side
-    # performance layer. State frames may omit messages; chat frames update only
-    # the chat panel and avoid a full poker-table rerender.
-    js = js.replace(
-        "tableWS.onmessage=e=>{try{const m=JSON.parse(e.data);if(m.type==='state'){tableState=m.state;tableMessages=m.messages||[];renderPokerRoom()}}catch{}}",
-        "tableWS.onmessage=e=>{try{const m=JSON.parse(e.data);if(m.type==='state'){tableState=m.state;if(Array.isArray(m.messages))tableMessages=m.messages;renderPokerRoom()}else if(m.type==='chat'){tableMessages=m.messages||[];renderTableChat()}}catch{}}",
     )
 
     # showApp() immediately calls switchView(currentView), which already loads
