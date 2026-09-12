@@ -130,8 +130,8 @@ _TODAYS_JJ_CSS = r'''
 
 def _patched_index() -> str:
     html = (_MATERIALIZED_STATIC / "index.html").read_text(encoding="utf-8")
-    html = html.replace('/static/styles.css?v=56', '/static/styles.css?v=63')
-    html = html.replace('/static/app.js?v=56', '/static/app.js?v=63')
+    html = html.replace('/static/styles.css?v=56', '/static/styles.css?v=64')
+    html = html.replace('/static/app.js?v=56', '/static/app.js?v=64')
     html = html.replace('← Lobby', '← ロビー')
     html = html.replace('>Table Chat<', '>チャット<').replace('>Hand Log<', '>ハンド履歴<')
     html = html.replace(
@@ -144,7 +144,24 @@ def _patched_index() -> str:
 def _patched_app_js() -> str:
     js = (_MATERIALIZED_STATIC / "app.js").read_text(encoding="utf-8")
     js = transform_hand_history_app_js(js)
-    return transform_phase5_app_js(transform_phase4_app_js(transform_phase3_app_js(transform_phase2_app_js(transform_app_js(js)))))
+    js = transform_phase5_app_js(transform_phase4_app_js(transform_phase3_app_js(transform_phase2_app_js(transform_app_js(js)))))
+
+    # A WebSocket state message already contains every table field required to
+    # render the poker room. Re-fetching /api/me after every state broadcast
+    # multiplied database work by the number of connected clients without
+    # changing what the player sees. Keep the explicit refreshes on table open
+    # and leave-seat, where account/session data can actually matter.
+    js = js.replace(
+        "renderPokerRoom();refreshMe().catch(()=>{})",
+        "renderPokerRoom()",
+    )
+
+    # showApp() immediately calls switchView(currentView), which already loads
+    # the visible view. The historical extra refreshAll() duplicated home API
+    # calls on initial session restore and PIN login, so remove only that exact
+    # redundant follow-up while preserving the same visible refresh.
+    js = js.replace("showApp();await refreshAll()", "showApp()")
+    return js
 
 
 def _patched_styles() -> str:
@@ -157,9 +174,9 @@ def _patched_styles() -> str:
 
 def _patched_service_worker() -> str:
     worker = (_MATERIALIZED_STATIC / "sw.js").read_text(encoding="utf-8")
-    worker = worker.replace("const CACHE='jj-arena-live-v56';", "const CACHE='jj-arena-live-v63';")
-    worker = worker.replace("'/static/styles.css?v=19'", "'/static/styles.css?v=63'")
-    worker = worker.replace("'/static/app.js?v=19'", "'/static/app.js?v=63'")
+    worker = worker.replace("const CACHE='jj-arena-live-v56';", "const CACHE='jj-arena-live-v64';")
+    worker = worker.replace("'/static/styles.css?v=19'", "'/static/styles.css?v=64'")
+    worker = worker.replace("'/static/app.js?v=19'", "'/static/app.js?v=64'")
     return worker
 
 
