@@ -4,8 +4,9 @@ from __future__ import annotations
 
 The goals are deliberately narrow:
 - reuse PostgreSQL connections instead of opening a brand-new session per query;
-- replace the 0.18s/0.5s table polling loops with an event-driven lifecycle loop;
-- fetch table chat once per broadcast and fan websocket updates out concurrently.
+- replace periodic poker lifecycle/timeout polling with event-driven scheduling;
+- separate websocket table-state fanout from chat-only fanout;
+- keep database work bounded as connected-player count grows.
 
 Game rules, action deadlines, staged runout timing, next-hand delay, ranking logic,
 and the public API remain unchanged.
@@ -13,10 +14,12 @@ and the public API remain unchanged.
 
 import asyncio
 import atexit
+import json
 import os
 import threading
 import time
 from contextlib import contextmanager
+from datetime import datetime, timezone
 from typing import Any
 
 _INSTALLED = False
@@ -24,6 +27,9 @@ _POOL = None
 _POOL_LOCK = threading.Lock()
 _STATE_EVENT: asyncio.Event | None = None
 _STATE_EVENT_LOOP: asyncio.AbstractEventLoop | None = None
+_TIMEOUT_EVENT: asyncio.Event | None = None
+_TIMEOUT_EVENT_LOOP: asyncio.AbstractEventLoop | None = None
+_LAST_BROADCAST_STATE: dict[str, str] = {}
 
 
 def _database_url(db) -> str:
@@ -100,15 +106,21 @@ def _install_postgres_pool(db) -> None:
     db.connect = pooled_connect
 
 
-def _signal_table_state_change() -> None:
-    event = _STATE_EVENT
-    loop = _STATE_EVENT_LOOP
+def _signal_event(event: asyncio.Event | None, loop: asyncio.AbstractEventLoop | None) -> None:
     if event is None or loop is None or loop.is_closed():
         return
     try:
         loop.call_soon_threadsafe(event.set)
     except RuntimeError:
         pass
+
+
+def _signal_table_state_change() -> None:
+    _signal_event(_STATE_EVENT, _STATE_EVENT_LOOP)
+
+
+def _signal_timeout_change() -> None:
+    _signal_event(_TIMEOUT_EVENT, _TIMEOUT_EVENT_LOOP)
 
 
 def _candidate_due(current: float | None, value: Any) -> float | None:
@@ -119,6 +131,18 @@ def _candidate_due(current: float | None, value: Any) -> float | None:
     if due <= 0:
         return current
     return due if current is None else min(current, due)
+
+
+def _deadline_epoch(value: Any) -> float | None:
+    if not value:
+        return None
+    try:
+        parsed = datetime.fromisoformat(str(value))
+    except (TypeError, ValueError):
+        return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed.timestamp()
 
 
 def _install_event_driven_lifecycle(db, server, poker_engine) -> None:
@@ -135,6 +159,7 @@ def _install_event_driven_lifecycle(db, server, poker_engine) -> None:
     def save_table_and_signal(state):
         original_save_table(state)
         _signal_table_state_change()
+        _signal_timeout_change()
 
     server.save_table = save_table_and_signal
 
@@ -256,28 +281,174 @@ def _install_event_driven_lifecycle(db, server, poker_engine) -> None:
     server.auto_deal_loop = lifecycle_loop
 
 
+def _install_event_driven_timeout_loop(db, server) -> None:
+    """Wake only for a real action deadline, idle-player deadline, or state change.
+
+    The legacy loop woke every three seconds and re-read every fixed table even
+    when nobody was playing. This preserves timeout/check-fold/sit-out semantics
+    while scheduling the next required instant directly. Presence touches also
+    wake the scheduler so a refreshed 15-minute idle deadline is respected.
+    """
+    original_touch_presence = server.touch_presence
+
+    def touch_presence_and_signal(table_id: str, user_id: int) -> None:
+        original_touch_presence(table_id, user_id)
+        _signal_timeout_change()
+
+    server.touch_presence = touch_presence_and_signal
+
+    async def timeout_loop():
+        global _TIMEOUT_EVENT, _TIMEOUT_EVENT_LOOP
+        _TIMEOUT_EVENT_LOOP = asyncio.get_running_loop()
+        _TIMEOUT_EVENT = asyncio.Event()
+        _TIMEOUT_EVENT.set()
+        try:
+            while True:
+                _TIMEOUT_EVENT.clear()
+                next_due: float | None = None
+                now = time.time()
+
+                for table_id, _table_name in db.FIXED_TABLES:
+                    changed = False
+                    try:
+                        async with server.get_table_lock(table_id):
+                            state = server.load_table(table_id)
+
+                            if server.prune_idle_players(state, table_id, now):
+                                server.save_table(state)
+                                changed = True
+
+                            hand = state.get("hand") or {}
+                            deadline = _deadline_epoch(hand.get("action_deadline"))
+                            if state.get("status") == "playing" and deadline:
+                                if deadline <= now:
+                                    seat = hand.get("action_seat")
+                                    player = next(
+                                        (p for p in state.get("seats", []) if p.get("seat") == seat),
+                                        None,
+                                    )
+                                    if player:
+                                        legal = server.legal_actions(state, player["user_id"])
+                                        if legal.get("can_act"):
+                                            server.apply_action(
+                                                state,
+                                                player["user_id"],
+                                                "check" if legal.get("can_check") else "fold",
+                                            )
+                                            if state.get("hand"):
+                                                state["hand"]["log"].append(
+                                                    f"{player['name']} timed out · sit out next"
+                                                )
+                                            if state.get("status") == "playing":
+                                                player["sit_out_next"] = True
+                                            else:
+                                                player["sitting_out"] = True
+                                                player["sit_out_next"] = False
+                                                player["ready"] = False
+                                                active_after_timeout = server._jj_table_active_players(state)
+                                                if len(active_after_timeout) < 2:
+                                                    state["session_active"] = False
+                                                    state["next_hand_at_epoch"] = None
+                                            server.arm_action_deadline(state)
+                                            server.save_table(state)
+                                            changed = True
+                                else:
+                                    next_due = _candidate_due(next_due, deadline)
+
+                            # prune_idle_players is inactive during a hand. Once a
+                            # hand ends, save_table wakes this loop and overdue idle
+                            # players are removed immediately, matching old behavior.
+                            if state.get("status") != "playing":
+                                idle_seconds = float(getattr(server, "TABLE_IDLE_SECONDS", 15 * 60))
+                                started = float(getattr(server, "SERVER_STARTED_AT", now))
+                                presence = getattr(server, "table_presence", {})
+                                for player in state.get("seats", []):
+                                    try:
+                                        uid = int(player.get("user_id", 0))
+                                    except (TypeError, ValueError):
+                                        continue
+                                    last = float(presence.get((table_id, uid), started))
+                                    next_due = _candidate_due(next_due, last + idle_seconds)
+
+                        if changed:
+                            await server.hub.broadcast(table_id)
+                    except asyncio.CancelledError:
+                        raise
+                    except Exception as exc:
+                        try:
+                            import resilience
+
+                            resilience.record_error(
+                                db,
+                                "table_timeout",
+                                f"{type(exc).__name__}: {exc}",
+                                path=table_id,
+                            )
+                        except Exception:
+                            pass
+
+                if _TIMEOUT_EVENT.is_set():
+                    continue
+
+                if next_due is None:
+                    await _TIMEOUT_EVENT.wait()
+                    continue
+
+                timeout = max(0.0, next_due - time.time())
+                try:
+                    await asyncio.wait_for(_TIMEOUT_EVENT.wait(), timeout=timeout)
+                except TimeoutError:
+                    pass
+        finally:
+            _TIMEOUT_EVENT = None
+            _TIMEOUT_EVENT_LOOP = None
+
+    server.timeout_loop = timeout_loop
+
+
+def _state_fingerprint(state: Any) -> str:
+    return json.dumps(state, sort_keys=True, separators=(",", ":"), ensure_ascii=False, default=str)
+
+
 def _install_broadcast_coalescing(server, poker_engine) -> None:
-    """Read chat once and fan websocket state to clients concurrently."""
+    """Send state and chat independently while keeping personalized table state."""
 
     async def broadcast(self, table_id: str):
-        try:
-            state = server.load_table(table_id)
-            messages = server.get_messages(table_id)
-        except Exception:
-            return
-
         connections = list(self.connections.get(table_id, []))
         if not connections:
             return
 
+        try:
+            state = server.load_table(table_id)
+            fingerprint = _state_fingerprint(state)
+        except Exception:
+            return
+
+        previous = _LAST_BROADCAST_STATE.get(table_id)
+        state_changed = previous != fingerprint
+        _LAST_BROADCAST_STATE[table_id] = fingerprint
+
+        # The first broadcast remains backward-compatible and includes chat.
+        # Afterwards a state transition does not read/send chat, while a
+        # chat-only broadcast does not reserialize personalized poker state.
+        messages = None
+        if previous is None or not state_changed:
+            try:
+                messages = server.get_messages(table_id)
+            except Exception:
+                messages = []
+
         async def send_one(ws, user_id: int):
-            await ws.send_json(
-                {
+            if state_changed:
+                payload = {
                     "type": "state",
                     "state": poker_engine.public_state(state, user_id),
-                    "messages": messages,
                 }
-            )
+                if previous is None:
+                    payload["messages"] = messages or []
+                await ws.send_json(payload)
+            else:
+                await ws.send_json({"type": "chat", "messages": messages or []})
 
         results = await asyncio.gather(
             *(send_one(ws, uid) for ws, uid in connections),
@@ -317,6 +488,7 @@ def install(db, server, poker_engine) -> None:
 
     _install_postgres_pool(db)
     _install_event_driven_lifecycle(db, server, poker_engine)
+    _install_event_driven_timeout_loop(db, server)
     _install_broadcast_coalescing(server, poker_engine)
     _install_indexes(db)
     _INSTALLED = True
