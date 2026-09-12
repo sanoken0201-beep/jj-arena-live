@@ -11,6 +11,12 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from starlette.requests import Request
+from starlette.responses import Response
+
+import app_materialized as _materialized
+from app_materialized import app, db, runtime_poker_engine, runtime_server
+
 
 _ROOT = Path(__file__).resolve().parent
 _MATERIALIZED_STATIC = _ROOT / "materialized_v1244" / "static"
@@ -88,36 +94,58 @@ _TODAYS_JJ_CSS = r'''
 '''
 
 
-def _apply_todays_jj_hotfix() -> None:
-    """Make learning cards unconditionally readable and invalidate old iOS CSS.
+def _patched_index() -> str:
+    html = (_MATERIALIZED_STATIC / "index.html").read_text(encoding="utf-8")
+    return html.replace('/static/styles.css?v=56', '/static/styles.css?v=57')
 
-    The production runtime is materialized and intentionally immutable in git,
-    but a tiny idempotent boot-time compatibility layer is safer than reopening
-    the historical patch chain. It runs before the FastAPI app mounts /static.
-    """
-    styles = _MATERIALIZED_STATIC / "styles.css"
-    index = _MATERIALIZED_STATIC / "index.html"
-    sw = _MATERIALIZED_STATIC / "sw.js"
 
-    css = styles.read_text(encoding="utf-8")
-    if _TODAYS_JJ_MARKER not in css:
-        styles.write_text(css.rstrip() + _TODAYS_JJ_CSS + "\n", encoding="utf-8")
+def _patched_styles() -> str:
+    css = (_MATERIALIZED_STATIC / "styles.css").read_text(encoding="utf-8")
+    if _TODAYS_JJ_MARKER in css:
+        return css
+    return css.rstrip() + _TODAYS_JJ_CSS + "\n"
 
-    html = index.read_text(encoding="utf-8")
-    html = html.replace('/static/styles.css?v=56', '/static/styles.css?v=57')
-    index.write_text(html, encoding="utf-8")
 
-    worker = sw.read_text(encoding="utf-8")
+def _patched_service_worker() -> str:
+    worker = (_MATERIALIZED_STATIC / "sw.js").read_text(encoding="utf-8")
     worker = worker.replace("const CACHE='jj-arena-live-v56';", "const CACHE='jj-arena-live-v57';")
     worker = worker.replace("'/static/styles.css?v=19'", "'/static/styles.css?v=57'")
     worker = worker.replace("'/static/app.js?v=19'", "'/static/app.js?v=56'")
-    sw.write_text(worker, encoding="utf-8")
+    return worker
 
 
-_apply_todays_jj_hotfix()
+@app.middleware("http")
+async def _todays_jj_asset_hotfix(request: Request, call_next):
+    """Serve the contrast fix without changing committed materialized files.
 
-import app_materialized as _materialized
-from app_materialized import app, db, runtime_poker_engine, runtime_server
+    Keeping the materialized tree byte-for-byte immutable preserves the v2
+    parity/reproducibility guarantee. A new stylesheet URL and service-worker
+    namespace also force iOS Safari and LINE's in-app browser off stale CSS.
+    """
+    if request.method in {"GET", "HEAD"}:
+        path = request.url.path
+        body: str | None = None
+        media_type: str | None = None
+        headers: dict[str, str] = {}
+        if path in {"/", "/index.html"}:
+            body = _patched_index()
+            media_type = "text/html"
+            headers["Cache-Control"] = "no-cache, max-age=0"
+        elif path == "/static/styles.css":
+            body = _patched_styles()
+            media_type = "text/css"
+            headers["Cache-Control"] = "public, max-age=31536000, immutable"
+        elif path == "/static/sw.js":
+            body = _patched_service_worker()
+            media_type = "application/javascript"
+            headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+            headers["Service-Worker-Allowed"] = "/"
+        if body is not None:
+            content = b"" if request.method == "HEAD" else body.encode("utf-8")
+            headers["Content-Length"] = str(len(body.encode("utf-8")))
+            return Response(content=content, media_type=media_type, headers=headers)
+    return await call_next(request)
+
 
 __all__ = ["app", "db", "runtime_poker_engine", "runtime_server"]
 
