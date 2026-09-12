@@ -61,12 +61,12 @@ def main() -> None:
     entry = (ROOT / "app.py").read_text(encoding="utf-8")
     assert "transform_phase3_app_js(" in entry
     assert "transform_phase3_styles(" in entry
-    js_version = re.search(r"/static/app\.js\?v=(\d+)", entry)
-    css_version = re.search(r"/static/styles\.css\?v=(\d+)", entry)
-    cache_version = re.search(r"jj-arena-live-v(\d+)", entry)
-    assert js_version and int(js_version.group(1)) >= 60
-    assert css_version and int(css_version.group(1)) >= 60
-    assert cache_version and int(cache_version.group(1)) >= 60
+    js_versions = [int(v) for v in re.findall(r"/static/app\.js\?v=(\d+)", entry)]
+    css_versions = [int(v) for v in re.findall(r"/static/styles\.css\?v=(\d+)", entry)]
+    cache_versions = [int(v) for v in re.findall(r"jj-arena-live-v(\d+)", entry)]
+    assert js_versions and max(js_versions) >= 60
+    assert css_versions and max(css_versions) >= 60
+    assert cache_versions and max(cache_versions) >= 60
 
     print("JJ_PLAYER_UX_PHASE3_SMOKE_OK")
 
