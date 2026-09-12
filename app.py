@@ -137,8 +137,8 @@ _TODAYS_JJ_CSS = r'''
 @lru_cache(maxsize=1)
 def _patched_index() -> str:
     html = (_MATERIALIZED_STATIC / "index.html").read_text(encoding="utf-8")
-    html = html.replace('/static/styles.css?v=56', '/static/styles.css?v=66')
-    html = html.replace('/static/app.js?v=56', '/static/app.js?v=66')
+    html = html.replace('/static/styles.css?v=56', '/static/styles.css?v=67')
+    html = html.replace('/static/app.js?v=56', '/static/app.js?v=67')
     html = html.replace('← Lobby', '← ロビー')
     html = html.replace('>Table Chat<', '>チャット<').replace('>Hand Log<', '>ハンド履歴<')
     html = html.replace('Waiting for players', '着席者を待っています')
@@ -195,9 +195,9 @@ def _patched_styles() -> str:
 @lru_cache(maxsize=1)
 def _patched_service_worker() -> str:
     worker = (_MATERIALIZED_STATIC / "sw.js").read_text(encoding="utf-8")
-    worker = worker.replace("const CACHE='jj-arena-live-v56';", "const CACHE='jj-arena-live-v66';")
-    worker = worker.replace("'/static/styles.css?v=19'", "'/static/styles.css?v=66'")
-    worker = worker.replace("'/static/app.js?v=19'", "'/static/app.js?v=66'")
+    worker = worker.replace("const CACHE='jj-arena-live-v56';", "const CACHE='jj-arena-live-v67';")
+    worker = worker.replace("'/static/styles.css?v=19'", "'/static/styles.css?v=67'")
+    worker = worker.replace("'/static/app.js?v=19'", "'/static/app.js?v=67'")
     return worker
 
 
