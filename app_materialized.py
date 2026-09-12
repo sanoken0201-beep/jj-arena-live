@@ -26,6 +26,7 @@ import online_results_cleanup
 import operations_learning
 import operations_learning_hardening
 import resilience
+import security_hardening
 
 ROOT = Path(__file__).resolve().parent
 DEST = (ROOT / "materialized_v1244").resolve()
@@ -89,7 +90,10 @@ def _prioritize_extension_routes(fastapi_app) -> None:
 admin_console.install_admin_console(app)
 admin_ledger_stabilization.install(app, admin_console)
 install_account_deletion(app)
+# Keep the historical URL installed as a disabled compatibility endpoint. It no
+# longer verifies user PIN candidates; see admin_pin_verification.py.
 admin_pin_verification.install(app, admin_console)
+security_hardening.install(app, runtime_server, db)
 learning_content.install(app)
 daily_quiz.install(app, runtime_server, db)
 hand_analytics.install(app, runtime_server, db)
