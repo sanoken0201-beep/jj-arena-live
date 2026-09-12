@@ -52,10 +52,10 @@ jobs:
 
       - name: Compile production entrypoint and patches
         run: |
-          python -m py_compile app.py app_materialized.py app_legacy.py admin_copy_patch.py
+          python -m py_compile app.py app_materialized.py app_legacy.py admin_copy_patch.py player_ux_asset_transform.py
           python -m py_compile operations_learning.py operations_learning_hardening.py resilience.py
           python -m py_compile quiz_readability.py v50_patch.py v51_patch.py v51_post_patch.py v51_final_patch.py v51_engine_compat_patch.py v51_call_signature_patch.py v52_patch.py v52_post_patch.py v53_patch.py v54_patch.py v55_patch.py v55_post_patch.py
-          python -m py_compile smoke_test_v1244.py smoke_test_v1244_focus_integration.py smoke_test_v1244_layout.py smoke_test_v1243_non_poker_ui.py smoke_test_v1243_non_poker_layout.py smoke_test_v124.py smoke_test_v124_layout.py smoke_test_learning_contrast.py smoke_test_v123.py smoke_test_v123_final_audit.py smoke_test_v123_engine_integration.py smoke_test_v122.py smoke_test_v190.py smoke_test_quiz_readability_refresh.py
+          python -m py_compile smoke_test_player_ux_audit.py smoke_test_v1244.py smoke_test_v1244_focus_integration.py smoke_test_v1244_layout.py smoke_test_v1243_non_poker_ui.py smoke_test_v1243_non_poker_layout.py smoke_test_v124.py smoke_test_v124_layout.py smoke_test_learning_contrast.py smoke_test_v123.py smoke_test_v123_final_audit.py smoke_test_v123_engine_integration.py smoke_test_v122.py smoke_test_v190.py smoke_test_quiz_readability_refresh.py
           python -m py_compile v49_compat_patch.py v49_patch.py v49_post_patch.py smoke_test_v121.py
           python -m py_compile daily_quiz.py quiz_bank.py v48_patch.py
           python -m py_compile mobile_poker_hotfix.py
@@ -70,10 +70,20 @@ jobs:
           RUNTIME="$(python -c 'from runtime_builder import build_runtime; print(build_runtime())')"
           node --check "$RUNTIME/static/app.js"
           node --check materialized_v1244/static/app.js
+          python - <<'PY'
+          from pathlib import Path
+          from player_ux_asset_transform import transform_app_js
+          source = Path('materialized_v1244/static/app.js').read_text(encoding='utf-8')
+          Path('/tmp/jj-player-ux-app.js').write_text(transform_app_js(source), encoding='utf-8')
+          PY
+          node --check /tmp/jj-player-ux-app.js
           node --check admin_static/ops_dashboard.js
           node --check admin_static/ops_participation.js
           node smoke_test_learning_ui.js "$RUNTIME/static/app.js"
           node smoke_test_daily_quiz_ui.js "$RUNTIME/static/app.js"
+
+      - name: Run player UX audit source regression
+        run: python smoke_test_player_ux_audit.py
 
       - name: Run v2 materialization reproducibility gate
         run: python smoke_test_v2_materialization_prep.py
