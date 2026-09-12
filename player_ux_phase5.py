@@ -68,9 +68,12 @@ def transform_app_js(source: str) -> str:
     const key=jjV124DecisionKey(),button=$(selector);
     if(!button||button.disabled){jjV5ClearPreAction();return}
     jjV5PreAction.running=true;
-    jjV5ClearPreAction();
+    const reserved={key:jjV5PreAction.key,mode:jjV5PreAction.mode};
+    jjV5PreAction={key:'',mode:'',running:true};
     queueMicrotask(()=>{
+      jjV5PreAction.running=false;
       if(!currentTableId||!tableState?.legal?.can_act||jjV124DecisionKey()!==key)return;
+      if(reserved.key!==jjV5HandKey())return;
       const live=$(selector);if(live&&!live.disabled)live.click();
     });
   }
@@ -84,12 +87,12 @@ def transform_app_js(source: str) -> str:
     const head=$('#pokerRoom .room-head');if(!head)return;
     let badge=$('#jjV5HotkeyBadge',head);
     if(jjV5HotkeysEnabled()){
-      if(!badge)head.insertAdjacentHTML('beforeend','<span id="jjV5HotkeyBadge" class="jj-v5-hotkey-badge">HOTKEY ON</span>');
+      if(!badge)head.insertAdjacentHTML('beforeend','<span id="jjV5HotkeyBadge" class="jj-v5-hotkey-badge">KEY MODE</span>');
     }else badge?.remove();
   }
   function jjV5EnhanceSettingsModal(){
     const form=$('#jjV3SizingForm');if(!form||$('#jjV5HotkeySettings',form))return;
-    form.insertAdjacentHTML('beforeend',`<fieldset id="jjV5HotkeySettings"><legend>安全なキーボード操作</legend><label class="jj-v5-hotkey-toggle"><input id="jjV5HotkeysEnabled" type="checkbox" ${jjV5HotkeysEnabled()?'checked':''}> Ctrlホットキーを有効にする</label><div class="hint">初期設定はOFF。Ctrl+F＝フォールド、Ctrl+K＝チェック、Ctrl+R＝レイズ額欄へ移動、Ctrl+1〜4＝サイズ候補を選択。コール・ベット・レイズの確定は行いません。</div></fieldset>`);
+    form.insertAdjacentHTML('beforeend',`<fieldset id="jjV5HotkeySettings"><legend>安全なキーボード操作</legend><label class="jj-v5-hotkey-toggle"><input id="jjV5HotkeysEnabled" type="checkbox" ${jjV5HotkeysEnabled()?'checked':''}> キーボード補助を有効にする</label><div class="hint">初期設定はOFF。ブラウザ標準のCtrl+F / Ctrl+R / Ctrl+Kは使用しません。Ctrl+Shift+1＝フォールドへ移動、2＝チェックへ移動、3＝レイズ額欄、4〜7＝サイズ候補。フォールド・チェックはショートカットだけでは確定しません。</div></fieldset>`);
   }
   function jjV5TypingTarget(target){
     const el=target instanceof Element?target:document.activeElement;
@@ -97,17 +100,23 @@ def transform_app_js(source: str) -> str:
   }
   function jjV5HandleHotkey(e){
     if(!jjV5HotkeysEnabled()||!currentTableId||document.visibilityState!=='visible')return;
-    if(!e.ctrlKey||e.altKey||e.metaKey||e.shiftKey||e.repeat||jjV5TypingTarget(e.target)||$('#modal')?.open)return;
+    if(!e.ctrlKey||!e.shiftKey||e.altKey||e.metaKey||e.repeat||jjV5TypingTarget(e.target)||$('#modal')?.open)return;
     if(typeof jjV2Connection!=='undefined'&&!jjV2Connection.fresh)return;
-    let target=null;
-    if(e.code==='KeyF')target=$('#actionBar [data-action="fold"]');
-    else if(e.code==='KeyK')target=$('#actionBar [data-action="check"]');
-    else if(e.code==='KeyR')target=$('#raiseTo');
-    else if(/^Digit[1-4]$/.test(e.code))target=$$('#actionBar .jj-size-btn:not(.jj-allin-size):not(.jj-size-settings)')[Number(e.code.slice(-1))-1];
+    let target=null,mode='';
+    if(e.code==='Digit1'){target=$('#actionBar [data-action="fold"]');mode='focus-action'}
+    else if(e.code==='Digit2'){target=$('#actionBar [data-action="check"]');mode='focus-action'}
+    else if(e.code==='Digit3'){target=$('#raiseTo');mode='focus-input'}
+    else if(/^Digit[4-7]$/.test(e.code)){target=$$('#actionBar .jj-size-btn:not(.jj-allin-size):not(.jj-size-settings)')[Number(e.code.slice(-1))-4];mode='size'}
     if(!target||target.disabled)return;
     e.preventDefault();e.stopPropagation();
-    if(e.code==='KeyR'){target.focus({preventScroll:false});target.select?.();return}
-    target.click();
+    if(mode==='focus-action'){
+      target.focus({preventScroll:false});
+      target.classList.add('jj-v5-key-target');
+      setTimeout(()=>target.classList.remove('jj-v5-key-target'),900);
+      return;
+    }
+    if(mode==='focus-input'){target.focus({preventScroll:false});target.select?.();return}
+    if(mode==='size')target.click();
   }
 
   function jjV5ResultKey(){
@@ -224,6 +233,7 @@ PHASE5_CSS = r'''
 #actionBar .jj-v5-preactions small{flex-basis:100%;text-align:center;font-size:.57rem;color:#9fb2aa}
 .jj-v5-hotkey-toggle{display:flex!important;align-items:center;gap:9px;font-weight:800}.jj-v5-hotkey-toggle input{width:auto!important;min-width:18px;min-height:18px}
 #jjV5HotkeySettings{margin-top:4px}.jj-v5-hotkey-badge{font-size:.58rem;font-weight:900;letter-spacing:.08em;color:#a8ebcb;border:1px solid rgba(168,235,203,.28);border-radius:999px;padding:5px 7px;white-space:nowrap}
+#actionBar .jj-v5-key-target{outline:2px solid #a8ebcb!important;outline-offset:2px}
 #resultBanner .jj-v5-result-toggle{margin-left:auto;min-height:30px;padding:0 9px;font-size:.65rem}
 #resultBanner.jj-v5-result-compact{max-width:min(88%,430px);padding-block:8px!important}
 #resultBanner.jj-v5-result-compact .jj-settlement-grid span:nth-child(1),#resultBanner.jj-v5-result-compact .jj-settlement-grid span:nth-child(2),#resultBanner.jj-v5-result-compact .jj-settlement-actions,#resultBanner.jj-v5-result-compact .jj-settlement-note{display:none!important}
