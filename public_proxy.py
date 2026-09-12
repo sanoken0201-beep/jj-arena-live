@@ -16,8 +16,24 @@ UPSTREAM_ORIGIN = UPSTREAM
 
 app = FastAPI(title="JJ Arena Public Gateway", docs_url=None, redoc_url=None, openapi_url=None)
 
+# Reuse one HTTP client for the lifetime of the gateway process. This preserves
+# cookies/headers exactly as before while allowing HTTP keep-alive and TLS
+# session reuse between requests to the single upstream service.
+_HTTP_CLIENT = httpx.AsyncClient(
+    follow_redirects=False,
+    timeout=httpx.Timeout(20.0, connect=12.0),
+    limits=httpx.Limits(max_connections=100, max_keepalive_connections=20, keepalive_expiry=30.0),
+)
+
+
+@app.on_event("shutdown")
+async def _close_http_client() -> None:
+    await _HTTP_CLIENT.aclose()
+
+
 # httpx transparently decodes compressed upstream bodies. Never forward the
-# original Content-Encoding afterward, and do not request compression upstream.
+# original Content-Encoding afterward, and do not pass the browser's encoding
+# preference through as a hop-by-hop gateway concern.
 REQUEST_STRIP = {
     "connection", "keep-alive", "proxy-authenticate", "proxy-authorization",
     "te", "trailers", "transfer-encoding", "upgrade", "host", "content-length",
@@ -29,10 +45,9 @@ RESPONSE_STRIP = {
     "content-encoding",
 }
 
-# Both Render services are currently on the free plan and may sleep. When the
-# gateway wakes first, Render can return a temporary 502/503/504 for the still-
-# sleeping upstream. Safe/read-only requests wait for the upstream to wake
-# instead of exposing that transient platform error to the browser.
+# The public gateway can be on a sleeping plan. Safe/read-only requests retain
+# the existing retry behavior so a temporary platform 502/503/504 is not exposed
+# to the browser during a gateway/upstream wake transition.
 COLD_START_STATUSES = {502, 503, 504}
 SAFE_RETRY_METHODS = {"GET", "HEAD", "OPTIONS"}
 COLD_START_BUDGET_SECONDS = 55.0
@@ -64,29 +79,25 @@ async def _upstream_request(method: str, target: str, body: bytes, headers: dict
     last_response: httpx.Response | None = None
     last_error: Exception | None = None
 
-    async with httpx.AsyncClient(
-        follow_redirects=False,
-        timeout=httpx.Timeout(20.0, connect=12.0),
-    ) as client:
-        while True:
-            try:
-                response = await client.request(method, target, content=body, headers=headers)
-                last_response = response
-                last_error = None
-                if not retryable or response.status_code not in COLD_START_STATUSES:
-                    return response
-            except (httpx.ConnectError, httpx.ConnectTimeout, httpx.ReadTimeout) as exc:
-                last_error = exc
-                if not retryable:
-                    raise
+    while True:
+        try:
+            response = await _HTTP_CLIENT.request(method, target, content=body, headers=headers)
+            last_response = response
+            last_error = None
+            if not retryable or response.status_code not in COLD_START_STATUSES:
+                return response
+        except (httpx.ConnectError, httpx.ConnectTimeout, httpx.ReadTimeout) as exc:
+            last_error = exc
+            if not retryable:
+                raise
 
-            if not retryable or time.monotonic() >= deadline:
-                if last_response is not None:
-                    return last_response
-                if last_error is not None:
-                    raise last_error
-                raise RuntimeError("upstream unavailable")
-            await asyncio.sleep(COLD_START_RETRY_DELAY_SECONDS)
+        if not retryable or time.monotonic() >= deadline:
+            if last_response is not None:
+                return last_response
+            if last_error is not None:
+                raise last_error
+            raise RuntimeError("upstream unavailable")
+        await asyncio.sleep(COLD_START_RETRY_DELAY_SECONDS)
 
 
 @app.api_route("/{path:path}", methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS", "HEAD"])
@@ -131,11 +142,13 @@ async def _connect_upstream_ws(upstream_url: str, headers: dict[str, str]):
             )
         except Exception as exc:
             last_error = exc
-            # Wake the HTTP service too; this is useful when Render has not yet
-            # started the upstream instance for a direct WebSocket handshake.
+            # Wake/check the HTTP upstream too if a direct WebSocket handshake
+            # hits a transient platform transition. Reuse the same client.
             try:
-                async with httpx.AsyncClient(timeout=httpx.Timeout(8.0, connect=6.0)) as client:
-                    await client.get(UPSTREAM + "/api/health")
+                await _HTTP_CLIENT.get(
+                    UPSTREAM + "/api/health",
+                    timeout=httpx.Timeout(8.0, connect=6.0),
+                )
             except Exception:
                 pass
             await asyncio.sleep(COLD_START_RETRY_DELAY_SECONDS)
