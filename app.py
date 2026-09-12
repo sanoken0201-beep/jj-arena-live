@@ -16,6 +16,7 @@ from starlette.responses import Response
 
 import app_materialized as _materialized
 from app_materialized import app, db, runtime_poker_engine, runtime_server
+from player_ux_asset_transform import PLAYER_UX_MARKER, transform_app_js
 
 
 _ROOT = Path(__file__).resolve().parent
@@ -96,7 +97,20 @@ _TODAYS_JJ_CSS = r'''
 
 def _patched_index() -> str:
     html = (_MATERIALIZED_STATIC / "index.html").read_text(encoding="utf-8")
-    return html.replace('/static/styles.css?v=56', '/static/styles.css?v=57')
+    html = html.replace('/static/styles.css?v=56', '/static/styles.css?v=57')
+    html = html.replace('/static/app.js?v=56', '/static/app.js?v=58')
+    html = html.replace('← Lobby', '← ロビー')
+    html = html.replace('>Table Chat<', '>チャット<').replace('>Hand Log<', '>ハンド履歴<')
+    html = html.replace(
+        'JJ内の練習用プレイマネーテーブルです。A/Bの2卓のみ、6-max、0.5/1bb、着席時150bb固定。各ハンドは10% rake・5bb capで、結果は1bb=3ptとして後期ランキングへ自動反映されます。テーブル画面との接続・操作が15分ない場合、ハンド終了後に自動離席します。',
+        'プレイマネー｜6-max｜0.5/1bb｜150bb固定｜rake 10%・5bb cap｜ランキング 1bb=3pt｜15分無操作でハンド終了後に自動離席',
+    )
+    return html
+
+
+def _patched_app_js() -> str:
+    js = (_MATERIALIZED_STATIC / "app.js").read_text(encoding="utf-8")
+    return transform_app_js(js)
 
 
 def _patched_styles() -> str:
@@ -108,19 +122,21 @@ def _patched_styles() -> str:
 
 def _patched_service_worker() -> str:
     worker = (_MATERIALIZED_STATIC / "sw.js").read_text(encoding="utf-8")
-    worker = worker.replace("const CACHE='jj-arena-live-v56';", "const CACHE='jj-arena-live-v57';")
+    worker = worker.replace("const CACHE='jj-arena-live-v56';", "const CACHE='jj-arena-live-v58';")
     worker = worker.replace("'/static/styles.css?v=19'", "'/static/styles.css?v=57'")
-    worker = worker.replace("'/static/app.js?v=19'", "'/static/app.js?v=56'")
+    worker = worker.replace("'/static/app.js?v=19'", "'/static/app.js?v=58'")
     return worker
 
 
 @app.middleware("http")
-async def _todays_jj_asset_hotfix(request: Request, call_next):
-    """Serve the contrast fix without changing committed materialized files.
+async def _v2_asset_hotfix(request: Request, call_next):
+    """Serve post-materialization UX fixes without mutating the canonical tree.
 
-    Keeping the materialized tree byte-for-byte immutable preserves the v2
-    parity/reproducibility guarantee. A new stylesheet URL and service-worker
-    namespace also force iOS Safari and LINE's in-app browser off stale CSS.
+    The v2 cutover intentionally keeps ``materialized_v1244`` immutable for
+    parity/reproducibility. The served app source is transformed at the exact
+    implementation sites, rather than defining another browser-side override
+    layer. Versioned asset URLs and a new service-worker namespace prevent stale
+    clients from mixing the old and new poker controls.
     """
     if request.method in {"GET", "HEAD"}:
         path = request.url.path
@@ -131,6 +147,10 @@ async def _todays_jj_asset_hotfix(request: Request, call_next):
             body = _patched_index()
             media_type = "text/html"
             headers["Cache-Control"] = "no-cache, max-age=0"
+        elif path == "/static/app.js":
+            body = _patched_app_js()
+            media_type = "application/javascript"
+            headers["Cache-Control"] = "public, max-age=31536000, immutable"
         elif path == "/static/styles.css":
             body = _patched_styles()
             media_type = "text/css"
@@ -147,7 +167,7 @@ async def _todays_jj_asset_hotfix(request: Request, call_next):
     return await call_next(request)
 
 
-__all__ = ["app", "db", "runtime_poker_engine", "runtime_server"]
+__all__ = ["app", "db", "runtime_poker_engine", "runtime_server", "PLAYER_UX_MARKER"]
 
 
 def __getattr__(name: str):
