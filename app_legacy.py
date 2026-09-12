@@ -2,8 +2,8 @@
 
 This is the pre-v2-cutover production entrypoint. It reconstructs the verified
 v1.24.4 runtime through runtime_builder.py and the historical patch chain.
-Keep it unchanged while the materialized production path is being proven so a
-single Git revert can restore the former startup behavior.
+Security extensions are intentionally shared with the materialized path so an
+emergency rollback cannot weaken the active authentication boundary.
 """
 from __future__ import annotations
 
@@ -23,6 +23,7 @@ import online_results_cleanup
 import operations_learning
 import operations_learning_hardening
 import resilience
+import security_hardening
 from runtime_builder import build_runtime
 
 ROOT = Path(__file__).resolve().parent
@@ -71,6 +72,7 @@ admin_console.install_admin_console(app)
 admin_ledger_stabilization.install(app, admin_console)
 install_account_deletion(app)
 admin_pin_verification.install(app, admin_console)
+security_hardening.install(app, runtime_server, db)
 learning_content.install(app)
 daily_quiz.install(app, runtime_server, db)
 hand_analytics.install(app, runtime_server, db)
