@@ -20,8 +20,6 @@ def main() -> None:
     assert PHASE3_MARKER in patched
     assert phase3(patched) == patched
 
-    # Audit 10: defaults remain familiar, but every user can save/reset their
-    # own 3 preflop and 4 postflop shortcuts without touching the action API.
     assert "JJ_V3_SIZING_DEFAULTS={pre:[2.5,3,4],post:[33,50,75,100]}" in patched
     assert "localStorage.setItem(jjV3UserKey('sizing')" in patched
     assert "localStorage.removeItem(jjV3UserKey('sizing'))" in patched
@@ -33,29 +31,26 @@ def main() -> None:
     assert "/action" not in settings_code
     assert "post(`/tables/" not in settings_code
 
-    # Presets show the actual legal total BB after the existing authoritative
-    # clamp. Equal post-clamp targets are visible instead of looking distinct.
     assert "jjV124PresetTarget(pre?'pre':'post'" in patched
     assert "サイズ・合計" in patched
     assert " · 同額" in patched
     assert "is-duplicate-target" in patched
     assert "data-jj-sizing-settings" in patched
+    assert "#pokerRoom .jj-size-settings{display:inline-flex!important" in css
 
-    # Audit 11: explicit focus mode collapses global chrome and remains a
-    # reversible user preference; mobile keyboard uses visualViewport and a
-    # bottom offset so sizing/commit controls stay visible.
     assert "id=\"jjFocusModeToggle\"" in patched
     assert "集中表示" in patched and "通常表示" in patched
     assert "localStorage.setItem(jjV3UserKey('focus')" in patched
+    assert "const back=e.target.closest('#backLobby')" in patched
+    assert "document.body.classList.remove('jj-poker-focus','jj-poker-keyboard-open')" in patched
     assert "visualViewport" in patched
     assert "jj-poker-keyboard-open" in patched
     assert "--jj-vv-bottom" in patched
     assert "body.jj-poker-focus .sidebar{display:none!important}" in css
     assert "body.jj-poker-focus .topbar{display:none!important}" in css
     assert "body.jj-poker-keyboard-open.jj-mobile-table-open.jj-mobile-poker-can-act #actionBar" in css
+    assert "#pokerRoom .result-banner{flex-direction:column" in css
 
-    # Audit 09: direct review remains, and 'review later' bookmarks the same
-    # hand while preserving any note/tags already saved by the user.
     assert "直前のハンドを見る" in patched
     assert "あとで復習" in patched
     assert "async function jjV3BookmarkHand" in patched
