@@ -266,8 +266,8 @@ def _guard_client_and_gateway_efficiency() -> None:
     assert 'js = js.replace("showApp();await refreshAll()", "showApp()")' in app_source
     assert app_source.count("@lru_cache(maxsize=1)") >= 4
     assert "encoded = body.encode(\"utf-8\")" in app_source
-    assert "jj-arena-live-v65" in app_source
-    assert "/static/app.js?v=65" in app_source
+    assert "jj-arena-live-v66" in app_source
+    assert "/static/app.js?v=66" in app_source
 
     assert "_HTTP_CLIENT = httpx.AsyncClient(" in proxy_source
     assert "response = await _HTTP_CLIENT.request(" in proxy_source
