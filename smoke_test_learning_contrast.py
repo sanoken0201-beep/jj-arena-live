@@ -65,16 +65,16 @@ def _assert_materialized_production_hotfix() -> None:
 
     with TestClient(module.app) as client:
         home = client.get("/")
-        styles = client.get("/static/styles.css?v=64")
-        app_js = client.get("/static/app.js?v=64")
+        styles = client.get("/static/styles.css?v=65")
+        app_js = client.get("/static/app.js?v=65")
         worker = client.get("/static/sw.js")
 
     assert home.status_code == 200
     assert styles.status_code == 200
     assert app_js.status_code == 200
     assert worker.status_code == 200
-    assert '/static/styles.css?v=64' in home.text
-    assert '/static/app.js?v=64' in home.text
+    assert '/static/styles.css?v=65' in home.text
+    assert '/static/app.js?v=65' in home.text
     assert marker in styles.text
     assert hand_history_marker in styles.text
     assert phase2_marker in styles.text
@@ -90,6 +90,8 @@ def _assert_materialized_production_hotfix() -> None:
     assert phase3_marker in app_js.text
     assert phase4_marker in app_js.text
     assert phase5_marker in app_js.text
+    assert "m.type==='chat'" in app_js.text
+    assert "renderTableChat()" in app_js.text
     final = styles.text.split(marker, 1)[1]
 
     for selector in (
@@ -110,9 +112,9 @@ def _assert_materialized_production_hotfix() -> None:
     for color in ("#ffffff", "#d7e2dc", "#c4d0ca", "#a8ebcb", "#ffe08a"):
         assert _contrast(color, bg) >= 4.5, (color, _contrast(color, bg))
 
-    assert "const CACHE='jj-arena-live-v64';" in worker.text
-    assert "'/static/styles.css?v=64'" in worker.text
-    assert "'/static/app.js?v=64'" in worker.text
+    assert "const CACHE='jj-arena-live-v65';" in worker.text
+    assert "'/static/styles.css?v=65'" in worker.text
+    assert "'/static/app.js?v=65'" in worker.text
     assert styles.headers.get("cache-control") == "public, max-age=31536000, immutable"
     assert app_js.headers.get("cache-control") == "public, max-age=31536000, immutable"
     assert "no-store" in worker.headers.get("cache-control", "")

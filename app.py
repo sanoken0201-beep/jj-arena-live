@@ -10,6 +10,7 @@ parity oracle and rollback reference.
 from __future__ import annotations
 
 import inspect
+from functools import lru_cache
 from pathlib import Path
 
 from fastapi import Depends, HTTPException
@@ -128,10 +129,11 @@ _TODAYS_JJ_CSS = r'''
 '''
 
 
+@lru_cache(maxsize=1)
 def _patched_index() -> str:
     html = (_MATERIALIZED_STATIC / "index.html").read_text(encoding="utf-8")
-    html = html.replace('/static/styles.css?v=56', '/static/styles.css?v=64')
-    html = html.replace('/static/app.js?v=56', '/static/app.js?v=64')
+    html = html.replace('/static/styles.css?v=56', '/static/styles.css?v=65')
+    html = html.replace('/static/app.js?v=56', '/static/app.js?v=65')
     html = html.replace('← Lobby', '← ロビー')
     html = html.replace('>Table Chat<', '>チャット<').replace('>Hand Log<', '>ハンド履歴<')
     html = html.replace(
@@ -141,16 +143,25 @@ def _patched_index() -> str:
     return html
 
 
+@lru_cache(maxsize=1)
 def _patched_app_js() -> str:
     js = (_MATERIALIZED_STATIC / "app.js").read_text(encoding="utf-8")
     js = transform_hand_history_app_js(js)
     js = transform_phase5_app_js(transform_phase4_app_js(transform_phase3_app_js(transform_phase2_app_js(transform_app_js(js)))))
 
-    # A WebSocket state message already contains every table field required to
-    # render the poker room. Re-fetching /api/me after every state broadcast
-    # multiplied database work by the number of connected clients without
-    # changing what the player sees. Keep the explicit refreshes on table open
-    # and leave-seat, where account/session data can actually matter.
+    # The Phase 2 connection layer is the authoritative WebSocket handler after
+    # all UX transforms. Patch that exact final implementation so state frames
+    # keep connection-freshness semantics while chat-only frames avoid a full
+    # table rerender. State frames may omit chat after the first compatible frame.
+    ws_handler = "tableWS.onmessage=e=>{try{const m=JSON.parse(e.data);if(m.type==='state'){const previous=tableState;tableState=m.state;tableMessages=m.messages||[];renderPokerRoom();jjV2AcceptState('ws',previous);refreshMe().catch(()=>{})}}catch{}};"
+    ws_handler_optimized = "tableWS.onmessage=e=>{try{const m=JSON.parse(e.data);if(m.type==='state'){const previous=tableState;tableState=m.state;if(Array.isArray(m.messages))tableMessages=m.messages;renderPokerRoom();jjV2AcceptState('ws',previous)}else if(m.type==='chat'){tableMessages=m.messages||[];renderTableChat()}}catch{}};"
+    if js.count(ws_handler) != 1:
+        raise RuntimeError("production websocket handler drift: expected one Phase 2 state handler")
+    js = js.replace(ws_handler, ws_handler_optimized, 1)
+
+    # Keep the historical exact replacement as a compatibility guard for any
+    # remaining pre-Phase-2 renderer copy; it does not alter the authoritative
+    # handler patched above.
     js = js.replace(
         "renderPokerRoom();refreshMe().catch(()=>{})",
         "renderPokerRoom()",
@@ -164,6 +175,7 @@ def _patched_app_js() -> str:
     return js
 
 
+@lru_cache(maxsize=1)
 def _patched_styles() -> str:
     css = (_MATERIALIZED_STATIC / "styles.css").read_text(encoding="utf-8")
     if _TODAYS_JJ_MARKER not in css:
@@ -172,11 +184,12 @@ def _patched_styles() -> str:
     return transform_phase5_mobile_styles(transform_phase5_styles(transform_phase4_styles(transform_phase3_styles(transform_phase2_styles(css)))))
 
 
+@lru_cache(maxsize=1)
 def _patched_service_worker() -> str:
     worker = (_MATERIALIZED_STATIC / "sw.js").read_text(encoding="utf-8")
-    worker = worker.replace("const CACHE='jj-arena-live-v56';", "const CACHE='jj-arena-live-v64';")
-    worker = worker.replace("'/static/styles.css?v=19'", "'/static/styles.css?v=64'")
-    worker = worker.replace("'/static/app.js?v=19'", "'/static/app.js?v=64'")
+    worker = worker.replace("const CACHE='jj-arena-live-v56';", "const CACHE='jj-arena-live-v65';")
+    worker = worker.replace("'/static/styles.css?v=19'", "'/static/styles.css?v=65'")
+    worker = worker.replace("'/static/app.js?v=19'", "'/static/app.js?v=65'")
     return worker
 
 
@@ -213,8 +226,9 @@ async def _v2_asset_hotfix(request: Request, call_next):
             headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
             headers["Service-Worker-Allowed"] = "/"
         if body is not None:
-            content = b"" if request.method == "HEAD" else body.encode("utf-8")
-            headers["Content-Length"] = str(len(body.encode("utf-8")))
+            encoded = body.encode("utf-8")
+            content = b"" if request.method == "HEAD" else encoded
+            headers["Content-Length"] = str(len(encoded))
             return Response(content=content, media_type=media_type, headers=headers)
     return await call_next(request)
 

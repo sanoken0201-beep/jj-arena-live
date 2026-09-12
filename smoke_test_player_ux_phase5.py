@@ -73,9 +73,9 @@ def main() -> None:
     app_source = (ROOT / "app.py").read_text(encoding="utf-8")
     assert "transform_phase5_app_js(transform_phase4_app_js(transform_phase3_app_js(transform_phase2_app_js(transform_app_js(js)))))" in app_source
     assert "transform_phase5_styles(transform_phase4_styles(transform_phase3_styles(transform_phase2_styles(css))))" in app_source
-    assert "/static/styles.css?v=64" in app_source
-    assert "/static/app.js?v=64" in app_source
-    assert "jj-arena-live-v64" in app_source
+    assert "/static/styles.css?v=65" in app_source
+    assert "/static/app.js?v=65" in app_source
+    assert "jj-arena-live-v65" in app_source
     assert '"PHASE5_MARKER"' in app_source
 
     print("JJ_PLAYER_UX_PHASE5_OK")
