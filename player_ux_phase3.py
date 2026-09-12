@@ -67,7 +67,7 @@ def transform_app_js(source: str) -> str:
   }
   function jjV3ViewportSync(){
     const vv=window.visualViewport;
-    if(!vv){document.documentElement.style.setProperty('--jj-vv-bottom','0px');return}
+    if(!vv){document.documentElement.style.setProperty('--jj-vv-bottom','0px');document.body.classList.remove('jj-poker-keyboard-open');return}
     const hidden=Math.max(0,window.innerHeight-vv.height-vv.offsetTop),keyboard=hidden>120&&!!currentTableId;
     document.documentElement.style.setProperty('--jj-vv-bottom',`${Math.round(hidden)}px`);
     document.body.classList.toggle('jj-poker-keyboard-open',keyboard);
@@ -144,6 +144,8 @@ def transform_app_js(source: str) -> str:
 
     listeners = r'''
   document.addEventListener('click',async e=>{
+    const back=e.target.closest('#backLobby');
+    if(back){document.body.classList.remove('jj-poker-focus','jj-poker-keyboard-open');document.documentElement.style.setProperty('--jj-vv-bottom','0px')}
     const settings=e.target.closest('[data-jj-sizing-settings]');
     if(settings){e.preventDefault();e.stopImmediatePropagation();return jjV3OpenSizingSettings()}
     const reset=e.target.closest('[data-jj-sizing-reset]');
@@ -181,13 +183,14 @@ PHASE3_CSS = r'''
 .jj-v3-sizing-settings fieldset{border:1px solid var(--line);border-radius:14px;padding:13px}.jj-v3-sizing-settings legend{padding:0 7px;font-size:.75rem;font-weight:850;color:var(--green)}
 .jj-v3-setting-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}.jj-v3-setting-actions{display:flex;gap:8px;flex-wrap:wrap}
 .jj-focus-toggle{margin-left:auto;white-space:nowrap}.jj-settlement-actions{display:flex;justify-content:center;gap:7px;flex-wrap:wrap;margin-top:6px}
+#pokerRoom .result-banner{flex-direction:column;align-items:stretch;justify-content:flex-start;max-width:min(90%,640px)}
 @media(min-width:761px){
   body.jj-poker-focus .sidebar{display:none!important}body.jj-poker-focus .main{margin-left:0!important;max-width:none!important;padding:0 18px 28px!important}body.jj-poker-focus .topbar{display:none!important}
   body.jj-poker-focus #tablesView{padding-top:10px}body.jj-poker-focus #pokerRoom{--jj-side-w:250px;width:100%!important;max-width:none!important}body.jj-poker-focus #pokerRoom .room-head{position:sticky;top:0;z-index:35;padding:8px 0;background:rgba(244,242,236,.94);backdrop-filter:blur(10px)}
   body.jj-poker-focus #pokerTable{--jj-stage-h:min(76vh,680px)}body.jj-poker-focus #pokerRoom .table-side{opacity:.88}
 }
 @media(max-width:760px){
-  .jj-v3-setting-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.jj-focus-toggle{margin-left:0}.jj-size-settings{display:none!important}
+  .jj-v3-setting-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.jj-focus-toggle{margin-left:0}#pokerRoom .jj-size-settings{display:inline-flex!important;min-width:0!important}
   body.jj-poker-keyboard-open.jj-mobile-table-open.jj-mobile-poker-can-act #actionBar{bottom:var(--jj-vv-bottom,0px)!important;max-height:none!important;overflow:visible!important}
   body.jj-poker-keyboard-open.jj-mobile-table-open #pokerTable{height:min(43dvh,360px)!important}
   body.jj-poker-keyboard-open .toast{bottom:calc(var(--jj-vv-bottom,0px) + 12px)!important}
