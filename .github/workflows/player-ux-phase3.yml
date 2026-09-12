@@ -1,0 +1,56 @@
+name: JJ Arena Player UX Phase 3
+
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
+      - 'ux/player-audit-phase3-*'
+
+permissions:
+  contents: read
+
+jobs:
+  phase3:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version-file: .python-version
+          cache: pip
+
+      - name: Install production and test dependencies
+        run: |
+          python -m pip install -r requirements.txt
+          python -m pip install httpx==0.28.1
+
+      - name: Compile phase 3 files
+        run: python -m py_compile player_ux_phase3.py smoke_test_player_ux_phase3.py smoke_test_player_ux_phase3_layout.py
+
+      - name: Check final served JavaScript syntax
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          from player_ux_asset_transform import transform_app_js as phase1
+          from player_ux_phase2 import transform_app_js as phase2
+          from player_ux_phase3 import transform_app_js as phase3
+          source = Path('materialized_v1244/static/app.js').read_text(encoding='utf-8')
+          Path('/tmp/jj-player-ux-phase3.js').write_text(phase3(phase2(phase1(source))), encoding='utf-8')
+          PY
+          node --check /tmp/jj-player-ux-phase3.js
+
+      - name: Run phase 3 source regression
+        run: python smoke_test_player_ux_phase3.py
+
+      - name: Run phase 3 viewport and keyboard regression
+        run: python smoke_test_player_ux_phase3_layout.py
+
+      - name: Verify served phase 3 asset contract
+        run: python smoke_test_learning_contrast.py
