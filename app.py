@@ -41,6 +41,10 @@ from player_ux_phase5 import (
     transform_app_js as transform_phase5_app_js,
     transform_styles as transform_phase5_styles,
 )
+from player_ux_phase5_mobile import (
+    PHASE5_MOBILE_MARKER,
+    transform_styles as transform_phase5_mobile_styles,
+)
 
 
 _ROOT = Path(__file__).resolve().parent
@@ -141,7 +145,7 @@ def _patched_styles() -> str:
     css = (_MATERIALIZED_STATIC / "styles.css").read_text(encoding="utf-8")
     if _TODAYS_JJ_MARKER not in css:
         css = css.rstrip() + _TODAYS_JJ_CSS + "\n"
-    return transform_phase5_styles(transform_phase4_styles(transform_phase3_styles(transform_phase2_styles(css))))
+    return transform_phase5_mobile_styles(transform_phase5_styles(transform_phase4_styles(transform_phase3_styles(transform_phase2_styles(css)))))
 
 
 def _patched_service_worker() -> str:
@@ -248,6 +252,7 @@ __all__ = [
     "PHASE3_MARKER",
     "PHASE4_MARKER",
     "PHASE5_MARKER",
+    "PHASE5_MOBILE_MARKER",
 ]
 
 
