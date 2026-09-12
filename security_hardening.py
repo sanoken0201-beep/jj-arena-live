@@ -91,10 +91,10 @@ def install(app, server, db) -> None:
     # Replace the original PIN-change endpoint. A valid authenticated session is
     # not sufficient reason to permit unlimited guesses of the current 6-digit PIN.
     _remove_http_route(app, "/api/auth/change-pin", "POST")
+    change_pin_model = server.ChangePinIn
 
-    @app.post("/api/auth/change-pin")
-    def hardened_change_pin(
-        payload: server.ChangePinIn,
+    async def hardened_change_pin(
+        payload,
         request: Request,
         user=Depends(server.current_user),
     ):
@@ -121,3 +121,8 @@ def install(app, server, db) -> None:
         _clear_change_pin_failures(key)
         db.delete_user_sessions(user["id"], keep_token=server.request_token(request))
         return {"ok": True}
+
+    # Assign the concrete model after definition so FastAPI does not have to
+    # resolve a dynamically supplied module through postponed annotations.
+    hardened_change_pin.__annotations__["payload"] = change_pin_model
+    app.post("/api/auth/change-pin")(hardened_change_pin)
