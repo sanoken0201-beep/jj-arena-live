@@ -1,0 +1,45 @@
+name: JJ Arena Security
+
+on:
+  push:
+    branches:
+      - main
+      - 'fix/**'
+      - 'hotfix/**'
+      - 'feature/**'
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  auth-security:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version-file: .python-version
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install -r requirements.txt
+          python -m pip install httpx==0.28.1
+
+      - name: Compile security boundary
+        run: |
+          python -m py_compile security_hardening.py admin_pin_verification.py smoke_test_auth_hardening.py
+          node --check admin_static/admin_pin_verify.js
+
+      - name: Run authentication hardening regression
+        run: python smoke_test_auth_hardening.py
+
+      - name: Preserve WebSocket authentication boundary
+        run: python smoke_test_websocket_auth.py
