@@ -19,6 +19,11 @@ from starlette.responses import Response
 
 import app_materialized as _materialized
 from app_materialized import app, db, runtime_poker_engine, runtime_server
+from hand_history_visibility import (
+    HAND_HISTORY_VISIBILITY_MARKER,
+    transform_app_js as transform_hand_history_app_js,
+    transform_styles as transform_hand_history_styles,
+)
 from player_ux_asset_transform import PLAYER_UX_MARKER, transform_app_js
 from player_ux_phase2 import (
     PHASE2_MARKER,
@@ -125,8 +130,8 @@ _TODAYS_JJ_CSS = r'''
 
 def _patched_index() -> str:
     html = (_MATERIALIZED_STATIC / "index.html").read_text(encoding="utf-8")
-    html = html.replace('/static/styles.css?v=56', '/static/styles.css?v=62')
-    html = html.replace('/static/app.js?v=56', '/static/app.js?v=62')
+    html = html.replace('/static/styles.css?v=56', '/static/styles.css?v=63')
+    html = html.replace('/static/app.js?v=56', '/static/app.js?v=63')
     html = html.replace('← Lobby', '← ロビー')
     html = html.replace('>Table Chat<', '>チャット<').replace('>Hand Log<', '>ハンド履歴<')
     html = html.replace(
@@ -138,6 +143,7 @@ def _patched_index() -> str:
 
 def _patched_app_js() -> str:
     js = (_MATERIALIZED_STATIC / "app.js").read_text(encoding="utf-8")
+    js = transform_hand_history_app_js(js)
     return transform_phase5_app_js(transform_phase4_app_js(transform_phase3_app_js(transform_phase2_app_js(transform_app_js(js)))))
 
 
@@ -145,14 +151,15 @@ def _patched_styles() -> str:
     css = (_MATERIALIZED_STATIC / "styles.css").read_text(encoding="utf-8")
     if _TODAYS_JJ_MARKER not in css:
         css = css.rstrip() + _TODAYS_JJ_CSS + "\n"
+    css = transform_hand_history_styles(css)
     return transform_phase5_mobile_styles(transform_phase5_styles(transform_phase4_styles(transform_phase3_styles(transform_phase2_styles(css)))))
 
 
 def _patched_service_worker() -> str:
     worker = (_MATERIALIZED_STATIC / "sw.js").read_text(encoding="utf-8")
-    worker = worker.replace("const CACHE='jj-arena-live-v56';", "const CACHE='jj-arena-live-v62';")
-    worker = worker.replace("'/static/styles.css?v=19'", "'/static/styles.css?v=62'")
-    worker = worker.replace("'/static/app.js?v=19'", "'/static/app.js?v=62'")
+    worker = worker.replace("const CACHE='jj-arena-live-v56';", "const CACHE='jj-arena-live-v63';")
+    worker = worker.replace("'/static/styles.css?v=19'", "'/static/styles.css?v=63'")
+    worker = worker.replace("'/static/app.js?v=19'", "'/static/app.js?v=63'")
     return worker
 
 
@@ -247,6 +254,7 @@ __all__ = [
     "db",
     "runtime_poker_engine",
     "runtime_server",
+    "HAND_HISTORY_VISIBILITY_MARKER",
     "PLAYER_UX_MARKER",
     "PHASE2_MARKER",
     "PHASE3_MARKER",
