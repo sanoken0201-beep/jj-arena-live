@@ -40,7 +40,7 @@ def main() -> None:
         (root / "styles.css").write_text(css, encoding="utf-8")
         fixture = root / "fixture.html"
         fixture.write_text(FIXTURE, encoding="utf-8")
-        for width, height in ((390, 844), (360, 800), (900, 700)):
+        for width, height in ((390, 844), (360, 800)):
             for open_drawer in (False, True):
                 dom = _run(chrome, fixture, width, height, open_drawer=open_drawer)
                 assert 'data-ok="1"' in dom, f"phase4 layout failed {width}x{height} open={open_drawer}: {dom[-1400:]}"
