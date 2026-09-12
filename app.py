@@ -9,14 +9,23 @@ parity oracle and rollback reference.
 """
 from __future__ import annotations
 
+import inspect
 from pathlib import Path
 
+from fastapi import Depends, HTTPException
+from pydantic import BaseModel
 from starlette.requests import Request
 from starlette.responses import Response
 
 import app_materialized as _materialized
 from app_materialized import app, db, runtime_poker_engine, runtime_server
 from player_ux_asset_transform import PLAYER_UX_MARKER, transform_app_js
+from player_ux_phase2 import (
+    PHASE2_MARKER,
+    leave_after_hand_transition,
+    transform_app_js as transform_phase2_app_js,
+    transform_styles as transform_phase2_styles,
+)
 
 
 _ROOT = Path(__file__).resolve().parent
@@ -97,8 +106,8 @@ _TODAYS_JJ_CSS = r'''
 
 def _patched_index() -> str:
     html = (_MATERIALIZED_STATIC / "index.html").read_text(encoding="utf-8")
-    html = html.replace('/static/styles.css?v=56', '/static/styles.css?v=57')
-    html = html.replace('/static/app.js?v=56', '/static/app.js?v=58')
+    html = html.replace('/static/styles.css?v=56', '/static/styles.css?v=58')
+    html = html.replace('/static/app.js?v=56', '/static/app.js?v=59')
     html = html.replace('← Lobby', '← ロビー')
     html = html.replace('>Table Chat<', '>チャット<').replace('>Hand Log<', '>ハンド履歴<')
     html = html.replace(
@@ -110,21 +119,21 @@ def _patched_index() -> str:
 
 def _patched_app_js() -> str:
     js = (_MATERIALIZED_STATIC / "app.js").read_text(encoding="utf-8")
-    return transform_app_js(js)
+    return transform_phase2_app_js(transform_app_js(js))
 
 
 def _patched_styles() -> str:
     css = (_MATERIALIZED_STATIC / "styles.css").read_text(encoding="utf-8")
-    if _TODAYS_JJ_MARKER in css:
-        return css
-    return css.rstrip() + _TODAYS_JJ_CSS + "\n"
+    if _TODAYS_JJ_MARKER not in css:
+        css = css.rstrip() + _TODAYS_JJ_CSS + "\n"
+    return transform_phase2_styles(css)
 
 
 def _patched_service_worker() -> str:
     worker = (_MATERIALIZED_STATIC / "sw.js").read_text(encoding="utf-8")
-    worker = worker.replace("const CACHE='jj-arena-live-v56';", "const CACHE='jj-arena-live-v58';")
-    worker = worker.replace("'/static/styles.css?v=19'", "'/static/styles.css?v=57'")
-    worker = worker.replace("'/static/app.js?v=19'", "'/static/app.js?v=58'")
+    worker = worker.replace("const CACHE='jj-arena-live-v56';", "const CACHE='jj-arena-live-v59';")
+    worker = worker.replace("'/static/styles.css?v=19'", "'/static/styles.css?v=58'")
+    worker = worker.replace("'/static/app.js?v=19'", "'/static/app.js?v=59'")
     return worker
 
 
@@ -134,7 +143,7 @@ async def _v2_asset_hotfix(request: Request, call_next):
 
     The v2 cutover intentionally keeps ``materialized_v1244`` immutable for
     parity/reproducibility. The served app source is transformed at the exact
-    implementation sites, rather than defining another browser-side override
+    implementation sites, rather than defining another browser-side renderer
     layer. Versioned asset URLs and a new service-worker namespace prevent stale
     clients from mixing the old and new poker controls.
     """
@@ -167,7 +176,61 @@ async def _v2_asset_hotfix(request: Request, call_next):
     return await call_next(request)
 
 
-__all__ = ["app", "db", "runtime_poker_engine", "runtime_server", "PLAYER_UX_MARKER"]
+class _LeaveAfterHandIn(BaseModel):
+    enabled: bool = True
+
+
+def _action_timeout_seconds() -> int:
+    """Read the actual server deadline default instead of duplicating 45 in UI."""
+    try:
+        default = inspect.signature(runtime_server.arm_action_deadline).parameters["seconds"].default
+        return max(1, int(default))
+    except Exception:
+        return 45
+
+
+# These are POST routes because the materialized SPA catch-all GET route is
+# registered before this integration shim. POST keeps the routes unambiguous.
+@app.post("/api/poker-config")
+def _poker_config(user=Depends(runtime_server.current_user)):
+    return {
+        "action_timeout_seconds": _action_timeout_seconds(),
+        "ranking_points_per_bb": 3,
+        "rake_percent": 10,
+        "rake_cap_bb": 5,
+    }
+
+
+@app.post("/api/tables/{table_id}/leave-after-hand")
+async def _leave_after_hand(
+    table_id: str,
+    payload: _LeaveAfterHandIn,
+    user=Depends(runtime_server.current_user),
+):
+    async with runtime_server.get_table_lock(table_id):
+        state = runtime_server.load_table(table_id)
+        status = leave_after_hand_transition(state, int(user["id"]), bool(payload.enabled))
+        if status == "leave_now":
+            try:
+                runtime_poker_engine.remove_player(state, int(user["id"]))
+            except ValueError as exc:
+                raise HTTPException(400, str(exc)) from exc
+            runtime_server.table_presence.pop((table_id, int(user["id"])), None)
+            status = "left"
+        runtime_server.save_table(state)
+        public = runtime_poker_engine.public_state(state, int(user["id"]))
+    await runtime_server.hub.broadcast(table_id)
+    return {"ok": True, "status": status, "state": public}
+
+
+__all__ = [
+    "app",
+    "db",
+    "runtime_poker_engine",
+    "runtime_server",
+    "PLAYER_UX_MARKER",
+    "PHASE2_MARKER",
+]
 
 
 def __getattr__(name: str):
