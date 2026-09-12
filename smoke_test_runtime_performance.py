@@ -1,17 +1,22 @@
 from __future__ import annotations
 
-"""Focused regression for the event-driven production performance layer.
+"""Focused regression for the production performance layers.
 
 This test intentionally uses an in-memory fake table runtime: it verifies that
 idle tables stop polling, state writes wake the scheduler, due transitions still
 fire, staged runouts remain scheduled, and one broadcast performs one chat read
-regardless of connected client count.
+regardless of connected client count. It also guards the low-risk browser and
+public-gateway optimizations that prevent per-state /api/me amplification and
+per-request upstream HTTP client creation.
 """
 
 import asyncio
 import time
+from pathlib import Path
 
 import runtime_performance
+
+ROOT = Path(__file__).resolve().parent
 
 
 class FakeDB:
@@ -154,11 +159,28 @@ async def _exercise_broadcast() -> None:
     assert b.messages[0]["state"]["user_id"] == 2
 
 
+def _guard_client_and_gateway_efficiency() -> None:
+    app_source = (ROOT / "app.py").read_text(encoding="utf-8")
+    proxy_source = (ROOT / "public_proxy.py").read_text(encoding="utf-8")
+
+    assert "renderPokerRoom();refreshMe().catch(()=>{})" in app_source
+    assert '"renderPokerRoom()"' in app_source
+    assert 'js = js.replace("showApp();await refreshAll()", "showApp()")' in app_source
+    assert "jj-arena-live-v64" in app_source
+    assert "/static/app.js?v=64" in app_source
+
+    assert "_HTTP_CLIENT = httpx.AsyncClient(" in proxy_source
+    assert "response = await _HTTP_CLIENT.request(" in proxy_source
+    assert "await _HTTP_CLIENT.get(" in proxy_source
+    assert "async with httpx.AsyncClient" not in proxy_source
+
+
 def main() -> None:
     import psycopg_pool  # noqa: F401 - proves the production pool extra is installed.
 
     asyncio.run(_exercise_scheduler())
     asyncio.run(_exercise_broadcast())
+    _guard_client_and_gateway_efficiency()
     print("runtime performance smoke test passed")
 
 
