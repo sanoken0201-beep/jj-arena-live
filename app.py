@@ -26,6 +26,11 @@ from player_ux_phase2 import (
     transform_app_js as transform_phase2_app_js,
     transform_styles as transform_phase2_styles,
 )
+from player_ux_phase3 import (
+    PHASE3_MARKER,
+    transform_app_js as transform_phase3_app_js,
+    transform_styles as transform_phase3_styles,
+)
 
 
 _ROOT = Path(__file__).resolve().parent
@@ -106,8 +111,8 @@ _TODAYS_JJ_CSS = r'''
 
 def _patched_index() -> str:
     html = (_MATERIALIZED_STATIC / "index.html").read_text(encoding="utf-8")
-    html = html.replace('/static/styles.css?v=56', '/static/styles.css?v=58')
-    html = html.replace('/static/app.js?v=56', '/static/app.js?v=59')
+    html = html.replace('/static/styles.css?v=56', '/static/styles.css?v=60')
+    html = html.replace('/static/app.js?v=56', '/static/app.js?v=60')
     html = html.replace('← Lobby', '← ロビー')
     html = html.replace('>Table Chat<', '>チャット<').replace('>Hand Log<', '>ハンド履歴<')
     html = html.replace(
@@ -119,21 +124,21 @@ def _patched_index() -> str:
 
 def _patched_app_js() -> str:
     js = (_MATERIALIZED_STATIC / "app.js").read_text(encoding="utf-8")
-    return transform_phase2_app_js(transform_app_js(js))
+    return transform_phase3_app_js(transform_phase2_app_js(transform_app_js(js)))
 
 
 def _patched_styles() -> str:
     css = (_MATERIALIZED_STATIC / "styles.css").read_text(encoding="utf-8")
     if _TODAYS_JJ_MARKER not in css:
         css = css.rstrip() + _TODAYS_JJ_CSS + "\n"
-    return transform_phase2_styles(css)
+    return transform_phase3_styles(transform_phase2_styles(css))
 
 
 def _patched_service_worker() -> str:
     worker = (_MATERIALIZED_STATIC / "sw.js").read_text(encoding="utf-8")
-    worker = worker.replace("const CACHE='jj-arena-live-v56';", "const CACHE='jj-arena-live-v59';")
-    worker = worker.replace("'/static/styles.css?v=19'", "'/static/styles.css?v=58'")
-    worker = worker.replace("'/static/app.js?v=19'", "'/static/app.js?v=59'")
+    worker = worker.replace("const CACHE='jj-arena-live-v56';", "const CACHE='jj-arena-live-v60';")
+    worker = worker.replace("'/static/styles.css?v=19'", "'/static/styles.css?v=60'")
+    worker = worker.replace("'/static/app.js?v=19'", "'/static/app.js?v=60'")
     return worker
 
 
@@ -230,6 +235,7 @@ __all__ = [
     "runtime_server",
     "PLAYER_UX_MARKER",
     "PHASE2_MARKER",
+    "PHASE3_MARKER",
 ]
 
 
