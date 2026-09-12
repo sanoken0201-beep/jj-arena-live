@@ -291,22 +291,22 @@ def _install_broadcast_coalescing(server, poker_engine) -> None:
 
 
 def _install_indexes(db) -> None:
-    """Add only read-path indexes that are safe and idempotent."""
+    """Add production-only PostgreSQL read-path indexes, safely and idempotently."""
+    if not bool(getattr(db, "IS_POSTGRES", False)):
+        return
+
     statements = (
         "CREATE INDEX IF NOT EXISTS idx_table_messages_table_id_id ON table_messages(table_id,id DESC)",
         "CREATE INDEX IF NOT EXISTS idx_online_hands_played_at ON online_hands(played_at DESC)",
         "CREATE INDEX IF NOT EXISTS idx_online_hand_results_hand_id ON online_hand_results(hand_id)",
     )
-    try:
-        with db.connect() as con:
-            for statement in statements:
-                try:
-                    con.execute(statement)
-                except Exception:
-                    # Older/partial test schemas may not contain every production table.
-                    pass
-    except Exception:
-        pass
+    for statement in statements:
+        try:
+            with db.connect() as con:
+                con.execute(statement)
+        except Exception:
+            # Older/partial test schemas may not contain every production table.
+            pass
 
 
 def install(db, server, poker_engine) -> None:
