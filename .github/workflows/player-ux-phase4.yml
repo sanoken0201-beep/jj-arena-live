@@ -32,7 +32,7 @@ jobs:
           python -m pip install httpx==0.28.1
 
       - name: Compile phase 4A files
-        run: python -m py_compile player_ux_phase4.py smoke_test_player_ux_phase4.py
+        run: python -m py_compile player_ux_phase4.py smoke_test_player_ux_phase4.py smoke_test_player_ux_phase4_layout.py
 
       - name: Check final served JavaScript syntax
         run: |
@@ -49,6 +49,9 @@ jobs:
 
       - name: Run phase 4A source regression
         run: python smoke_test_player_ux_phase4.py
+
+      - name: Run phase 4A browser visibility regression
+        run: python smoke_test_player_ux_phase4_layout.py
 
       - name: Verify served phase 4A asset contract
         run: python smoke_test_learning_contrast.py
