@@ -45,26 +45,30 @@ def _assert_materialized_production_hotfix() -> None:
 
     marker = "v2 today's-jj contrast hardening 2026-09-12"
     ux_marker = "v2 player-ux audit hardening 2026-09-12"
+    phase2_marker = "v2 player-ux phase2 participation 2026-09-12"
     assert marker not in disk_css_before, "committed materialized CSS must stay immutable"
     assert ux_marker not in disk_js_before, "committed materialized JS must stay immutable"
+    assert phase2_marker not in disk_js_before, "committed materialized JS must stay immutable"
     assert '/static/styles.css?v=56' in disk_index_before
     assert '/static/app.js?v=56' in disk_index_before
     assert "const CACHE='jj-arena-live-v56';" in disk_sw_before
 
     with TestClient(module.app) as client:
         home = client.get("/")
-        styles = client.get("/static/styles.css?v=57")
-        app_js = client.get("/static/app.js?v=58")
+        styles = client.get("/static/styles.css?v=58")
+        app_js = client.get("/static/app.js?v=59")
         worker = client.get("/static/sw.js")
 
     assert home.status_code == 200
     assert styles.status_code == 200
     assert app_js.status_code == 200
     assert worker.status_code == 200
-    assert '/static/styles.css?v=57' in home.text
-    assert '/static/app.js?v=58' in home.text
+    assert '/static/styles.css?v=58' in home.text
+    assert '/static/app.js?v=59' in home.text
     assert marker in styles.text
+    assert phase2_marker in styles.text
     assert ux_marker in app_js.text
+    assert phase2_marker in app_js.text
     final = styles.text.split(marker, 1)[1]
 
     # Selectors deliberately do not depend on .jj-learning-share. The cards can
@@ -90,10 +94,10 @@ def _assert_materialized_production_hotfix() -> None:
         assert _contrast(color, bg) >= 4.5, (color, _contrast(color, bg))
 
     # Versioned URLs and a new SW namespace force old browsers/in-app clients to
-    # fetch both the contrast CSS and the player-UX JavaScript atomically.
-    assert "const CACHE='jj-arena-live-v58';" in worker.text
-    assert "'/static/styles.css?v=57'" in worker.text
-    assert "'/static/app.js?v=58'" in worker.text
+    # fetch the presentation layers atomically.
+    assert "const CACHE='jj-arena-live-v59';" in worker.text
+    assert "'/static/styles.css?v=58'" in worker.text
+    assert "'/static/app.js?v=59'" in worker.text
     assert styles.headers.get("cache-control") == "public, max-age=31536000, immutable"
     assert app_js.headers.get("cache-control") == "public, max-age=31536000, immutable"
     assert "no-store" in worker.headers.get("cache-control", "")
