@@ -63,11 +63,11 @@ def main() -> None:
     assert 'id="jjJoinTableBtn">150bbで着席</button>' in tail
     assert "'● 対戦中':'参加受付中'" in tail
 
-    # Served-asset cache must be bumped so old controls cannot coexist with the
-    # transformed source in service-worker or browser caches.
+    # Cache ownership belongs to the production integration shim. Later audit
+    # phases may bump the version while preserving every Phase 1 behavior.
     entry = (ROOT / "app.py").read_text(encoding="utf-8")
-    assert "'/static/app.js?v=58'" in entry
-    assert "jj-arena-live-v58" in entry
+    assert "'/static/app.js?v=" in entry
+    assert "jj-arena-live-v" in entry
     assert 'path == "/static/app.js"' in entry
     assert "transform_app_js(js)" in entry
     assert ">チャット<" in entry and ">ハンド履歴<" in entry and "← ロビー" in entry
