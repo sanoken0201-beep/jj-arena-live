@@ -61,7 +61,7 @@ def transform_app_js(source: str) -> str:
     )
     source = _replace_once(
         source,
-        "? '<div><b>TABLE FULL</b><span>空席ができるまで観戦できます</span></div><button class=\"ghost\" disabled>満席</button>'\n      : '<div><b>JOIN TABLE</b><span>150bb · プレイマネー</span></div><button class=\"primary\" id=\"jjJoinTableBtn\">着席してプレイ</button>';",
+        "? '<div><b>TABLE FULL</b><span>空席ができるまで観戦できます</span></div><button class=\"ghost\" disabled>満席</button>'\n      : '<div><b>JOIN TABLE</b><span>150bb · プレイマネー</span></div><button class=\"primary\" id=\"jjJoinTableBtn\">150bbで着席</button>';",
         "? '<div><b>満席</b><span>空席ができるまで観戦できます</span></div><button class=\"ghost\" disabled>満席</button>'\n      : '<div><b>テーブルに参加</b><span>持ち点150bbで着席します</span></div><button class=\"primary\" id=\"jjJoinTableBtn\">150bbで着席</button>';",
         "observer join card",
     )
