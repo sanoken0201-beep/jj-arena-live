@@ -47,32 +47,36 @@ def _assert_materialized_production_hotfix() -> None:
     ux_marker = "v2 player-ux audit hardening 2026-09-12"
     phase2_marker = "v2 player-ux phase2 participation 2026-09-12"
     phase3_marker = "v2 player-ux phase3 focus-sizing 2026-09-12"
+    phase4_marker = "v2 player-ux phase4a readability 2026-09-12"
     assert marker not in disk_css_before, "committed materialized CSS must stay immutable"
     assert ux_marker not in disk_js_before, "committed materialized JS must stay immutable"
     assert phase2_marker not in disk_js_before, "committed materialized JS must stay immutable"
     assert phase3_marker not in disk_js_before, "committed materialized JS must stay immutable"
+    assert phase4_marker not in disk_js_before, "committed materialized JS must stay immutable"
     assert '/static/styles.css?v=56' in disk_index_before
     assert '/static/app.js?v=56' in disk_index_before
     assert "const CACHE='jj-arena-live-v56';" in disk_sw_before
 
     with TestClient(module.app) as client:
         home = client.get("/")
-        styles = client.get("/static/styles.css?v=60")
-        app_js = client.get("/static/app.js?v=60")
+        styles = client.get("/static/styles.css?v=61")
+        app_js = client.get("/static/app.js?v=61")
         worker = client.get("/static/sw.js")
 
     assert home.status_code == 200
     assert styles.status_code == 200
     assert app_js.status_code == 200
     assert worker.status_code == 200
-    assert '/static/styles.css?v=60' in home.text
-    assert '/static/app.js?v=60' in home.text
+    assert '/static/styles.css?v=61' in home.text
+    assert '/static/app.js?v=61' in home.text
     assert marker in styles.text
     assert phase2_marker in styles.text
     assert phase3_marker in styles.text
+    assert phase4_marker in styles.text
     assert ux_marker in app_js.text
     assert phase2_marker in app_js.text
     assert phase3_marker in app_js.text
+    assert phase4_marker in app_js.text
     final = styles.text.split(marker, 1)[1]
 
     for selector in (
@@ -93,9 +97,9 @@ def _assert_materialized_production_hotfix() -> None:
     for color in ("#ffffff", "#d7e2dc", "#c4d0ca", "#a8ebcb", "#ffe08a"):
         assert _contrast(color, bg) >= 4.5, (color, _contrast(color, bg))
 
-    assert "const CACHE='jj-arena-live-v60';" in worker.text
-    assert "'/static/styles.css?v=60'" in worker.text
-    assert "'/static/app.js?v=60'" in worker.text
+    assert "const CACHE='jj-arena-live-v61';" in worker.text
+    assert "'/static/styles.css?v=61'" in worker.text
+    assert "'/static/app.js?v=61'" in worker.text
     assert styles.headers.get("cache-control") == "public, max-age=31536000, immutable"
     assert app_js.headers.get("cache-control") == "public, max-age=31536000, immutable"
     assert "no-store" in worker.headers.get("cache-control", "")
