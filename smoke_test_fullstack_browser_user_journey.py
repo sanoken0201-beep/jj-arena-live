@@ -20,7 +20,7 @@ DRIVER = r'''
 <script>
 (async () => {
   const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
-  async function waitFor(fn, label, loops=400){
+  async function waitFor(fn, label, loops=240){
     for(let i=0;i<loops;i++){
       try{ if(fn()) return; }catch{}
       await sleep(25);
@@ -239,7 +239,7 @@ def run_viewport(width: int, height: int) -> None:
                         "--no-sandbox",
                         "--disable-gpu",
                         "--run-all-compositor-stages-before-draw",
-                        "--virtual-time-budget=15000",
+                        "--virtual-time-budget=30000",
                         f"--window-size={width},{height}",
                         "--dump-dom",
                         url,
@@ -248,10 +248,10 @@ def run_viewport(width: int, height: int) -> None:
                     stdout=subprocess.PIPE,
                     stderr=subprocess.PIPE,
                     text=True,
-                    timeout=55,
+                    timeout=70,
                 )
                 last = proc.stdout
-                if 'data-fullstack-journey-ok=' in last:
+                if 'data-fullstack-journey-ok="1"' in last:
                     break
             assert 'data-fullstack-journey-ok="1"' in last, last[-6000:]
         finally:
