@@ -4,6 +4,8 @@ import importlib
 import tempfile
 from pathlib import Path
 
+from fastapi.testclient import TestClient
+
 from runtime_builder import RUNTIME_VERSION, build_runtime
 
 
@@ -34,17 +36,28 @@ def _version_tuple(value: str) -> tuple[int, ...]:
 
 
 def _assert_materialized_production_hotfix() -> None:
-    # Importing the production entrypoint applies the idempotent compatibility
-    # layer before StaticFiles is mounted. This is the exact path Render runs.
-    importlib.import_module("app")
+    module = importlib.import_module("app")
     static = ROOT / "materialized_v1244" / "static"
-    css = (static / "styles.css").read_text(encoding="utf-8")
-    index = (static / "index.html").read_text(encoding="utf-8")
-    sw = (static / "sw.js").read_text(encoding="utf-8")
+    disk_css_before = (static / "styles.css").read_text(encoding="utf-8")
+    disk_index_before = (static / "index.html").read_text(encoding="utf-8")
+    disk_sw_before = (static / "sw.js").read_text(encoding="utf-8")
 
     marker = "v2 today's-jj contrast hardening 2026-09-12"
-    assert css.count(marker) == 1, "production hotfix must be idempotent"
-    final = css.split(marker, 1)[1]
+    assert marker not in disk_css_before, "committed materialized CSS must stay immutable"
+    assert '/static/styles.css?v=56' in disk_index_before
+    assert "const CACHE='jj-arena-live-v56';" in disk_sw_before
+
+    with TestClient(module.app) as client:
+        home = client.get("/")
+        styles = client.get("/static/styles.css?v=57")
+        worker = client.get("/static/sw.js")
+
+    assert home.status_code == 200
+    assert styles.status_code == 200
+    assert worker.status_code == 200
+    assert '/static/styles.css?v=57' in home.text
+    assert marker in styles.text
+    final = styles.text.split(marker, 1)[1]
 
     # Selectors deliberately do not depend on .jj-learning-share. The cards can
     # move between home layouts without inheriting dark page text again.
@@ -70,10 +83,17 @@ def _assert_materialized_production_hotfix() -> None:
 
     # A new URL and SW cache namespace force iOS Safari/LINE in-app browsing to
     # fetch the corrected CSS instead of reusing the pre-hotfix asset forever.
-    assert '/static/styles.css?v=57' in index
-    assert "const CACHE='jj-arena-live-v57';" in sw
-    assert "'/static/styles.css?v=57'" in sw
-    assert "'/static/app.js?v=56'" in sw
+    assert "const CACHE='jj-arena-live-v57';" in worker.text
+    assert "'/static/styles.css?v=57'" in worker.text
+    assert "'/static/app.js?v=56'" in worker.text
+    assert styles.headers.get("cache-control") == "public, max-age=31536000, immutable"
+    assert "no-store" in worker.headers.get("cache-control", "")
+
+    # Serving the hotfix must not mutate the committed materialized runtime;
+    # v2 parity/reproducibility depends on this invariant.
+    assert (static / "styles.css").read_text(encoding="utf-8") == disk_css_before
+    assert (static / "index.html").read_text(encoding="utf-8") == disk_index_before
+    assert (static / "sw.js").read_text(encoding="utf-8") == disk_sw_before
 
 
 def main() -> None:
