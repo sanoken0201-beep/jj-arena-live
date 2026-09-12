@@ -46,6 +46,7 @@ def _assert_materialized_production_hotfix() -> None:
     marker = "v2 today's-jj contrast hardening 2026-09-12"
     ux_marker = "v2 player-ux audit hardening 2026-09-12"
     clear_copy_marker = "v2 clear poker copy 2026-09-13"
+    mobile_coordinate_marker = "v2 mobile poker coordinate repair 2026-09-13"
     phase2_marker = "v2 player-ux phase2 participation 2026-09-12"
     phase3_marker = "v2 player-ux phase3 focus-sizing 2026-09-12"
     phase4_marker = "v2 player-ux phase4a usability 2026-09-12"
@@ -67,18 +68,19 @@ def _assert_materialized_production_hotfix() -> None:
 
     with TestClient(module.app) as client:
         home = client.get("/")
-        styles = client.get("/static/styles.css?v=66")
-        app_js = client.get("/static/app.js?v=66")
+        styles = client.get("/static/styles.css?v=67")
+        app_js = client.get("/static/app.js?v=67")
         worker = client.get("/static/sw.js")
 
     assert home.status_code == 200
     assert styles.status_code == 200
     assert app_js.status_code == 200
     assert worker.status_code == 200
-    assert '/static/styles.css?v=66' in home.text
-    assert '/static/app.js?v=66' in home.text
+    assert '/static/styles.css?v=67' in home.text
+    assert '/static/app.js?v=67' in home.text
     assert marker in styles.text
     assert clear_copy_marker in styles.text
+    assert mobile_coordinate_marker in styles.text
     assert hand_history_marker in styles.text
     assert phase2_marker in styles.text
     assert phase3_marker in styles.text
@@ -87,6 +89,9 @@ def _assert_materialized_production_hotfix() -> None:
     assert phase5_mobile_marker in styles.text
     assert "#actionBar:has(.jj-v5-preactions)" in styles.text
     assert "pointer-events:auto!important" in styles.text
+    assert "grid-template-rows:44px 44px!important" in styles.text
+    assert ".jj-connection-status:not(.is-degraded)" in styles.text
+    assert "#tableControls" in styles.text and "grid-template-columns:minmax(108px,.9fr)" in styles.text
     assert ux_marker in app_js.text
     assert clear_copy_marker in app_js.text
     assert hand_history_marker in app_js.text
@@ -96,6 +101,8 @@ def _assert_materialized_production_hotfix() -> None:
     assert phase5_marker in app_js.text
     assert "m.type==='chat'" in app_js.text
     assert "renderTableChat()" in app_js.text
+    assert "{left:50,top:79}" in app_js.text
+    assert "JJ_V124_DESKTOP_MQ.matches||window.innerWidth<=760" in app_js.text
     final = styles.text.split(marker, 1)[1]
 
     for selector in (
@@ -116,9 +123,9 @@ def _assert_materialized_production_hotfix() -> None:
     for color in ("#ffffff", "#d7e2dc", "#c4d0ca", "#a8ebcb", "#ffe08a"):
         assert _contrast(color, bg) >= 4.5, (color, _contrast(color, bg))
 
-    assert "const CACHE='jj-arena-live-v66';" in worker.text
-    assert "'/static/styles.css?v=66'" in worker.text
-    assert "'/static/app.js?v=66'" in worker.text
+    assert "const CACHE='jj-arena-live-v67';" in worker.text
+    assert "'/static/styles.css?v=67'" in worker.text
+    assert "'/static/app.js?v=67'" in worker.text
     assert styles.headers.get("cache-control") == "public, max-age=31536000, immutable"
     assert app_js.headers.get("cache-control") == "public, max-age=31536000, immutable"
     assert "no-store" in worker.headers.get("cache-control", "")
