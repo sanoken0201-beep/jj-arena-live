@@ -9,6 +9,7 @@ on:
       - 'fix/**'
       - 'chore/**'
       - 'cutover/**'
+      - 'ux/player-audit-phase4b*'
   pull_request:
     branches:
       - main
@@ -19,7 +20,7 @@ permissions:
 jobs:
   layout-stability:
     runs-on: ubuntu-latest
-    timeout-minutes: 8
+    timeout-minutes: 10
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -42,4 +43,6 @@ jobs:
             python smoke_test_v124_layout.py
             python smoke_test_player_ux_browser.py
             python smoke_test_player_ux_phase3_layout.py
+            python smoke_test_player_ux_phase4_layout.py
+            python smoke_test_player_ux_phase5_layout.py
           done

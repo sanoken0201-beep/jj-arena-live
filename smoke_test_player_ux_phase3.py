@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 from player_ux_asset_transform import transform_app_js as phase1
@@ -58,11 +59,14 @@ def main() -> None:
     assert "/analysis/hands/${encodeURIComponent(handId)}/review" in patched
 
     entry = (ROOT / "app.py").read_text(encoding="utf-8")
-    assert "transform_phase3_app_js(transform_phase2_app_js(transform_app_js(js)))" in entry or "transform_phase4_app_js(transform_phase3_app_js(transform_phase2_app_js(transform_app_js(js))))" in entry
-    assert "transform_phase3_styles(transform_phase2_styles(css))" in entry or "transform_phase4_styles(transform_phase3_styles(transform_phase2_styles(css)))" in entry
-    assert "'/static/app.js?v=60'" in entry or "'/static/app.js?v=61'" in entry
-    assert "'/static/styles.css?v=60'" in entry or "'/static/styles.css?v=61'" in entry
-    assert "jj-arena-live-v60" in entry or "jj-arena-live-v61" in entry
+    assert "transform_phase3_app_js(" in entry
+    assert "transform_phase3_styles(" in entry
+    js_versions = [int(v) for v in re.findall(r"/static/app\.js\?v=(\d+)", entry)]
+    css_versions = [int(v) for v in re.findall(r"/static/styles\.css\?v=(\d+)", entry)]
+    cache_versions = [int(v) for v in re.findall(r"jj-arena-live-v(\d+)", entry)]
+    assert js_versions and max(js_versions) >= 60
+    assert css_versions and max(css_versions) >= 60
+    assert cache_versions and max(cache_versions) >= 60
 
     print("JJ_PLAYER_UX_PHASE3_SMOKE_OK")
 

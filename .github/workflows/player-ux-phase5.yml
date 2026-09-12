@@ -1,0 +1,58 @@
+name: JJ Arena Player UX Phase 4B
+
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
+      - 'ux/player-audit-phase4b*'
+
+permissions:
+  contents: read
+
+jobs:
+  phase4b:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version-file: .python-version
+          cache: pip
+
+      - name: Install production and test dependencies
+        run: |
+          python -m pip install -r requirements.txt
+          python -m pip install httpx==0.28.1
+
+      - name: Compile phase 4B files
+        run: python -m py_compile player_ux_phase5.py player_ux_phase5_mobile.py smoke_test_player_ux_phase5.py smoke_test_player_ux_phase5_layout.py
+
+      - name: Check final served JavaScript syntax
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          from player_ux_asset_transform import transform_app_js as phase1
+          from player_ux_phase2 import transform_app_js as phase2
+          from player_ux_phase3 import transform_app_js as phase3
+          from player_ux_phase4 import transform_app_js as phase4
+          from player_ux_phase5 import transform_app_js as phase5
+          source = Path('materialized_v1244/static/app.js').read_text(encoding='utf-8')
+          Path('/tmp/jj-player-ux-phase5.js').write_text(phase5(phase4(phase3(phase2(phase1(source))))), encoding='utf-8')
+          PY
+          node --check /tmp/jj-player-ux-phase5.js
+
+      - name: Run phase 4B safety regression
+        run: python smoke_test_player_ux_phase5.py
+
+      - name: Run phase 4B real-browser layout regression
+        run: python smoke_test_player_ux_phase5_layout.py
+
+      - name: Verify served v62 asset contract
+        run: python smoke_test_learning_contrast.py
