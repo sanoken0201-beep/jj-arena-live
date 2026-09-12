@@ -42,4 +42,5 @@ jobs:
             python smoke_test_v124_layout.py
             python smoke_test_player_ux_browser.py
             python smoke_test_player_ux_phase3_layout.py
+            python smoke_test_player_ux_phase4_layout.py
           done
