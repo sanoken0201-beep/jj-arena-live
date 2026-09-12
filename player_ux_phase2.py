@@ -17,11 +17,28 @@ def _replace_once(source: str, old: str, new: str, label: str) -> str:
     return source.replace(old, new, 1)
 
 
+def _replace_final_duplicate(source: str, old: str, new: str, label: str) -> str:
+    """Replace the later of two known legacy renderer copies.
+
+    The materialized client intentionally contains an older compatibility copy
+    and a later authoritative table-controls renderer.  Treating either copy as
+    unique made the drift guard fail correctly.  We now require exactly two
+    copies and patch only the later, effective definition.
+    """
+    count = source.count(old)
+    if count != 2:
+        raise RuntimeError(f"player UX phase2 drift at {label}: expected 2 source blocks, found {count}")
+    head, sep, tail = source.rpartition(old)
+    if not sep:
+        raise RuntimeError(f"player UX phase2 drift at {label}: final source block not found")
+    return head + new + tail
+
+
 def leave_after_hand_transition(state: dict, user_id: int, enabled: bool) -> str:
     """Pure state decision used by the POST route and smoke tests.
 
     ``leave_now`` means the caller may safely invoke the existing authoritative
-    remove-player path.  Reserving during an active hand only sets a lifecycle
+    remove-player path. Reserving during an active hand only sets a lifecycle
     flag; it never folds the player or changes chips/cards/action state.
     """
     player = next(
@@ -174,7 +191,7 @@ def transform_app_js(source: str) -> str:
         "server-derived action clock",
     )
 
-    source = _replace_once(
+    source = _replace_final_duplicate(
         source,
         """    const countText=tableState.session_active?`次ハンド ${nextPlayers.length}/6`:`準備 ${ready}/${nextPlayers.length}`;
     const leave=canLeaveNow?'<button class="ghost" id="leaveSeatBtn">テーブルから退席</button>':'';
