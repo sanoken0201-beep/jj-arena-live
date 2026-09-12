@@ -49,12 +49,14 @@ def _assert_materialized_production_hotfix() -> None:
     phase3_marker = "v2 player-ux phase3 focus-sizing 2026-09-12"
     phase4_marker = "v2 player-ux phase4a usability 2026-09-12"
     phase5_marker = "v2 player-ux phase4b safe-actions 2026-09-12"
+    phase5_mobile_marker = "v2 player-ux phase4b mobile-compat 2026-09-12"
     assert marker not in disk_css_before, "committed materialized CSS must stay immutable"
     assert ux_marker not in disk_js_before, "committed materialized JS must stay immutable"
     assert phase2_marker not in disk_js_before, "committed materialized JS must stay immutable"
     assert phase3_marker not in disk_js_before, "committed materialized JS must stay immutable"
     assert phase4_marker not in disk_js_before, "committed materialized JS must stay immutable"
     assert phase5_marker not in disk_js_before, "committed materialized JS must stay immutable"
+    assert phase5_mobile_marker not in disk_css_before, "committed materialized CSS must stay immutable"
     assert '/static/styles.css?v=56' in disk_index_before
     assert '/static/app.js?v=56' in disk_index_before
     assert "const CACHE='jj-arena-live-v56';" in disk_sw_before
@@ -76,6 +78,9 @@ def _assert_materialized_production_hotfix() -> None:
     assert phase3_marker in styles.text
     assert phase4_marker in styles.text
     assert phase5_marker in styles.text
+    assert phase5_mobile_marker in styles.text
+    assert "#actionBar:has(.jj-v5-preactions)" in styles.text
+    assert "pointer-events:auto!important" in styles.text
     assert ux_marker in app_js.text
     assert phase2_marker in app_js.text
     assert phase3_marker in app_js.text
