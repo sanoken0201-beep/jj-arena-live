@@ -48,18 +48,12 @@ def main() -> None:
     app_source = (ROOT / "app.py").read_text(encoding="utf-8")
     assert "transform_phase4_app_js(" in app_source
     assert "transform_phase4_styles(" in app_source
-    js_version = re.search(r"/static/app\.js\?v=(\d+)", app_source)
-    css_version = re.search(r"/static/styles\.css\?v=(\d+)", app_source)
-    cache_version = re.search(r"jj-arena-live-v(\d+)", app_source)
-    if not js_version:
-        js_version = re.search(r"/static/app\.js\?v=(\d+)", app_source.replace("\\", ""))
-    if not css_version:
-        css_version = re.search(r"/static/styles\.css\?v=(\d+)", app_source.replace("\\", ""))
-    if not cache_version:
-        cache_version = re.search(r"jj-arena-live-v(\d+)", app_source.replace("\\", ""))
-    assert js_version and int(js_version.group(1)) >= 61
-    assert css_version and int(css_version.group(1)) >= 61
-    assert cache_version and int(cache_version.group(1)) >= 61
+    js_versions = [int(v) for v in re.findall(r"/static/app\.js\?v=(\d+)", app_source)]
+    css_versions = [int(v) for v in re.findall(r"/static/styles\.css\?v=(\d+)", app_source)]
+    cache_versions = [int(v) for v in re.findall(r"jj-arena-live-v(\d+)", app_source)]
+    assert js_versions and max(js_versions) >= 61
+    assert css_versions and max(css_versions) >= 61
+    assert cache_versions and max(cache_versions) >= 61
 
     print("JJ_PLAYER_UX_PHASE4_OK")
 
