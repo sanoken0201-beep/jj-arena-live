@@ -1,9 +1,15 @@
 from __future__ import annotations
 
+import importlib
 import tempfile
 from pathlib import Path
 
+from fastapi.testclient import TestClient
+
 from runtime_builder import RUNTIME_VERSION, build_runtime
+
+
+ROOT = Path(__file__).resolve().parent
 
 
 def _rgb(hex_color: str) -> tuple[int, int, int]:
@@ -29,9 +35,70 @@ def _version_tuple(value: str) -> tuple[int, ...]:
     return tuple(int(part) for part in value.split("."))
 
 
+def _assert_materialized_production_hotfix() -> None:
+    module = importlib.import_module("app")
+    static = ROOT / "materialized_v1244" / "static"
+    disk_css_before = (static / "styles.css").read_text(encoding="utf-8")
+    disk_index_before = (static / "index.html").read_text(encoding="utf-8")
+    disk_sw_before = (static / "sw.js").read_text(encoding="utf-8")
+
+    marker = "v2 today's-jj contrast hardening 2026-09-12"
+    assert marker not in disk_css_before, "committed materialized CSS must stay immutable"
+    assert '/static/styles.css?v=56' in disk_index_before
+    assert "const CACHE='jj-arena-live-v56';" in disk_sw_before
+
+    with TestClient(module.app) as client:
+        home = client.get("/")
+        styles = client.get("/static/styles.css?v=57")
+        worker = client.get("/static/sw.js")
+
+    assert home.status_code == 200
+    assert styles.status_code == 200
+    assert worker.status_code == 200
+    assert '/static/styles.css?v=57' in home.text
+    assert marker in styles.text
+    final = styles.text.split(marker, 1)[1]
+
+    # Selectors deliberately do not depend on .jj-learning-share. The cards can
+    # move between home layouts without inheriting dark page text again.
+    for selector in (
+        ".jj-study-card h3",
+        ".jj-study-card p",
+        ".jj-study-meta",
+        ".jj-study-source",
+        ".jj-study-card footer",
+        ".jj-study-card footer b",
+        ".jj-study-card:visited",
+    ):
+        assert selector in final, selector
+    assert ".jj-learning-share .jj-study-card h3" not in final
+    assert "-webkit-text-fill-color:#ffffff!important" in final
+    assert "-webkit-text-fill-color:#ffe08a!important" in final
+
+    # The screenshot failure is title/date/category visibility on a dark green
+    # card. Keep all critical roles comfortably above WCAG AA contrast.
+    bg = "#17241f"
+    for color in ("#ffffff", "#d7e2dc", "#c4d0ca", "#a8ebcb", "#ffe08a"):
+        assert _contrast(color, bg) >= 4.5, (color, _contrast(color, bg))
+
+    # A new URL and SW cache namespace force iOS Safari/LINE in-app browsing to
+    # fetch the corrected CSS instead of reusing the pre-hotfix asset forever.
+    assert "const CACHE='jj-arena-live-v57';" in worker.text
+    assert "'/static/styles.css?v=57'" in worker.text
+    assert "'/static/app.js?v=56'" in worker.text
+    assert styles.headers.get("cache-control") == "public, max-age=31536000, immutable"
+    assert "no-store" in worker.headers.get("cache-control", "")
+
+    # Serving the hotfix must not mutate the committed materialized runtime;
+    # v2 parity/reproducibility depends on this invariant.
+    assert (static / "styles.css").read_text(encoding="utf-8") == disk_css_before
+    assert (static / "index.html").read_text(encoding="utf-8") == disk_index_before
+    assert (static / "sw.js").read_text(encoding="utf-8") == disk_sw_before
+
+
 def main() -> None:
-    # Contrast hardening was introduced in v1.24.2 and must survive later
-    # releases; this is intentionally not an exact release-number gate.
+    # Preserve the historical reconstructed-runtime gate so the rollback path
+    # remains readable too.
     assert _version_tuple(RUNTIME_VERSION) >= (1, 24, 2)
     with tempfile.TemporaryDirectory() as td:
         root = build_runtime(Path(td) / "runtime")
@@ -68,6 +135,7 @@ def main() -> None:
         assert "jj-arena-live-v" in sw
         assert "v1.24.3 focused non-poker product UX" in css
 
+    _assert_materialized_production_hotfix()
     print("JJ_LEARNING_CONTRAST_SMOKE_OK")
 
 
