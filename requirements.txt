@@ -3,4 +3,4 @@ uvicorn[standard]==0.48.0
 websockets==16.0
 pydantic==2.13.4
 
-psycopg[binary]==3.2.10
+psycopg[binary,pool]==3.2.10
