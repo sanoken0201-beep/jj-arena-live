@@ -20,6 +20,7 @@ import admin_ledger_stabilization
 import admin_pin_verification
 import hand_analytics
 import hand_analytics_hardening
+import hand_history_visibility
 import learning_content
 import daily_quiz
 import online_results_cleanup
@@ -98,6 +99,7 @@ learning_content.install(app)
 daily_quiz.install(app, runtime_server, db)
 hand_analytics.install(app, runtime_server, db)
 hand_analytics_hardening.install(hand_analytics, runtime_server)
+hand_history_visibility.install(hand_analytics)
 operations_learning.install(app, runtime_server, db, hand_analytics, daily_quiz, learning_content, admin_console)
 operations_learning_hardening.apply(operations_learning, db, hand_analytics)
 resilience.install(app, runtime_server, db, admin_console)
