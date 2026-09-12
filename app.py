@@ -10,6 +10,7 @@ parity oracle and rollback reference.
 from __future__ import annotations
 
 import inspect
+from functools import lru_cache
 from pathlib import Path
 
 from fastapi import Depends, HTTPException
@@ -128,10 +129,11 @@ _TODAYS_JJ_CSS = r'''
 '''
 
 
+@lru_cache(maxsize=1)
 def _patched_index() -> str:
     html = (_MATERIALIZED_STATIC / "index.html").read_text(encoding="utf-8")
-    html = html.replace('/static/styles.css?v=56', '/static/styles.css?v=64')
-    html = html.replace('/static/app.js?v=56', '/static/app.js?v=64')
+    html = html.replace('/static/styles.css?v=56', '/static/styles.css?v=65')
+    html = html.replace('/static/app.js?v=56', '/static/app.js?v=65')
     html = html.replace('← Lobby', '← ロビー')
     html = html.replace('>Table Chat<', '>チャット<').replace('>Hand Log<', '>ハンド履歴<')
     html = html.replace(
@@ -141,6 +143,7 @@ def _patched_index() -> str:
     return html
 
 
+@lru_cache(maxsize=1)
 def _patched_app_js() -> str:
     js = (_MATERIALIZED_STATIC / "app.js").read_text(encoding="utf-8")
     js = transform_hand_history_app_js(js)
@@ -156,6 +159,14 @@ def _patched_app_js() -> str:
         "renderPokerRoom()",
     )
 
+    # State frames and chat frames are independent after the server-side
+    # performance layer. State frames may omit messages; chat frames update only
+    # the chat panel and avoid a full poker-table rerender.
+    js = js.replace(
+        "tableWS.onmessage=e=>{try{const m=JSON.parse(e.data);if(m.type==='state'){tableState=m.state;tableMessages=m.messages||[];renderPokerRoom()}}catch{}}",
+        "tableWS.onmessage=e=>{try{const m=JSON.parse(e.data);if(m.type==='state'){tableState=m.state;if(Array.isArray(m.messages))tableMessages=m.messages;renderPokerRoom()}else if(m.type==='chat'){tableMessages=m.messages||[];renderTableChat()}}catch{}}",
+    )
+
     # showApp() immediately calls switchView(currentView), which already loads
     # the visible view. The historical extra refreshAll() duplicated home API
     # calls on initial session restore and PIN login, so remove only that exact
@@ -164,6 +175,7 @@ def _patched_app_js() -> str:
     return js
 
 
+@lru_cache(maxsize=1)
 def _patched_styles() -> str:
     css = (_MATERIALIZED_STATIC / "styles.css").read_text(encoding="utf-8")
     if _TODAYS_JJ_MARKER not in css:
@@ -172,11 +184,12 @@ def _patched_styles() -> str:
     return transform_phase5_mobile_styles(transform_phase5_styles(transform_phase4_styles(transform_phase3_styles(transform_phase2_styles(css)))))
 
 
+@lru_cache(maxsize=1)
 def _patched_service_worker() -> str:
     worker = (_MATERIALIZED_STATIC / "sw.js").read_text(encoding="utf-8")
-    worker = worker.replace("const CACHE='jj-arena-live-v56';", "const CACHE='jj-arena-live-v64';")
-    worker = worker.replace("'/static/styles.css?v=19'", "'/static/styles.css?v=64'")
-    worker = worker.replace("'/static/app.js?v=19'", "'/static/app.js?v=64'")
+    worker = worker.replace("const CACHE='jj-arena-live-v56';", "const CACHE='jj-arena-live-v65';")
+    worker = worker.replace("'/static/styles.css?v=19'", "'/static/styles.css?v=65'")
+    worker = worker.replace("'/static/app.js?v=19'", "'/static/app.js?v=65'")
     return worker
 
 
@@ -213,8 +226,9 @@ async def _v2_asset_hotfix(request: Request, call_next):
             headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
             headers["Service-Worker-Allowed"] = "/"
         if body is not None:
-            content = b"" if request.method == "HEAD" else body.encode("utf-8")
-            headers["Content-Length"] = str(len(body.encode("utf-8")))
+            encoded = body.encode("utf-8")
+            content = b"" if request.method == "HEAD" else encoded
+            headers["Content-Length"] = str(len(encoded))
             return Response(content=content, media_type=media_type, headers=headers)
     return await call_next(request)
 
