@@ -32,7 +32,7 @@ jobs:
           python -m pip install httpx==0.28.1
 
       - name: Compile phase 4B files
-        run: python -m py_compile player_ux_phase5.py smoke_test_player_ux_phase5.py smoke_test_player_ux_phase5_layout.py
+        run: python -m py_compile player_ux_phase5.py player_ux_phase5_mobile.py smoke_test_player_ux_phase5.py smoke_test_player_ux_phase5_layout.py
 
       - name: Check final served JavaScript syntax
         run: |
