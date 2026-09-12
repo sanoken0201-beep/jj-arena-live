@@ -2,7 +2,7 @@ from __future__ import annotations
 
 """Replace ambiguous poker-table copy with explicit player-facing language.
 
-This transform runs after the existing player UX phases.  It intentionally
+This transform runs after the existing player UX phases. It intentionally
 changes presentation only: no table state, betting rule, settlement, or
 participation behavior is modified.
 """
@@ -53,6 +53,18 @@ def transform_app_js(source: str) -> str:
         "roomMeta.textContent=hero?`持ち点 ${bb(hero.stack)} · 着席人数 ${active}/6`:`観戦中 · 着席人数 ${active}/6`;",
         "mobile table status",
     )
+    source = _replace_once(
+        source,
+        "el.innerHTML='<b>開始準備</b><span>全員が準備OKで開始</span>';",
+        "el.innerHTML='<b>開始待ち</b><span>着席者全員が「準備OK」を押すと開始します</span>';",
+        "waiting-to-start status",
+    )
+    source = _replace_once(
+        source,
+        "? '<div><b>TABLE FULL</b><span>空席ができるまで観戦できます</span></div><button class=\"ghost\" disabled>満席</button>'\n      : '<div><b>JOIN TABLE</b><span>150bb · プレイマネー</span></div><button class=\"primary\" id=\"jjJoinTableBtn\">着席してプレイ</button>';",
+        "? '<div><b>満席</b><span>空席ができるまで観戦できます</span></div><button class=\"ghost\" disabled>満席</button>'\n      : '<div><b>テーブルに参加</b><span>持ち点150bbで着席します</span></div><button class=\"primary\" id=\"jjJoinTableBtn\">150bbで着席</button>';",
+        "observer join card",
+    )
 
     return source.rstrip() + f"\n// {CLEAR_COPY_MARKER}\n"
 
@@ -61,7 +73,7 @@ CLEAR_COPY_CSS = r'''
 
 /* v2 clear poker copy 2026-09-13
    Focus mode only changes the desktop shell, so do not show a no-op control on
-   phones.  The desktop label states the actual visible effect instead. */
+   phones. The desktop label states the actual visible effect instead. */
 @media(max-width:760px){
   #pokerRoom #jjFocusModeToggle{display:none!important}
 }
