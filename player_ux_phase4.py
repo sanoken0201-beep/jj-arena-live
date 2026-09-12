@@ -112,6 +112,10 @@ PHASE4_CSS = r'''
 #pokerRoom .jj-v4-side-head,#jjSideDrawerBackdrop{display:none}
 
 @media(max-width:1000px){
+  /* A running viewIn transform makes position:fixed descendants use the view
+     as their containing block. Compact poker drawers must be viewport-fixed
+     even if the user opens them immediately after switching to Tables. */
+  #tablesView.active-view{animation:none!important}
   #pokerRoom .jj-v4-side-head{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:0 0 10px;border-bottom:1px solid var(--line)}
   #pokerRoom .jj-v4-side-head strong{font-size:.82rem;color:var(--ink)}
   #pokerRoom .jj-v4-side-head .ghost{min-height:36px;padding:6px 10px;font-size:.7rem}
