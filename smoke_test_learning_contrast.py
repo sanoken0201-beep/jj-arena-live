@@ -50,12 +50,14 @@ def _assert_materialized_production_hotfix() -> None:
     phase4_marker = "v2 player-ux phase4a usability 2026-09-12"
     phase5_marker = "v2 player-ux phase4b safe-actions 2026-09-12"
     phase5_mobile_marker = "v2 player-ux phase4b mobile-compat 2026-09-12"
+    hand_history_marker = "participant hand history visibility 2026-09-12"
     assert marker not in disk_css_before, "committed materialized CSS must stay immutable"
     assert ux_marker not in disk_js_before, "committed materialized JS must stay immutable"
     assert phase2_marker not in disk_js_before, "committed materialized JS must stay immutable"
     assert phase3_marker not in disk_js_before, "committed materialized JS must stay immutable"
     assert phase4_marker not in disk_js_before, "committed materialized JS must stay immutable"
     assert phase5_marker not in disk_js_before, "committed materialized JS must stay immutable"
+    assert hand_history_marker not in disk_js_before, "committed materialized JS must stay immutable"
     assert phase5_mobile_marker not in disk_css_before, "committed materialized CSS must stay immutable"
     assert '/static/styles.css?v=56' in disk_index_before
     assert '/static/app.js?v=56' in disk_index_before
@@ -63,17 +65,18 @@ def _assert_materialized_production_hotfix() -> None:
 
     with TestClient(module.app) as client:
         home = client.get("/")
-        styles = client.get("/static/styles.css?v=62")
-        app_js = client.get("/static/app.js?v=62")
+        styles = client.get("/static/styles.css?v=63")
+        app_js = client.get("/static/app.js?v=63")
         worker = client.get("/static/sw.js")
 
     assert home.status_code == 200
     assert styles.status_code == 200
     assert app_js.status_code == 200
     assert worker.status_code == 200
-    assert '/static/styles.css?v=62' in home.text
-    assert '/static/app.js?v=62' in home.text
+    assert '/static/styles.css?v=63' in home.text
+    assert '/static/app.js?v=63' in home.text
     assert marker in styles.text
+    assert hand_history_marker in styles.text
     assert phase2_marker in styles.text
     assert phase3_marker in styles.text
     assert phase4_marker in styles.text
@@ -82,6 +85,7 @@ def _assert_materialized_production_hotfix() -> None:
     assert "#actionBar:has(.jj-v5-preactions)" in styles.text
     assert "pointer-events:auto!important" in styles.text
     assert ux_marker in app_js.text
+    assert hand_history_marker in app_js.text
     assert phase2_marker in app_js.text
     assert phase3_marker in app_js.text
     assert phase4_marker in app_js.text
@@ -106,9 +110,9 @@ def _assert_materialized_production_hotfix() -> None:
     for color in ("#ffffff", "#d7e2dc", "#c4d0ca", "#a8ebcb", "#ffe08a"):
         assert _contrast(color, bg) >= 4.5, (color, _contrast(color, bg))
 
-    assert "const CACHE='jj-arena-live-v62';" in worker.text
-    assert "'/static/styles.css?v=62'" in worker.text
-    assert "'/static/app.js?v=62'" in worker.text
+    assert "const CACHE='jj-arena-live-v63';" in worker.text
+    assert "'/static/styles.css?v=63'" in worker.text
+    assert "'/static/app.js?v=63'" in worker.text
     assert styles.headers.get("cache-control") == "public, max-age=31536000, immutable"
     assert app_js.headers.get("cache-control") == "public, max-age=31536000, immutable"
     assert "no-store" in worker.headers.get("cache-control", "")
