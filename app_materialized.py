@@ -45,14 +45,35 @@ os.environ["JJ_ADMIN_PASSWORD"] = secrets.token_urlsafe(32)
 os.environ.pop("JJ_ADMIN_LOGIN_PASSWORD", None)
 os.environ.pop("JJ_ADMIN_LOGIN_EMAIL", None)
 
-# Preserve the proven bare-import resolution semantics during the cutover.
-# Package-relative import cleanup is a later refactor after production burn-in.
-sys.path.insert(0, str(DEST))
-import server as runtime_server  # noqa: E402
-from server import app  # noqa: E402
+
+def _import_materialized_core():
+    """Load the canonical bare-import core without polluting global import search.
+
+    The committed v1.24.4 core still uses bare sibling imports (``import db`` and
+    ``from poker_engine ...``), so its directory must be first on ``sys.path``
+    while ``server`` is imported. Once ``server``, ``db`` and ``poker_engine``
+    are resident in ``sys.modules``, root-level integration modules can continue
+    resolving those exact module objects without leaving ``materialized_v1244``
+    on the process-wide search path.
+    """
+    original_path = list(sys.path)
+    try:
+        sys.path.insert(0, str(DEST))
+        import server as runtime_server  # noqa: E402
+        import db  # noqa: E402
+        import poker_engine as runtime_poker_engine  # noqa: E402
+    finally:
+        sys.path[:] = original_path
+    return runtime_server, db, runtime_poker_engine
+
+
+runtime_server, db, runtime_poker_engine = _import_materialized_core()
+app = runtime_server.app
+
+# These root-level integration modules intentionally import the already-loaded
+# canonical ``server``/``db`` objects from sys.modules. No persistent path entry
+# is needed after the core import above.
 import admin_console  # noqa: E402
-import db  # noqa: E402
-import poker_engine as runtime_poker_engine  # noqa: E402
 from admin_delete import install_account_deletion  # noqa: E402
 
 
@@ -65,6 +86,8 @@ def _require_materialized_module(module, name: str) -> None:
 _require_materialized_module(runtime_server, "server")
 _require_materialized_module(db, "db")
 _require_materialized_module(runtime_poker_engine, "poker_engine")
+if str(DEST) in sys.path:
+    raise RuntimeError("materialized core path leaked into process-wide sys.path")
 
 # Snapshot canonical-core route identities before root-level integrations add
 # anything. This is retained for diagnostics and parity assertions; route repair
