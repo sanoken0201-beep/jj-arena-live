@@ -4,6 +4,7 @@ from pathlib import Path
 
 from player_ux_asset_transform import transform_app_js as transform_phase1
 from player_ux_phase2 import PHASE2_MARKER, leave_after_hand_transition, transform_app_js as transform_phase2
+from served_assets import ASSET_VERSION, build_index, build_service_worker
 
 
 ROOT = Path(__file__).resolve().parent
@@ -73,13 +74,19 @@ def main() -> None:
     assert "await jjOpenHand(review.dataset.jjReviewHand)" in patched
 
     entry = (ROOT / "app.py").read_text(encoding="utf-8")
+    compiler = (ROOT / "served_assets.py").read_text(encoding="utf-8")
     assert '@app.post("/api/poker-config")' in entry
     assert 'inspect.signature(runtime_server.arm_action_deadline)' in entry
     assert '@app.post("/api/tables/{table_id}/leave-after-hand")' in entry
     assert "runtime_poker_engine.remove_player" in entry
     assert "runtime_server.save_table(state)" in entry
-    assert "'/static/app.js?v=" in entry
-    assert "jj-arena-live-v" in entry
+    assert "transform_phase2_app_js(" in compiler
+    assert "transform_phase2_styles(" in compiler
+    assert "_built_asset(\"static/app.js\")" in entry
+    index = build_index()
+    worker = build_service_worker()
+    assert f"/static/app.js?v={ASSET_VERSION}" in index
+    assert f"jj-arena-live-v{ASSET_VERSION}" in worker
 
     print("JJ_PLAYER_UX_PHASE2_SMOKE_OK")
 
