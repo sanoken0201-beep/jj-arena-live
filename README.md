@@ -22,17 +22,18 @@ user
 python -m uvicorn app:app --host 0.0.0.0 --port $PORT
 ```
 
-ルート直下の古い `server.py` / `db.py` を直接起動する構成ではありません。`app.py` は検証済みの `release_v14` を展開し、`v15_patch.py` 以降のパッチを順番に適用して `/tmp/jj_arena_v39_runtime` に現在のランタイムを再構築します。
+現在のproduction coreは、検証済みv1.24.4 Golden Masterをコミット済みソースとして固定した **`materialized_v1244/`** です。`app_materialized.py` がこのcoreを読み込み、管理・学習・分析・レジリエンス・性能・セキュリティ等のroot-level extensionを既定順序で適用します。`app.py` はRender-facingの安定entrypointで、materialized coreを直接変更せずにproduction統合を行います。
 
-したがって、変更時は次のルールを守ります。
+旧 `release_v14` + patch chainによるruntime再構築はproduction startupでは使用しません。旧経路は **`app_legacy.py`** と `runtime_builder.py` に残してあり、parity検証と緊急rollbackの基準として利用します。
 
-1. 既存の動作を変える場合は最新パッチを追加する。
-2. 過去パッチを後から書き換えない。
-3. 最新smoke testでv1.4からの完全再構築を必ず検証する。
-4. `app.py` の適用順序と最新runtime pathを更新する。
-5. CI成功後にのみmainへ反映する。
+### Core変更の原則
 
-このパッチ連鎖は互換性維持のため当面残していますが、将来的にはmaterialized runtimeへ縮約する予定です。
+1. `materialized_v1244/` はcanonical coreとして原則変更しない。
+2. 通常の改善はroot-level extension / integration shimで行う。
+3. game rule変更とUI変更を同一修正で混在させない。
+4. materialized coreとのparity・production entrypoint・PostgreSQL・browser regressionをCIで維持する。
+5. CI成功後にのみ `main` へ反映する。
+6. production DBは既存の `jj-arena-db` を継続利用し、通常releaseで破壊的migrationを行わない。
 
 ## 認証
 
@@ -41,8 +42,10 @@ python -m uvicorn app:app --host 0.0.0.0 --port $PORT
 - カタカナ表示名 + 6桁PIN
 - PBKDF2-SHA256 hashing
 - Admin / Member role
-- session cookie
-- ログイン試行回数制限
+- HttpOnly session cookie
+- 本番では `__Host-` session cookie
+- ログイン / PIN確認の試行回数制限
+- same-origin / Fetch MetadataによるCSRF防御
 
 旧Email + Password認証は廃止済みです。
 
@@ -55,7 +58,7 @@ JJ_ADMIN_NAME=<管理者のカタカナ名>
 JJ_ADMIN_PIN=<新しい6桁PIN>
 ```
 
-v1.19.0以降は、再デプロイ時に既存管理者のPIN hashも確実に更新し、既存sessionを失効させます。復旧後は `JJ_ADMIN_PIN` を空にするか削除してください。
+再デプロイ時に対象管理者のPIN hashを更新し、既存sessionを失効させます。復旧後は `JJ_ADMIN_PIN` を空にするか削除してください。
 
 ## 主な機能
 
@@ -70,20 +73,26 @@ v1.19.0以降は、再デプロイ時に既存管理者のPIN hashも確実に�
 - クイズ回答ごとの公式ポイント報酬
 - 管理者コンソール
 - アカウント停止・復旧・削除
+- 管理監査ログ / resilience確認
 
 ### Realtime Poker
 
-- 2 / 6 / 8 / 9-max
+- 2 / 6 / 8 / 9-max engine support
+- JJ本番ロビーは2卓・6-max・150bb固定
 - 着席 / 離席 / 退席 / Rebuy
 - SB / BB / BTNローテーション
 - Preflop / Flop / Turn / River
 - Fold / Check / Call / Raise / All-in
 - 最低レイズ・short all-in・side pot・split pot
 - 非手番操作のサーバー拒否
-- action timer
+- 45秒 action timer
 - WebSocket同期 + HTTP fallback
-- DBへのテーブル状態保存
+- イベント駆動の次hand / forced runout / timeout進行
+- PostgreSQL connection pool
+- DBへのテーブル状態保存 + 状態backup
 - スマートフォン縦画面向けポーカーUI
+- participant-only hand review
+- privacy-preserving UX telemetry
 
 ## 開発環境
 
@@ -104,18 +113,22 @@ SQLiteを使う開発モードと、`DATABASE_URL` があるPostgreSQLモード�
 
 ## テスト / CI
 
-GitHub Actionsはpushとpull requestで最低限次を検証します。
+GitHub Actionsはpushとpull requestで、主に次を検証します。
 
 - Python syntax compile
-- v1.4 release bundleのchecksum
-- v15〜最新patchの完全再構築
-- 最新version marker
-- 管理者PIN復旧 regression
-- ポーカークイズのserver-authoritative reward
-- ポーカー操作性 regression
-- UI用語監査
+- materialized core reproducibility / parity
+- production entrypoint startup
+- PostgreSQL 18 integration
+- 認証・WebSocket auth・card privacy
+- 公式ポイント / quiz reward / ranking
+- poker engine / settlement / timeout / runout
+- hand analytics / stat definitions
+- runtime performance regression
+- served asset / cache / encoding contract
+- desktop / mobile Chromium regression
+- UI用語・アクセシビリティ関連の回帰
 
-最新の主テストは `smoke_test_v190.py` です。
+`smoke_test_v190.py` はRender buildとの互換entrypointとして維持されています。詳細な本番release手順は `OPERATIONS.md` を参照してください。
 
 ## Render
 
@@ -123,7 +136,6 @@ GitHub Actionsはpushとpull requestで最低限次を検証します。
 
 - Region: Singapore
 - Web compute: 0.5 CPU / 512MB
-- Build: dependencies + `smoke_test_v190.py`
 - Start: `python -m uvicorn app:app ...`
 - Health check: `/api/health`
 
@@ -131,6 +143,7 @@ GitHub Actionsはpushとpull requestで最低限次を検証します。
 
 ## 運用上の原則
 
+- `materialized_v1244/` を通常改善の直接編集先にしない
 - production DBを作り直さない
 - ポイント履歴を直接上書きせず台帳経由で処理する
 - 管理者PINをGitHub・チャット・ログへ保存しない
@@ -138,5 +151,6 @@ GitHub Actionsはpushとpull requestで最低限次を検証します。
 - 変更はbranch -> CI -> main -> Render -> logsの順で確認する
 - poker engine変更とUI変更を同一修正で混在させない
 - 本番障害時はDBを触る前に最後の正常commitへrollbackする
+- `app_legacy.py` / historical patch chainはparity・rollback参照として保持する
 
 詳しい復旧・デプロイ手順は `OPERATIONS.md` を参照してください。
