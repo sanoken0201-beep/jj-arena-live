@@ -4,6 +4,8 @@
   const safe=v=>String(v??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
   const dt=v=>{if(!v)return '—';const d=new Date(v);return Number.isNaN(d.getTime())?String(v):new Intl.DateTimeFormat('ja-JP',{month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'}).format(d)};
   const bytes=n=>{n=Number(n);if(!Number.isFinite(n)||n<0)return '—';const units=['B','KB','MB','GB'];let i=0;while(n>=1024&&i<units.length-1){n/=1024;i++}return `${n.toFixed(i?1:0)} ${units[i]}`};
+  const metric=v=>Number.isFinite(Number(v))?fmt(v):'—';
+  const ms=v=>Number.isFinite(Number(v))?`${fmt(v)} ms`:'—';
   async function api(path){const r=await fetch('/api'+path,{credentials:'include',headers:{'Accept':'application/json'}});let d=null;try{d=await r.json()}catch{}if(!r.ok)throw new Error(d?.detail||`HTTP ${r.status}`);return d}
 
   function ensure(){
@@ -29,8 +31,11 @@
     $('#opsOnline').textContent=`${fmt(o.online?.hands_7d||0)} hands`;$('#opsSeated').textContent=`7日 ${fmt(o.online?.users_7d||0)}人 · 現在着席 ${fmt(o.online?.seated_now||0)}人`;
     const a=o.anomalies||[];$('#opsAnomaly').textContent=fmt(a.length);
     $('#opsAnomalies').innerHTML=a.length?a.map(x=>`<div class="ops-row"><strong><span class="ops-severity ${safe(x.severity)}">${safe(x.severity)}</span>${safe(x.user_name)}</strong><p>${safe(x.detail)}<br><span class="ops-muted">${safe(x.code)}</span></p><time>${dt(x.detected_at)}</time></div>`).join(''):'<div class="ops-empty">現在、quiz_rewardの異常は検出されていません。</div>';
-    const db=o.database||{},acc=o.accounts||{},pt=o.points||{};
-    $('#opsHealth').innerHTML=`<div><span>アカウント</span><b>${fmt(acc.enabled)} 利用中</b><small>停止 ${fmt(acc.disabled)} · 削除済 ${fmt(acc.deleted)}</small></div><div><span>7日ポイント変動</span><b>${Number(pt.net_7d||0)>=0?'+':''}${fmt(pt.net_7d)} pt</b><small>Quiz +${fmt(pt.quiz_points_7d)} · ${fmt(pt.transactions_7d)}件</small></div><div class="${db.warning?'ops-db-warning':''}"><span>Database</span><b>${bytes(db.size_bytes)}</b><small>${db.usage_percent==null?`${safe(db.engine||'db')} · 容量上限未設定`:`使用率 ${fmt(db.usage_percent)}%`}</small></div><div><span>Table backups</span><b>${fmt(r?.backups||0)} copies</b><small>${fmt(r?.keep_per_table||0)}世代 / table</small></div>`;
+    const db=o.database||{},acc=o.accounts||{},pt=o.points||{},rt=r?.runtime||{},lat=rt.api_latency||{},ws=rt.websocket||{},pool=rt.db_pool||{};
+    const wsTables=Object.entries(ws.by_table||{}).map(([k,v])=>`${safe(k)} ${fmt(v)}`).join(' · ')||'接続なし';
+    const poolTitle=pool.backend==='sqlite'?'SQLite':pool.active?`${metric(pool.pool_available)} / ${metric(pool.pool_size)} available`:'初期化待ち';
+    const poolDetail=pool.backend==='sqlite'?'ローカルDB':pool.active?`待機 ${metric(pool.requests_waiting)} · max ${metric(pool.pool_max)}`:'PostgreSQL pool';
+    $('#opsHealth').innerHTML=`<div><span>アカウント</span><b>${fmt(acc.enabled)} 利用中</b><small>停止 ${fmt(acc.disabled)} · 削除済 ${fmt(acc.deleted)}</small></div><div><span>7日ポイント変動</span><b>${Number(pt.net_7d||0)>=0?'+':''}${fmt(pt.net_7d)} pt</b><small>Quiz +${fmt(pt.quiz_points_7d)} · ${fmt(pt.transactions_7d)}件</small></div><div class="${db.warning?'ops-db-warning':''}"><span>Database</span><b>${bytes(db.size_bytes)}</b><small>${db.usage_percent==null?`${safe(db.engine||'db')} · 容量上限未設定`:`使用率 ${fmt(db.usage_percent)}%`}</small></div><div><span>Table backups</span><b>${fmt(r?.backups||0)} copies</b><small>${fmt(r?.keep_per_table||0)}世代 / table</small></div><div><span>API latency</span><b>P95 ${ms(lat.p95_ms)}</b><small>P50 ${ms(lat.p50_ms)} · ${fmt(lat.samples||0)}/${fmt(lat.window||0)} samples</small></div><div><span>WebSocket</span><b>${fmt(ws.connections||0)} connections</b><small>${wsTables}</small></div><div><span>DB pool</span><b>${poolTitle}</b><small>${poolDetail}</small></div><div><span>Event loop</span><b>${ms(rt.event_loop_probe_ms)}</b><small>現在の yield probe</small></div>`;
     const errors=r?.recent_errors||[];$('#opsErrors').innerHTML=errors.length?errors.map(x=>`<div class="ops-row"><strong>${safe(x.event_type)}</strong><p>${safe((x.path||'')+(x.detail?` · ${x.detail}`:''))}</p><time>${dt(x.created_at)}</time></div>`).join(''):'<div class="ops-empty">記録された直近エラーはありません。</div>';
   }
 

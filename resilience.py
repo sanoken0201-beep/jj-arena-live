@@ -1,9 +1,12 @@
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import json
+import time
 import traceback
 import uuid
+from collections import deque
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
@@ -11,6 +14,8 @@ from fastapi import Body, Depends, HTTPException, Request
 
 KEEP_PER_TABLE = 40
 ERROR_RETENTION_DAYS = 90
+API_LATENCY_WINDOW = 500
+_API_LATENCY_MS: deque[float] = deque(maxlen=API_LATENCY_WINDOW)
 
 
 def _now() -> str:
@@ -39,6 +44,89 @@ def prune_error_log(db, now: datetime | None = None) -> None:
     cutoff = (current.astimezone(timezone.utc) - timedelta(days=ERROR_RETENTION_DAYS)).isoformat()
     with db.connect() as con:
         con.execute("DELETE FROM ops_error_log WHERE created_at<?", (cutoff,))
+
+
+def _percentile(values: list[float], fraction: float) -> float | None:
+    if not values:
+        return None
+    ordered = sorted(float(v) for v in values)
+    if len(ordered) == 1:
+        return ordered[0]
+    position = (len(ordered) - 1) * max(0.0, min(1.0, fraction))
+    lower = int(position)
+    upper = min(lower + 1, len(ordered) - 1)
+    weight = position - lower
+    return ordered[lower] + (ordered[upper] - ordered[lower]) * weight
+
+
+def api_latency_snapshot() -> dict[str, int | float | None]:
+    samples = list(_API_LATENCY_MS)
+    return {
+        "samples": len(samples),
+        "window": API_LATENCY_WINDOW,
+        "p50_ms": round(_percentile(samples, 0.50), 2) if samples else None,
+        "p95_ms": round(_percentile(samples, 0.95), 2) if samples else None,
+        "max_ms": round(max(samples), 2) if samples else None,
+    }
+
+
+def websocket_snapshot(server) -> dict[str, Any]:
+    connections = getattr(getattr(server, "hub", None), "connections", {}) or {}
+    per_table: dict[str, int] = {}
+    for table_id, rows in connections.items():
+        try:
+            count = len(rows or [])
+        except TypeError:
+            count = 0
+        if count:
+            per_table[str(table_id)] = int(count)
+    return {"connections": sum(per_table.values()), "by_table": per_table}
+
+
+def db_pool_snapshot(db) -> dict[str, Any]:
+    if not bool(getattr(db, "IS_POSTGRES", False)):
+        return {"backend": "sqlite", "enabled": False, "active": False}
+    try:
+        import runtime_performance
+
+        pool = getattr(runtime_performance, "_POOL", None)
+    except Exception:
+        pool = None
+    if pool is None:
+        return {"backend": "postgres", "enabled": True, "active": False}
+    try:
+        raw = dict(pool.get_stats() or {})
+    except Exception:
+        return {"backend": "postgres", "enabled": True, "active": True, "stats_available": False}
+    allowed = (
+        "pool_min",
+        "pool_max",
+        "pool_size",
+        "pool_available",
+        "requests_waiting",
+        "requests_num",
+        "requests_queued",
+        "requests_errors",
+        "requests_wait_ms",
+        "usage_ms",
+        "connections_num",
+        "connections_errors",
+        "connections_lost",
+    )
+    stats = {key: raw[key] for key in allowed if key in raw}
+    return {
+        "backend": "postgres",
+        "enabled": True,
+        "active": True,
+        "stats_available": True,
+        **stats,
+    }
+
+
+async def event_loop_probe_ms() -> float:
+    started = time.perf_counter()
+    await asyncio.sleep(0)
+    return round((time.perf_counter() - started) * 1000.0, 3)
 
 
 def record_error(db, event_type: str, detail: str, method: str = "", path: str = "") -> None:
@@ -119,6 +207,8 @@ def install(app, server, db, admin_console) -> None:
 
     @app.middleware("http")
     async def capture_errors(request: Request, call_next):
+        track_latency = request.url.path.startswith("/api/")
+        started = time.perf_counter() if track_latency else 0.0
         try:
             response = await call_next(request)
             if response.status_code >= 500:
@@ -127,18 +217,29 @@ def install(app, server, db, admin_console) -> None:
         except Exception as exc:
             record_error(db, "http_exception", "".join(traceback.format_exception(type(exc), exc, exc.__traceback__)), request.method, request.url.path)
             raise
+        finally:
+            if track_latency:
+                _API_LATENCY_MS.append((time.perf_counter() - started) * 1000.0)
 
     @app.get("/api/admin/console/resilience", include_in_schema=False)
-    def resilience_status(user=Depends(server.admin_user)):
+    async def resilience_status(user=Depends(server.admin_user)):
+        loop_probe = await event_loop_probe_ms()
         since = (datetime.now(timezone.utc) - timedelta(hours=24)).isoformat()
         with db.connect() as con:
             errors = [dict(r) for r in con.execute("SELECT * FROM ops_error_log ORDER BY created_at DESC LIMIT 12").fetchall()]
             count = con.execute("SELECT COUNT(*) c FROM ops_error_log WHERE created_at>=?", (since,)).fetchone()
             backups = con.execute("SELECT COUNT(*) c FROM table_state_backups").fetchone()
             per_table = [dict(r) for r in con.execute("SELECT table_id,COUNT(*) copies,MAX(created_at) latest FROM table_state_backups GROUP BY table_id ORDER BY table_id").fetchall()]
+        runtime = {
+            "api_latency": api_latency_snapshot(),
+            "websocket": websocket_snapshot(server),
+            "db_pool": db_pool_snapshot(db),
+            "event_loop_probe_ms": loop_probe,
+        }
         return {"errors_24h": int(count["c"] or 0), "recent_errors": errors,
                 "backups": int(backups["c"] or 0), "backups_by_table": per_table,
-                "keep_per_table": KEEP_PER_TABLE, "error_retention_days": ERROR_RETENTION_DAYS}
+                "keep_per_table": KEEP_PER_TABLE, "error_retention_days": ERROR_RETENTION_DAYS,
+                "runtime": runtime}
 
     @app.get("/api/admin/console/table-backups", include_in_schema=False)
     def table_backups(table_id: str | None = None, user=Depends(server.admin_user)):
