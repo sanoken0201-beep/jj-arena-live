@@ -29,6 +29,7 @@ import operations_learning_hardening
 import resilience
 import runtime_performance
 import security_hardening
+import ux_telemetry
 
 ROOT = Path(__file__).resolve().parent
 DEST = (ROOT / "materialized_v1244").resolve()
@@ -80,7 +81,7 @@ def _prioritize_extension_routes(fastapi_app) -> None:
     def is_extension_route(route) -> bool:
         path = str(getattr(route, "path", "") or "")
         return (
-            path in {"/admin", "/admin/", "/api/learning-content"}
+            path in {"/admin", "/admin/", "/api/learning-content", "/api/ux-telemetry"}
             or path.startswith("/admin-static")
             or path.startswith("/api/admin/console")
             or path.startswith("/api/analysis")
@@ -108,4 +109,5 @@ hand_history_visibility.install(hand_analytics)
 operations_learning.install(app, runtime_server, db, hand_analytics, daily_quiz, learning_content, admin_console)
 operations_learning_hardening.apply(operations_learning, db, hand_analytics)
 resilience.install(app, runtime_server, db, admin_console)
+ux_telemetry.install(app, runtime_server, db)
 _prioritize_extension_routes(app)
