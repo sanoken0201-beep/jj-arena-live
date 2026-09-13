@@ -3,7 +3,7 @@ import re
 from pathlib import Path
 
 
-ADMIN_ASSET_VERSION = "121"
+ADMIN_ASSET_VERSION = "122"
 
 
 def apply(static_dir: Path) -> None:
@@ -39,6 +39,7 @@ def _index(p: Path) -> None:
         ('admin_pin_verify.css','admin_pin_verify.css'),
         ('admin_ui_foundation.css','admin_ui_foundation.css'),
         ('ops_dashboard.css','ops_dashboard.css'),
+        ('ux_telemetry.css','ux_telemetry.css'),
     )
     for marker,asset in css_assets:
         tag=f'<link rel="stylesheet" href="/admin-static/{asset}?v={ADMIN_ASSET_VERSION}">'
@@ -53,6 +54,7 @@ def _index(p: Path) -> None:
         ('admin_ui_foundation.js','admin_ui_foundation.js'),
         ('ops_dashboard.js','ops_dashboard.js'),
         ('ops_participation.js','ops_participation.js'),
+        ('ux_telemetry.js','ux_telemetry.js'),
     )
     for marker,asset in js_assets:
         tag=f'<script src="/admin-static/{asset}?v={ADMIN_ASSET_VERSION}"></script>'
