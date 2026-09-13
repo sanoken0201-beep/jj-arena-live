@@ -65,6 +65,12 @@ _require_materialized_module(runtime_server, "server")
 _require_materialized_module(db, "db")
 _require_materialized_module(runtime_poker_engine, "poker_engine")
 
+# Snapshot canonical-core routes before root-level extensions add anything. The
+# object identities are stable for the lifetime of this FastAPI instance and
+# let us preserve the proven "extensions before core" routing contract without
+# maintaining a fragile list of URL prefixes.
+_CORE_ROUTE_IDS = frozenset(id(route) for route in app.router.routes)
+
 # Install runtime-only performance improvements after the verified materialized
 # modules resolve, without mutating the canonical v1.24.4 source tree or game rules.
 runtime_performance.install(db, runtime_server, runtime_poker_engine)
@@ -74,25 +80,25 @@ runtime_performance.install(db, runtime_server, runtime_poker_engine)
 online_results_cleanup.apply(db)
 
 
-def _prioritize_extension_routes(fastapi_app) -> None:
-    """Move extension/API routes ahead of the materialized SPA catch-all."""
+def _prioritize_extension_routes(fastapi_app, core_route_ids=frozenset()) -> None:
+    """Keep every root-level extension route ahead of canonical core routes.
+
+    Earlier releases classified extensions by URL prefixes. That was unsafe:
+    adding a new extension endpoint could be silently shadowed by the core SPA
+    catch-all until its prefix was manually added to the list. Route identity
+    gives the same effective ordering while automatically covering every future
+    root-level extension route.
+    """
     routes = list(fastapi_app.router.routes)
-
-    def is_extension_route(route) -> bool:
-        path = str(getattr(route, "path", "") or "")
-        return (
-            path in {"/admin", "/admin/", "/api/learning-content"}
-            or path.startswith("/admin-static")
-            or path.startswith("/api/admin/console")
-            or path.startswith("/api/analysis")
-            or path.startswith("/api/quiz/")
-            or path.startswith("/api/home/")
-            or path == "/api/ux-telemetry"
+    core_ids = frozenset(core_route_ids)
+    core_routes = [route for route in routes if id(route) in core_ids]
+    extension_routes = [route for route in routes if id(route) not in core_ids]
+    if len(core_routes) != len(core_ids):
+        raise RuntimeError(
+            "canonical route set changed while installing extensions: "
+            f"expected={len(core_ids)} found={len(core_routes)}"
         )
-
-    extension_routes = [route for route in routes if is_extension_route(route)]
-    other_routes = [route for route in routes if not is_extension_route(route)]
-    fastapi_app.router.routes[:] = extension_routes + other_routes
+    fastapi_app.router.routes[:] = extension_routes + core_routes
 
 
 admin_console.install_admin_console(app)
@@ -111,4 +117,4 @@ operations_learning.install(app, runtime_server, db, hand_analytics, daily_quiz,
 operations_learning_hardening.apply(operations_learning, db, hand_analytics)
 resilience.install(app, runtime_server, db, admin_console)
 ux_telemetry.install(app, runtime_server, db)
-_prioritize_extension_routes(app)
+_prioritize_extension_routes(app, _CORE_ROUTE_IDS)
