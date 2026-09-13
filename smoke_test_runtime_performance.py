@@ -259,7 +259,8 @@ def _guard_client_and_gateway_efficiency() -> None:
     js = (BUILD_ROOT / "static/app.js").read_text(encoding="utf-8")
     worker = (BUILD_ROOT / "static/sw.js").read_text(encoding="utf-8")
 
-    assert manifest["asset_version"] == ASSET_VERSION == 68
+    assert manifest["asset_version"] == ASSET_VERSION
+    assert ASSET_VERSION >= 68, "performance-era compiled asset contract regressed"
     assert "ensure_runtime_assets()" in app_source
     assert "_built_asset(\"static/app.js\")" in app_source
     assert "transform_phase" not in app_source

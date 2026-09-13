@@ -51,7 +51,7 @@ from player_ux_phase6 import PHASE6_MARKER, transform_app_js as transform_phase6
 ROOT = Path(__file__).resolve().parent
 MATERIALIZED_STATIC = ROOT / "materialized_v1244" / "static"
 BUILD_ROOT = ROOT / ".jj_build"
-ASSET_VERSION = 68
+ASSET_VERSION = 69
 BUILD_FORMAT = 1
 
 _TODAYS_JJ_MARKER = "v2 today's-jj contrast hardening 2026-09-12"
@@ -128,6 +128,81 @@ _TODAYS_JJ_CSS = r'''
 }
 '''
 
+_PWA_UPDATE_MARKER = "v69 pwa update prompt 2026-09-13"
+_PWA_UPDATE_CSS = r'''
+
+/* v69 pwa update prompt 2026-09-13 */
+.jj-update-banner{
+  position:fixed;
+  z-index:10000;
+  left:50%;
+  bottom:max(16px,env(safe-area-inset-bottom));
+  transform:translateX(-50%);
+  width:min(560px,calc(100vw - 24px));
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:14px;
+  padding:12px 14px;
+  border:1px solid rgba(255,255,255,.15);
+  border-radius:14px;
+  background:rgba(18,34,27,.97);
+  color:#f4f8f6;
+  box-shadow:0 12px 36px rgba(0,0,0,.3);
+}
+.jj-update-banner span{display:grid;gap:2px;min-width:0}
+.jj-update-banner strong{font-size:.9rem;line-height:1.35}
+.jj-update-banner small{color:#c4d0ca;font-size:.74rem;line-height:1.4}
+.jj-update-banner button{
+  flex:0 0 auto;
+  min-height:38px;
+  padding:0 14px;
+  border:0;
+  border-radius:10px;
+  font-weight:800;
+  cursor:pointer;
+}
+.jj-update-banner button:disabled{opacity:.65;cursor:wait}
+@media(max-width:560px){
+  .jj-update-banner{align-items:stretch;flex-direction:column;gap:9px}
+  .jj-update-banner button{width:100%}
+}
+'''
+
+_PWA_REGISTRATION = "if('serviceWorker' in navigator && location.protocol.startsWith('http')) navigator.serviceWorker.register('/static/sw.js').catch(()=>{});"
+_PWA_REGISTRATION_REPLACEMENT = r'''/* v69 pwa update prompt 2026-09-13 */
+  let jjUpdateRequested=false,jjUpdateReloading=false;
+  function jjShowAppUpdate(reg){
+    if(!reg?.waiting||document.getElementById('jjUpdateBanner'))return;
+    const banner=document.createElement('div');
+    banner.id='jjUpdateBanner';banner.className='jj-update-banner';
+    banner.setAttribute('role','status');banner.setAttribute('aria-live','polite');
+    banner.innerHTML='<span><strong>新しいバージョンがあります</strong><small>ハンド中でない時に更新してください。</small></span><button type="button">更新する</button>';
+    const button=banner.querySelector('button');
+    button.addEventListener('click',()=>{
+      if(!reg.waiting)return;
+      jjUpdateRequested=true;button.disabled=true;button.textContent='更新中…';
+      reg.waiting.postMessage({type:'SKIP_WAITING'});
+    });
+    document.body.appendChild(banner);
+  }
+  if('serviceWorker' in navigator && location.protocol.startsWith('http')){
+    navigator.serviceWorker.addEventListener('controllerchange',()=>{
+      if(!jjUpdateRequested||jjUpdateReloading)return;
+      jjUpdateReloading=true;location.reload();
+    });
+    navigator.serviceWorker.register('/static/sw.js').then(reg=>{
+      if(reg.waiting&&navigator.serviceWorker.controller)jjShowAppUpdate(reg);
+      reg.addEventListener('updatefound',()=>{
+        const worker=reg.installing;if(!worker)return;
+        worker.addEventListener('statechange',()=>{
+          if(worker.state==='installed'&&navigator.serviceWorker.controller)jjShowAppUpdate(reg);
+        });
+      });
+      reg.update().catch(()=>{});
+    }).catch(()=>{});
+  }'''
+
 
 def _digest_bytes(value: bytes) -> str:
     return hashlib.sha256(value).hexdigest()
@@ -177,7 +252,10 @@ def build_app_js() -> str:
     js = js.replace("renderPokerRoom();refreshMe().catch(()=>{})", "renderPokerRoom()")
     # showApp() already refreshes the visible view through switchView().
     js = js.replace("showApp();await refreshAll()", "showApp()")
-    return transform_phase6_app_js(js)
+    js = transform_phase6_app_js(js)
+    if js.count(_PWA_REGISTRATION) != 1:
+        raise RuntimeError("service worker registration drift: expected one canonical registration")
+    return js.replace(_PWA_REGISTRATION, _PWA_REGISTRATION_REPLACEMENT, 1)
 
 
 def build_styles() -> str:
@@ -192,7 +270,10 @@ def build_styles() -> str:
             )
         )
     )
-    return transform_clear_copy_styles(css)
+    css = transform_clear_copy_styles(css)
+    if _PWA_UPDATE_MARKER not in css:
+        css = css.rstrip() + _PWA_UPDATE_CSS + "\n"
+    return css
 
 
 def build_service_worker() -> str:
@@ -200,6 +281,16 @@ def build_service_worker() -> str:
     worker = worker.replace("const CACHE='jj-arena-live-v56';", f"const CACHE='jj-arena-live-v{ASSET_VERSION}';")
     worker = worker.replace("'/static/styles.css?v=19'", f"'/static/styles.css?v={ASSET_VERSION}'")
     worker = worker.replace("'/static/app.js?v=19'", f"'/static/app.js?v={ASSET_VERSION}'")
+    old_install = "self.addEventListener('install',e=>{self.skipWaiting();e.waitUntil(caches.open(CACHE).then(c=>c.addAll(SHELL)))});"
+    new_install = "self.addEventListener('install',e=>{e.waitUntil(caches.open(CACHE).then(c=>c.addAll(SHELL)))});"
+    if worker.count(old_install) != 1:
+        raise RuntimeError("service worker install handler drift")
+    worker = worker.replace(old_install, new_install, 1)
+    worker = worker.replace(
+        new_install,
+        new_install + "\nself.addEventListener('message',e=>{if(e.data&&e.data.type==='SKIP_WAITING')self.skipWaiting()});",
+        1,
+    )
     return worker
 
 

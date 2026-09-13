@@ -42,10 +42,10 @@ def main() -> None:
 
     compiler = (ROOT / "served_assets.py").read_text(encoding="utf-8")
     app_source = (ROOT / "app.py").read_text(encoding="utf-8")
-    assert "return transform_phase6_app_js(js)" in compiler
+    assert "transform_phase6_app_js(js)" in compiler
     assert "encoded_asset(body)" in app_source, "v67 lossless asset transfer must be preserved"
     assert "transform_phase6_app_js" not in app_source, "production runtime must not run phase 6 transform"
-    assert ASSET_VERSION == 68
+    assert ASSET_VERSION == 69
     index = build_index()
     worker = build_service_worker()
     assert f"/static/app.js?v={ASSET_VERSION}" in index
