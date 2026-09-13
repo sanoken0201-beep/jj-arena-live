@@ -17,22 +17,30 @@ Browser / mobile
 - GitHub repository: `sanoken0201-beep/jj-arena-live`
 - Production branch: `main`
 - ASGI entrypoint: `app:app`
+- Canonical core: `materialized_v1244/`
+- Production integration: `app_materialized.py` + root-level extension modules + `app.py`
+- Legacy parity / rollback reference: `app_legacy.py` + `runtime_builder.py` + historical patch chain
 - Database: **既存の `jj-arena-db` のみ**
 - Region: Singapore
 
-本番コードは `app.py` が `release_v14` とpatch chainから再構築します。ルート直下の古い `server.py` を直接起動しないでください。
+本番startupでは `release_v14` とhistorical patch chainを毎回再構築しません。`app.py` は `app_materialized.py` を通して、検証済みv1.24.4 Golden Masterをコミット済みソースとして固定した `materialized_v1244/` を読み込みます。
+
+`materialized_v1244/` はcanonical coreとして原則変更禁止です。通常の性能改善、管理機能、セキュリティ、学習、分析、UX統合はroot-level extension / integration shimで実装します。旧patch-chain経路は削除せず、parity oracleと緊急rollback参照として保持します。
+
+ルート直下の古い `server.py` / `db.py` / `poker_engine.py` をproduction coreとして直接起動しないでください。
 
 ## 3. Normal release flow
 
 1. `main` の最後の正常commitから作業branchを作る。
-2. 新しいpatch / UI / admin変更をbranchへ追加する。
-3. 最新smoke testを追加・更新する。
-4. GitHub Actionsを通す。
-5. `main` へ反映する。
-6. Renderが新commitを取得したかDeploy画面でSHAを確認する。
-7. auto deployが動かなければ、**mainが正しいことを確認した後だけ**手動deployする。
-8. `Application startup complete` と health check 200を確認する。
-9. `/api/auth/pin`、`/api/me`、`/admin`、quiz、online pokerのエラーをログで確認する。
+2. 変更対象を明確に分離する。特に poker engine / API-WebSocket / UI / admin / infrastructure を不要に混在させない。
+3. `materialized_v1244/` を通常改善の直接編集先にしない。
+4. 変更に対応するsmoke / integration / browser regressionを追加または更新する。
+5. GitHub Actionsを通す。
+6. `main` へ反映する。
+7. Renderが新commitを取得したかDeploy画面でSHAを確認する。
+8. auto deployが動かなければ、**mainが正しいこととCI成功を確認した後だけ**手動deployする。
+9. `Application startup complete` と health check 200を確認する。
+10. `/api/auth/pin`、`/api/me`、`/admin`、quiz、online pokerのエラーをログで確認する。
 
 ### Render auto-deploy source authorization
 
@@ -46,11 +54,11 @@ It looks like we don't have access to your repo, but we'll try to clone it anywa
 
 - 現在のRender UIでは `jj-arena-live` -> `Settings` -> `Build` -> `Source` -> `Edit` を開く。
 - `Git Provider` でGitHub credentialを接続し、`sanoken0201-beep/jj-arena-live` を選択する。
-- Branchは `main`、Runtimeは `Python 3`、既存Build/Start Commandは変更しない。
+- Branchは `main`、Runtimeは `Python 3`、既存Build/Start Commandは不用意に変更しない。
 - 再認証はアカウント権限操作なので、コード変更や新しいWeb Service作成で代替しない。
 - source接続が直るまでは、GitHub CI成功とmain SHAを確認してから既存 `jj-arena-live` を手動deployする。
-- source再接続後は、Render `get_service` 相当で `repo=https://github.com/sanoken0201-beep/jj-arena-live`、`branch=main`、`autoDeploy=yes`、`autoDeployTrigger=commit` を確認する。
-- auto deploy復旧の最終確認は、CI済みの安全なmain commitを1件作成し、Renderに同じSHAの `trigger=commit` deployが自動生成されるかで判定する。手動/API deployでは復旧確認にならない。
+- source再接続後は、Renderで `repo=https://github.com/sanoken0201-beep/jj-arena-live`、`branch=main`、`autoDeploy=yes`、commit-triggerを確認する。
+- auto deploy復旧の最終確認は、CI済みの安全なmain commitを1件作成し、Renderに同じSHAのcommit-trigger deployが自動生成されるかで判定する。手動/API deployでは復旧確認にならない。
 - この問題のために `jj-arena-db`、Environment、service URL、service IDを作り直さない。
 
 ## 4. Render settings
@@ -73,6 +81,8 @@ python -m uvicorn app:app --host 0.0.0.0 --port $PORT
 ```
 
 - Health check: `/api/health`
+
+`smoke_test_v190.py` はRender buildとの互換entrypointです。GitHub Actions側ではmaterialized parity、PostgreSQL、browser、security、poker、performance等の追加gateも実行します。
 
 ### Database: jj-arena-db
 
@@ -109,8 +119,6 @@ JJ_ADMIN_PASSWORD
 
 管理者PINを完全に失った場合だけ実行します。
 
-### v1.19.0以降
-
 1. Render -> `jj-arena-live` -> Environment を開く。
 2. `JJ_ADMIN_NAME` を対象管理者名にする。
 3. `JJ_ADMIN_PIN` に新しい6桁PINを一時設定する。
@@ -136,7 +144,7 @@ JJ_ADMIN_PASSWORD
 4. 最後の正常commitへコードを戻す、またはRenderでそのrevisionを再デプロイする。
 5. 起動ログとhealth checkを確認する。
 
-DB migrationが入ったreleaseでは、migrationの後方互換性を保つこと。破壊的 `DROP` / column renameを通常releaseに含めないこと。
+materialized cutover後も `app_legacy.py` とhistorical reconstruction経路はparity / emergency rollback参照として保持します。ただしrollback目的でproduction DBを旧schemaへ戻す操作は行いません。DB migrationが入ったreleaseではmigrationの後方互換性を保ち、破壊的 `DROP` / column renameを通常releaseに含めません。
 
 ## 8. Data integrity rules
 
@@ -146,6 +154,7 @@ DB migrationが入ったreleaseでは、migrationの後方互換性を保つこ�
 - account deletionでは履歴参照を壊さない。
 - production DBをSQLiteへ置換しない。
 - テーブル/ハンド状態の修正とアカウント修正を同じSQLで行わない。
+- ranking / point / rake / hand settlementの意味を性能改善のために変更しない。
 
 ### Account lifecycle
 
@@ -165,12 +174,22 @@ DB migrationが入ったreleaseでは、migrationの後方互換性を保つこ�
 - `poker_engine` / game rule変更
 - API state / WebSocket変更
 - UI / sizing / action bar変更
+- runtime performance / scheduling変更
 
 UI改善だけの場合はgame engineを触らないこと。game rule変更時は最低レイズ、short all-in、side pot、split pot、turn ownership、timeoutを回帰確認します。
 
+runtime performance変更では、少なくとも以下の意味を変えないことを確認します。
+
+- 45秒 action timeout
+- 1.6秒 next-hand delay
+- staged forced runout timing
+- WebSocket即時性
+- table state personalization / card privacy
+- ranking / rake / point semantics
+
 ### WebSocket authentication
 
-- v1.20.2以降、session tokenを `/ws/tables/...?...` のquery stringへ入れない。
+- session tokenを `/ws/tables/...?...` のquery stringへ入れない。
 - PINログイン時にサーバーが設定する既存のsame-origin session cookieをWebSocket handshakeでも使用する。JavaScriptへWebSocket専用tokenを返さない。
 - WebSocket URL自体はcredentialなしの `/ws/tables/{table_id}` とする。
 - ブラウザが明示した `Origin` が現在の `Host` と一致しない場合は4403で拒否する。
@@ -185,13 +204,15 @@ UI改善だけの場合はgame engineを触らないこと。game rule変更時�
 - PIN・password・DATABASE_URLをcommitしない。
 - PINは一方向ハッシュで保存し、平文または復号可能な形式では保存しない。
 - 管理者であっても「現在のPINそのものを表示する」機能は実装しない。
-- 管理者はプレイヤーから申告された候補PINを照合できる。照合APIはadmin role必須、同一対象への失敗試行は10分間に5回まで、監査ログには一致/不一致だけを残しPIN値を記録しない。
+- 管理者のPIN確認系APIはadmin role必須とし、失敗試行を制限し、監査ログへPIN値を記録しない。
 - PINを忘れたプレイヤーには管理者のPINリセットを使う。リセット後は対象ユーザーの既存sessionを失効させる。
 - プレイヤー本人のPIN変更は現在PINの再確認を必須とし、変更後は現在端末以外のsessionを失効させる。
+- production session cookieは `__Host-` prefix / Secure / HttpOnlyを維持する。
+- unsafe same-origin cookie requestにはOrigin / Fetch Metadata境界を維持する。
 - secret値をRender Start Commandで `echo` しない。
 - 管理者復旧用PINを常設しない。
 - ログにはcredentialを出さない。
-- HTTP bearer tokenをURL queryへ入れない。v1.20.2以降、WebSocketでもtokenをURLへ含めない。
+- HTTP bearer tokenをURL queryへ入れない。WebSocketでもtokenをURLへ含めない。
 - 管理APIはrole checkを必須にする。
 - account/PIN変更後は対象sessionを適切に失効させる。
 
@@ -203,13 +224,13 @@ UI改善だけの場合はgame engineを触らないこと。game rule変更時�
 [ ] Render deploy = expected main SHA
 [ ] Application startup complete
 [ ] health 200
+[ ] production entrypoint uses materialized core
 [ ] normal login succeeds
 [ ] /api/me succeeds after login
 [ ] player can change own PIN with current PIN + confirmation
 [ ] changed PIN works and previous PIN no longer works
 [ ] /admin opens for admin
-[ ] admin candidate-PIN verification returns match / no-match without exposing PIN
-[ ] admin PIN verification audit contains no PIN value
+[ ] admin PIN-related audit contains no PIN value
 [ ] ranking/points load
 [ ] quiz question loads
 [ ] quiz answer awards once
@@ -219,6 +240,8 @@ UI改善だけの場合はgame engineを触らないこと。game rule変更時�
 [ ] authenticated browser session opens WebSocket using its existing session cookie
 [ ] cross-origin WebSocket handshake is rejected
 [ ] query-string-only / invalid / disabled WebSocket sessions are rejected
+[ ] action timeout remains 45 seconds
+[ ] next-hand delay / forced runout timing remain correct
 [ ] no new ERROR logs
 [ ] no JJ_TIMEOUT_LOOP_ERROR / JJ_WS_CONNECTION_ERROR during normal play
 ```
