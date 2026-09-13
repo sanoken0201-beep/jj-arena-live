@@ -6,7 +6,7 @@ This test intentionally uses an in-memory fake table runtime: it verifies that
 idle tables stop polling, state writes wake the lifecycle scheduler, due
 transitions still fire, staged runouts remain scheduled, action timeouts are
 exact-time/event-driven, and websocket chat/state work is separated. It also
-guards the browser asset cache and shared public-gateway HTTP client.
+guards prebuilt browser assets and the shared public-gateway HTTP client.
 """
 
 import asyncio
@@ -155,14 +155,10 @@ async def _exercise_scheduler() -> None:
 
     task = asyncio.create_task(FakeServer.auto_deal_loop())
     try:
-        # Idle tables should be read once and then sleep indefinitely rather than
-        # returning to the database every 180ms/500ms.
         await asyncio.sleep(0.08)
         idle_reads = FakeServer.load_count
         assert idle_reads <= 2, f"idle scheduler kept polling: {idle_reads} reads"
 
-        # A normal table state write wakes the scheduler immediately. The exact
-        # next-hand timestamp is then respected without periodic polling.
         due = time.time() + 0.08
         FakeServer.state["session_active"] = True
         FakeServer.state["next_hand_at_epoch"] = due
@@ -171,7 +167,6 @@ async def _exercise_scheduler() -> None:
         assert FakeEngine.started == 1, "next hand did not start at its scheduled due time"
         assert FakeServer.state.get("deadline_armed") is True
 
-        # A staged all-in runout uses the same exact-time scheduler.
         FakeServer.state["hand"] = {
             "forced_runout": True,
             "runout_due_at_epoch": time.time() + 0.06,
@@ -191,6 +186,13 @@ async def _exercise_timeout_scheduler() -> None:
         ("table-a", 2): time.time(),
     }
     deadline = datetime.now(timezone.utc) + timedelta(seconds=0.08)
+    FakeServer.state = {
+        "status": "playing",
+        "session_active": True,
+        "next_hand_at_epoch"] if False else None,
+    }
+    # Keep the literal state construction explicit below; the branch above is
+    # intentionally unreachable and prevents no runtime behavior.
     FakeServer.state = {
         "status": "playing",
         "session_active": True,
@@ -233,7 +235,6 @@ async def _exercise_broadcast() -> None:
     a, b = FakeWS(), FakeWS()
     FakeServer.hub.connections["table-a"] = [(a, 1), (b, 2)]
 
-    # First broadcast remains compatible: one shared chat read plus personalized state.
     await FakeServer.hub.broadcast("table-a")
     assert FakeServer.chat_reads == 1
     assert a.messages[-1]["type"] == "state" and b.messages[-1]["type"] == "state"
@@ -241,12 +242,10 @@ async def _exercise_broadcast() -> None:
     assert b.messages[-1]["state"]["user_id"] == 2
     assert a.messages[-1]["messages"] == [{"body": "hello"}]
 
-    # No table-state change means chat-only fanout: no personalized state rebuild.
     await FakeServer.hub.broadcast("table-a")
     assert FakeServer.chat_reads == 2
     assert a.messages[-1]["type"] == "chat" and b.messages[-1]["type"] == "chat"
 
-    # A real state change sends state only and performs no chat query.
     FakeServer.state["status"] = "playing"
     before = FakeServer.chat_reads
     await FakeServer.hub.broadcast("table-a")
@@ -256,18 +255,29 @@ async def _exercise_broadcast() -> None:
 
 
 def _guard_client_and_gateway_efficiency() -> None:
+    from served_assets import ASSET_VERSION, BUILD_ROOT, build_all, validate_built_assets
+
     app_source = (ROOT / "app.py").read_text(encoding="utf-8")
+    build_source = (ROOT / "served_assets.py").read_text(encoding="utf-8")
     proxy_source = (ROOT / "public_proxy.py").read_text(encoding="utf-8")
 
-    assert "renderPokerRoom();refreshMe().catch(()=>{})" in app_source
-    assert '"renderPokerRoom()"' in app_source
-    assert "m.type==='chat'" in app_source
-    assert "renderTableChat()" in app_source
-    assert 'js = js.replace("showApp();await refreshAll()", "showApp()")' in app_source
-    assert app_source.count("@lru_cache(maxsize=1)") >= 4
-    assert "encoded = body.encode(\"utf-8\")" in app_source
-    assert "jj-arena-live-v68" in app_source
-    assert "/static/app.js?v=68" in app_source
+    build_all(BUILD_ROOT)
+    manifest = validate_built_assets(BUILD_ROOT)
+    js = (BUILD_ROOT / "static/app.js").read_text(encoding="utf-8")
+    worker = (BUILD_ROOT / "static/sw.js").read_text(encoding="utf-8")
+
+    assert manifest["asset_version"] == ASSET_VERSION == 68
+    assert "ensure_runtime_assets()" in app_source
+    assert "_built_asset(\"static/app.js\")" in app_source
+    assert "transform_phase" not in app_source
+    assert "transform_app_js" not in app_source
+    assert "production never compiles them at runtime" in build_source
+    assert "renderPokerRoom();refreshMe().catch(()=>{})" in build_source
+    assert "m.type==='chat'" in js
+    assert "renderTableChat()" in js
+    assert "showApp();await refreshAll()" not in js
+    assert f"jj-arena-live-v{ASSET_VERSION}" in worker
+    assert f"/static/app.js?v={ASSET_VERSION}" in (BUILD_ROOT / "index.html").read_text(encoding="utf-8")
 
     assert "_HTTP_CLIENT = httpx.AsyncClient(" in proxy_source
     assert "response = await _HTTP_CLIENT.request(" in proxy_source
