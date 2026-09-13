@@ -86,6 +86,9 @@ jobs:
       - name: Run player UX audit source regression
         run: python smoke_test_player_ux_audit.py
 
+      - name: Verify lossless production asset transfer
+        run: python smoke_test_asset_encoding.py
+
       - name: Run player UX phase 2 lifecycle regression
         run: python smoke_test_player_ux_phase2.py
 
