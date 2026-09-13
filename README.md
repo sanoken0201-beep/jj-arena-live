@@ -26,6 +26,15 @@ python -m uvicorn app:app --host 0.0.0.0 --port $PORT
 
 旧 `release_v14` + patch chainによるruntime再構築はproduction startupでは使用しません。旧経路は **`app_legacy.py`** と `runtime_builder.py` に残してあり、parity検証と緊急rollbackの基準として利用します。
 
+### Browser asset build
+
+`materialized_v1244/static` もimmutableな入力です。プレイヤーUXの各transformは `served_assets.py` に集約され、Render build中に `build_served_assets.py` が完成版を `.jj_build/` へ生成します。manifestにはcanonical sourceと生成物のSHA-256を保存し、production startupでは検証済み生成物を読むだけです。
+
+- production runtimeでUX transform chainを実行しない
+- productionで `.jj_build/` が欠けている場合はfail closedする
+- local/test環境だけは互換性のため不足時に生成可能
+- `.jj_build/` はgenerated artifactでありGit管理しない
+
 ### Core変更の原則
 
 1. `materialized_v1244/` はcanonical coreとして原則変更しない。
@@ -100,8 +109,11 @@ Pythonは `.python-version` で本番と同じバージョンへ固定します�
 
 ```bash
 python -m pip install -r requirements.txt
+python build_served_assets.py
 python smoke_test_v190.py
 ```
+
+`smoke_test_v190.py` 自体もserved asset buildを実行するため、Renderの既存build commandとの互換性があります。
 
 本番相当の起動確認は次です。
 
@@ -116,6 +128,8 @@ SQLiteを使う開発モードと、`DATABASE_URL` があるPostgreSQLモード�
 GitHub Actionsはpushとpull requestで、主に次を検証します。
 
 - Python syntax compile
+- deterministic served asset build / manifest integrity
+- final served JavaScript syntax
 - materialized core reproducibility / parity
 - production entrypoint startup
 - PostgreSQL 18 integration
@@ -136,6 +150,7 @@ GitHub Actionsはpushとpull requestで、主に次を検証します。
 
 - Region: Singapore
 - Web compute: 0.5 CPU / 512MB
+- Build compatibility entrypoint: `smoke_test_v190.py`（served assetsも生成）
 - Start: `python -m uvicorn app:app ...`
 - Health check: `/api/health`
 
