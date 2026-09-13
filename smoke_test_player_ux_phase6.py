@@ -55,7 +55,12 @@ def main() -> None:
     materialized = (ROOT / "app_materialized.py").read_text(encoding="utf-8")
     assert "import ux_telemetry" in materialized
     assert "ux_telemetry.install(app, runtime_server, db)" in materialized
-    assert '"/api/ux-telemetry"' in materialized
+    assert "_CORE_ROUTE_IDS" in materialized
+    assert "_prioritize_extension_routes" in materialized
+    route_paths = [str(getattr(route, "path", "") or "") for route in app.app.router.routes]
+    telemetry_index = route_paths.index("/api/ux-telemetry")
+    spa_index = route_paths.index("/{path:path}")
+    assert telemetry_index < spa_index, "telemetry endpoint is shadowed by SPA catch-all"
     assert "runtime_performance.install(db, runtime_server, runtime_poker_engine)" in materialized
 
     admin_patch = (ROOT / "admin_copy_patch.py").read_text(encoding="utf-8")
