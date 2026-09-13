@@ -26,6 +26,7 @@ import daily_quiz
 import online_results_cleanup
 import operations_learning
 import operations_learning_hardening
+import ranking_mapping_guard
 import resilience
 import runtime_performance
 import security_hardening
@@ -111,6 +112,7 @@ def _prioritize_extension_routes(fastapi_app, core_route_ids=frozenset()) -> Non
 admin_console.install_admin_console(app)
 admin_ledger_stabilization.install(app, admin_console)
 install_account_deletion(app)
+ranking_mapping_guard.install(app, db)
 # Keep the historical URL installed as a disabled compatibility endpoint. It no
 # longer verifies user PIN candidates; see admin_pin_verification.py.
 admin_pin_verification.install(app, admin_console)

@@ -10,6 +10,7 @@ from typing import Any
 from fastapi import Body, Depends, HTTPException, Request
 
 KEEP_PER_TABLE = 40
+ERROR_RETENTION_DAYS = 90
 
 
 def _now() -> str:
@@ -28,6 +29,16 @@ def _ensure_schema(db) -> None:
             state_json TEXT NOT NULL,state_sha256 TEXT NOT NULL,created_by {uid} REFERENCES users(id),created_at TEXT NOT NULL)""")
         con.execute("CREATE INDEX IF NOT EXISTS idx_table_backup_table ON table_state_backups(table_id,created_at)")
         con.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_table_backup_hash ON table_state_backups(table_id,state_sha256)")
+
+
+def prune_error_log(db, now: datetime | None = None) -> None:
+    """Keep operational exceptions useful without allowing unbounded DB growth."""
+    current = now or datetime.now(timezone.utc)
+    if current.tzinfo is None:
+        current = current.replace(tzinfo=timezone.utc)
+    cutoff = (current.astimezone(timezone.utc) - timedelta(days=ERROR_RETENTION_DAYS)).isoformat()
+    with db.connect() as con:
+        con.execute("DELETE FROM ops_error_log WHERE created_at<?", (cutoff,))
 
 
 def record_error(db, event_type: str, detail: str, method: str = "", path: str = "") -> None:
@@ -94,6 +105,7 @@ def install(app, server, db, admin_console) -> None:
         return
     app.state.jj_resilience_installed = True
     _ensure_schema(db)
+    prune_error_log(db)
     restore_invalid_tables(db)
 
     old_save = server.save_table
@@ -126,7 +138,7 @@ def install(app, server, db, admin_console) -> None:
             per_table = [dict(r) for r in con.execute("SELECT table_id,COUNT(*) copies,MAX(created_at) latest FROM table_state_backups GROUP BY table_id ORDER BY table_id").fetchall()]
         return {"errors_24h": int(count["c"] or 0), "recent_errors": errors,
                 "backups": int(backups["c"] or 0), "backups_by_table": per_table,
-                "keep_per_table": KEEP_PER_TABLE}
+                "keep_per_table": KEEP_PER_TABLE, "error_retention_days": ERROR_RETENTION_DAYS}
 
     @app.get("/api/admin/console/table-backups", include_in_schema=False)
     def table_backups(table_id: str | None = None, user=Depends(server.admin_user)):

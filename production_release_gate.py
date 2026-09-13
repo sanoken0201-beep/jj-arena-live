@@ -26,6 +26,7 @@ RELEASE_TESTS = (
     "smoke_test_prebuilt_assets.py",
     "smoke_test_runtime_performance.py",
     "smoke_test_v1244.py",
+    "smoke_test_resilience_retention.py",
     "smoke_test_production_entrypoint_isolated.py",
     "smoke_test_v2_production_cutover.py",
     "audit_ui_labels.py",
