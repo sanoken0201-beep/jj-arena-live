@@ -65,9 +65,9 @@ _require_materialized_module(runtime_server, "server")
 _require_materialized_module(db, "db")
 _require_materialized_module(runtime_poker_engine, "poker_engine")
 
-# Snapshot canonical-core routes before root-level extensions add anything. The
-# identities let us distinguish later integration routes without a fragile URL
-# prefix allowlist while preserving every canonical route's relative order.
+# Snapshot canonical-core route identities before root-level integrations add
+# anything. This is retained for diagnostics and parity assertions; route repair
+# itself is structural and does not depend on URL-prefix classifications.
 _CORE_ROUTE_IDS = frozenset(id(route) for route in app.router.routes)
 
 # Install runtime-only performance improvements after the verified materialized
@@ -80,32 +80,29 @@ online_results_cleanup.apply(db)
 
 
 def _prioritize_extension_routes(fastapi_app, core_route_ids=frozenset()) -> None:
-    """Place routes appended after the core SPA catch-all immediately before it.
+    """Make the canonical SPA catch-all the final route without prefix lists.
 
-    The canonical core already has deliberate route ordering, including the
-    admin-console replacement for `/api/rankings`. We therefore do not globally
-    reorder core and extension routes. We only repair the one structural hazard:
-    root-level integrations registered after the core's `/{path:path}` GET
-    catch-all. New extension endpoints are protected automatically without any
-    URL-prefix maintenance, while all pre-existing route precedence is retained.
+    FastAPI evaluates routes in registration order. Any HTTP/API route registered
+    after `/{path:path}` is therefore unreachable unless it is moved ahead of the
+    SPA fallback. The materialized v1.24.4 source itself contains late analysis
+    routes, and root-level integrations append more routes later. Move *all*
+    trailing routes, in their existing relative order, immediately before the
+    one canonical catch-all. Routes already before the catch-all are untouched.
+
+    ``core_route_ids`` remains an explicit contract argument for diagnostics and
+    callers, but routing does not classify by origin or URL prefix.
     """
     routes = list(fastapi_app.router.routes)
-    core_ids = frozenset(core_route_ids)
     catch_all = [
-        route
-        for route in routes
-        if id(route) in core_ids and str(getattr(route, "path", "") or "") == "/{path:path}"
+        route for route in routes
+        if str(getattr(route, "path", "") or "") == "/{path:path}"
     ]
     if len(catch_all) != 1:
-        raise RuntimeError(f"expected exactly one canonical SPA catch-all, found={len(catch_all)}")
+        raise RuntimeError(f"expected exactly one SPA catch-all, found={len(catch_all)}")
 
     spa_route = catch_all[0]
     spa_index = routes.index(spa_route)
     trailing = routes[spa_index + 1 :]
-    trailing_core = [route for route in trailing if id(route) in core_ids]
-    if trailing_core:
-        raise RuntimeError("canonical routes unexpectedly exist after the SPA catch-all")
-
     if not trailing:
         return
     fastapi_app.router.routes[:] = routes[:spa_index] + trailing + [spa_route]
