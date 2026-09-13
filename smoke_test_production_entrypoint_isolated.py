@@ -26,21 +26,13 @@ def main() -> None:
     assert any(path in {"/admin", "/admin/"} for path in paths)
     assert any(row["kind"] == "websocket" for row in routes), "WebSocket route missing after production startup"
 
-    catch_all_index = next(
-        (i for i, path in enumerate(paths) if "path:path" in path or path == "/{path}"),
-        None,
+    catch_all_indexes = [i for i, path in enumerate(paths) if path == "/{path:path}"]
+    assert len(catch_all_indexes) == 1, f"expected exactly one SPA catch-all, got {catch_all_indexes}"
+    catch_all_index = catch_all_indexes[0]
+    assert catch_all_index == len(routes) - 1, (
+        "SPA catch-all must be the final production route so future extension "
+        f"endpoints cannot be shadowed: index={catch_all_index} routes={len(routes)}"
     )
-    if catch_all_index is not None:
-        for i, path in enumerate(paths):
-            if (
-                path in {"/admin", "/admin/", "/api/learning-content"}
-                or path.startswith("/admin-static")
-                or path.startswith("/api/admin/console")
-                or path.startswith("/api/analysis")
-                or path.startswith("/api/quiz/")
-                or path.startswith("/api/home/")
-            ):
-                assert i < catch_all_index, f"extension route shadowed by SPA catch-all: {path}"
 
     tables = set(payload["sqlite"]["columns"])
     missing_tables = sorted(REQUIRED_TABLES - tables)
