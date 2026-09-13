@@ -24,6 +24,7 @@ def main() -> None:
 
         expected = {
             "smoke_test_prebuilt_assets.py",
+            "smoke_test_pwa_update.py",
             "smoke_test_runtime_performance.py",
             "smoke_test_v1244.py",
             "smoke_test_resilience_retention.py",
