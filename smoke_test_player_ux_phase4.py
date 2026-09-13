@@ -1,12 +1,12 @@
 from __future__ import annotations
 
-import re
 from pathlib import Path
 
 from player_ux_asset_transform import transform_app_js as phase1_js
 from player_ux_phase2 import transform_app_js as phase2_js, transform_styles as phase2_css
 from player_ux_phase3 import transform_app_js as phase3_js, transform_styles as phase3_css
 from player_ux_phase4 import PHASE4_MARKER, transform_app_js as phase4_js, transform_styles as phase4_css
+from served_assets import ASSET_VERSION, build_index, build_service_worker
 
 
 ROOT = Path(__file__).resolve().parent
@@ -45,15 +45,16 @@ def main() -> None:
     assert "#pokerRoom .jj-seat-box .stack{font-size:.76rem!important" in css4
     assert "body.jj-mobile-table-open #actionBar .jj-v124-decision-meta strong{font-size:.72rem!important}" in css4
 
-    app_source = (ROOT / "app.py").read_text(encoding="utf-8")
-    assert "transform_phase4_app_js(" in app_source
-    assert "transform_phase4_styles(" in app_source
-    js_versions = [int(v) for v in re.findall(r"/static/app\.js\?v=(\d+)", app_source)]
-    css_versions = [int(v) for v in re.findall(r"/static/styles\.css\?v=(\d+)", app_source)]
-    cache_versions = [int(v) for v in re.findall(r"jj-arena-live-v(\d+)", app_source)]
-    assert js_versions and max(js_versions) >= 61
-    assert css_versions and max(css_versions) >= 61
-    assert cache_versions and max(cache_versions) >= 61
+    # Production wiring is now a build-time compiler contract, not runtime app.py code.
+    compiler = (ROOT / "served_assets.py").read_text(encoding="utf-8")
+    assert "transform_phase4_app_js(" in compiler
+    assert "transform_phase4_styles(" in compiler
+    assert ASSET_VERSION >= 61
+    index = build_index()
+    worker = build_service_worker()
+    assert f"/static/app.js?v={ASSET_VERSION}" in index
+    assert f"/static/styles.css?v={ASSET_VERSION}" in index
+    assert f"jj-arena-live-v{ASSET_VERSION}" in worker
 
     print("JJ_PLAYER_UX_PHASE4_OK")
 

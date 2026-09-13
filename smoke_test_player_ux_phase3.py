@@ -1,11 +1,11 @@
 from __future__ import annotations
 
-import re
 from pathlib import Path
 
 from player_ux_asset_transform import transform_app_js as phase1
 from player_ux_phase2 import transform_app_js as phase2
 from player_ux_phase3 import PHASE3_MARKER, transform_app_js as phase3, transform_styles
+from served_assets import ASSET_VERSION, build_index, build_service_worker
 
 
 ROOT = Path(__file__).resolve().parent
@@ -58,15 +58,16 @@ def main() -> None:
     assert "bookmarked:true,note:String(review.note||''),tags:Array.isArray(review.tags)?review.tags:[]" in patched
     assert "/analysis/hands/${encodeURIComponent(handId)}/review" in patched
 
-    entry = (ROOT / "app.py").read_text(encoding="utf-8")
-    assert "transform_phase3_app_js(" in entry
-    assert "transform_phase3_styles(" in entry
-    js_versions = [int(v) for v in re.findall(r"/static/app\.js\?v=(\d+)", entry)]
-    css_versions = [int(v) for v in re.findall(r"/static/styles\.css\?v=(\d+)", entry)]
-    cache_versions = [int(v) for v in re.findall(r"jj-arena-live-v(\d+)", entry)]
-    assert js_versions and max(js_versions) >= 60
-    assert css_versions and max(css_versions) >= 60
-    assert cache_versions and max(cache_versions) >= 60
+    # Production wiring moved from app.py into the deterministic build compiler.
+    compiler = (ROOT / "served_assets.py").read_text(encoding="utf-8")
+    assert "transform_phase3_app_js(" in compiler
+    assert "transform_phase3_styles(" in compiler
+    assert ASSET_VERSION >= 60
+    index = build_index()
+    worker = build_service_worker()
+    assert f"/static/app.js?v={ASSET_VERSION}" in index
+    assert f"/static/styles.css?v={ASSET_VERSION}" in index
+    assert f"jj-arena-live-v{ASSET_VERSION}" in worker
 
     print("JJ_PLAYER_UX_PHASE3_SMOKE_OK")
 

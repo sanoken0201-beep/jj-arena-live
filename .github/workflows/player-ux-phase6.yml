@@ -31,17 +31,15 @@ jobs:
           python -m pip install -r requirements.txt
           python -m pip install httpx==0.28.1
 
+      - name: Build final served browser assets
+        run: python build_served_assets.py
+
       - name: Compile telemetry files
         run: python -m py_compile ux_telemetry.py player_ux_phase6.py smoke_test_ux_telemetry.py smoke_test_player_ux_phase6.py
 
       - name: Check final production JavaScript syntax
         run: |
-          python - <<'PY'
-          import app
-          from pathlib import Path
-          Path('/tmp/jj-player-ux-phase6.js').write_text(app._patched_app_js(), encoding='utf-8')
-          PY
-          node --check /tmp/jj-player-ux-phase6.js
+          node --check .jj_build/static/app.js
           node --check admin_static/ux_telemetry.js
 
       - name: Run privacy and aggregation regression

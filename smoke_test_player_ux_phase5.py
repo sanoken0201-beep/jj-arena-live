@@ -7,6 +7,7 @@ from player_ux_phase2 import transform_app_js as phase2_js, transform_styles as 
 from player_ux_phase3 import transform_app_js as phase3_js, transform_styles as phase3_css
 from player_ux_phase4 import transform_app_js as phase4_js, transform_styles as phase4_css
 from player_ux_phase5 import PHASE5_MARKER, transform_app_js as phase5_js, transform_styles as phase5_css
+from served_assets import ASSET_VERSION, build_index, build_service_worker
 
 
 ROOT = Path(__file__).resolve().parent
@@ -69,14 +70,17 @@ def main() -> None:
     assert "#resultBanner.jj-v5-result-compact" in css5
     assert ".jj-settlement-actions" in css5 and ".jj-settlement-note" in css5
 
-    # Phase 4B behavior must remain present even when later asset phases advance the cache namespace.
-    app_source = (ROOT / "app.py").read_text(encoding="utf-8")
-    assert "transform_phase5_app_js(transform_phase4_app_js(transform_phase3_app_js(transform_phase2_app_js(transform_app_js(js)))))" in app_source
-    assert "transform_phase5_styles(transform_phase4_styles(transform_phase3_styles(transform_phase2_styles(css))))" in app_source
-    assert "/static/styles.css?v=68" in app_source
-    assert "/static/app.js?v=68" in app_source
-    assert "jj-arena-live-v68" in app_source
-    assert '"PHASE5_MARKER"' in app_source
+    # Phase 4B remains wired into the deterministic build compiler.
+    compiler = (ROOT / "served_assets.py").read_text(encoding="utf-8")
+    assert "transform_phase5_app_js(" in compiler
+    assert "transform_phase5_styles(" in compiler
+    assert '"PHASE5_MARKER"' in compiler
+    assert ASSET_VERSION >= 62
+    index = build_index()
+    worker = build_service_worker()
+    assert f"/static/app.js?v={ASSET_VERSION}" in index
+    assert f"/static/styles.css?v={ASSET_VERSION}" in index
+    assert f"jj-arena-live-v{ASSET_VERSION}" in worker
 
     print("JJ_PLAYER_UX_PHASE5_OK")
 

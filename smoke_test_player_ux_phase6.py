@@ -5,6 +5,7 @@ from pathlib import Path
 import app
 
 from player_ux_phase6 import PHASE6_MARKER
+from served_assets import ASSET_VERSION, build_index, build_service_worker
 
 
 ROOT = Path(__file__).resolve().parent
@@ -35,16 +36,21 @@ def main() -> None:
     assert "jjV6Emit('ui','settings')" in js
     assert "jjV6Emit('ui',side.dataset.jjMobileSide==='log'?'history':'chat')" in js
 
-    # v67 performance behavior remains in the final client before telemetry.
+    # v67 performance behavior remains in the final compiled client before telemetry.
     assert "m.type==='chat'" in js and "renderTableChat()" in js
     assert "refreshMe().catch(()=>{})" not in js[js.index("tableWS.onmessage=e=>"):js.index("tableWS.onclose=", js.index("tableWS.onmessage=e=>"))]
 
+    compiler = (ROOT / "served_assets.py").read_text(encoding="utf-8")
     app_source = (ROOT / "app.py").read_text(encoding="utf-8")
-    assert "return transform_phase6_app_js(js)" in app_source
-    assert "/static/app.js?v=68" in app_source
-    assert "/static/styles.css?v=68" in app_source
-    assert "jj-arena-live-v68" in app_source
+    assert "return transform_phase6_app_js(js)" in compiler
     assert "encoded_asset(body)" in app_source, "v67 lossless asset transfer must be preserved"
+    assert "transform_phase6_app_js" not in app_source, "production runtime must not run phase 6 transform"
+    assert ASSET_VERSION == 68
+    index = build_index()
+    worker = build_service_worker()
+    assert f"/static/app.js?v={ASSET_VERSION}" in index
+    assert f"/static/styles.css?v={ASSET_VERSION}" in index
+    assert f"jj-arena-live-v{ASSET_VERSION}" in worker
 
     materialized = (ROOT / "app_materialized.py").read_text(encoding="utf-8")
     assert "import ux_telemetry" in materialized

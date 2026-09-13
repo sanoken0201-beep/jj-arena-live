@@ -31,10 +31,13 @@ jobs:
           python -m pip install -r requirements.txt
           python -m pip install httpx==0.28.1
 
+      - name: Build final served browser assets
+        run: python build_served_assets.py
+
       - name: Compile phase 3 files
         run: python -m py_compile player_ux_phase3.py smoke_test_player_ux_phase3.py smoke_test_player_ux_phase3_layout.py
 
-      - name: Check final served JavaScript syntax
+      - name: Check phase 3 and final served JavaScript syntax
         run: |
           python - <<'PY'
           from pathlib import Path
@@ -45,6 +48,7 @@ jobs:
           Path('/tmp/jj-player-ux-phase3.js').write_text(phase3(phase2(phase1(source))), encoding='utf-8')
           PY
           node --check /tmp/jj-player-ux-phase3.js
+          node --check .jj_build/static/app.js
 
       - name: Run phase 3 source regression
         run: python smoke_test_player_ux_phase3.py

@@ -3,6 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from player_ux_asset_transform import PLAYER_UX_MARKER, transform_app_js
+from served_assets import ASSET_VERSION, build_index, build_service_worker
 
 
 ROOT = Path(__file__).resolve().parent
@@ -63,14 +64,19 @@ def main() -> None:
     assert 'id="jjJoinTableBtn">150bbで着席</button>' in tail
     assert "'● 対戦中':'参加受付中'" in tail
 
-    # Cache ownership belongs to the production integration shim. Later audit
-    # phases may bump the version while preserving every Phase 1 behavior.
+    # Cache/version/copy ownership is now split between the deterministic build
+    # compiler and the production serving shim. Later phases may advance the
+    # asset version while preserving every Phase 1 behavior.
+    compiler = (ROOT / "served_assets.py").read_text(encoding="utf-8")
     entry = (ROOT / "app.py").read_text(encoding="utf-8")
-    assert "'/static/app.js?v=" in entry
-    assert "jj-arena-live-v" in entry
+    assert "transform_app_js(js)" in compiler
     assert 'path == "/static/app.js"' in entry
-    assert "transform_app_js(js)" in entry
-    assert ">チャット<" in entry and ">ハンド履歴<" in entry and "← ロビー" in entry
+    assert "_built_asset(\"static/app.js\")" in entry
+    index = build_index()
+    worker = build_service_worker()
+    assert f"/static/app.js?v={ASSET_VERSION}" in index
+    assert f"jj-arena-live-v{ASSET_VERSION}" in worker
+    assert ">チャット<" in index and ">ハンド履歴<" in index and "← ロビー" in index
 
     print("JJ_PLAYER_UX_AUDIT_SMOKE_OK")
 
