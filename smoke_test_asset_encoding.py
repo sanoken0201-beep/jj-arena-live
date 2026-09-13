@@ -33,9 +33,19 @@ def main():
                 assert plain.headers["vary"] == zipped.headers["vary"] == "Accept-Encoding"
                 assert plain.headers["cache-control"] == zipped.headers["cache-control"]
                 assert plain.headers["content-type"] == zipped.headers["content-type"]
-                original, compressed = encoded_asset(source)
+                original, compressed, etag = encoded_asset(source)
                 assert gzip.decompress(compressed) == original == expected
                 assert int(zipped.headers["content-length"]) == len(compressed)
+                assert plain.headers["etag"] == zipped.headers["etag"] == etag
+                for validator in (etag, etag.removeprefix("W/"), '"old", ' + etag, "*"):
+                    for method in (client.get, client.head):
+                        cached = method(path, headers={"If-None-Match": validator, "Accept-Encoding": "gzip"})
+                        assert cached.status_code == 304 and cached.content == b""
+                        assert cached.headers["etag"] == etag
+                        assert cached.headers["vary"] == "Accept-Encoding"
+                        assert "content-length" not in cached.headers
+                changed = client.get(path, headers={"If-None-Match": 'W/"old"'})
+                assert changed.status_code == 200 and changed.content == expected
                 for offer, length in (("gzip", len(compressed)), ("identity", len(expected)), ("gzip;q=0", len(expected))):
                     head = client.head(path, headers={"Accept-Encoding": offer})
                     assert head.status_code == 200 and head.content == b""

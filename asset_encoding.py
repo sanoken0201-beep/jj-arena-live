@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import gzip
+import hashlib
 from functools import lru_cache
 
 
@@ -24,7 +25,14 @@ def accepts_gzip(value: str) -> bool:
 
 
 @lru_cache(maxsize=4)
-def encoded_asset(body: str) -> tuple[bytes, bytes]:
+def encoded_asset(body: str) -> tuple[bytes, bytes, str]:
     """Encode/compress once per asset, never once per visitor or poker action."""
     plain = body.encode("utf-8")
-    return plain, gzip.compress(plain, compresslevel=6, mtime=0)
+    # Weak validator identifies decoded content across both wire encodings.
+    etag = 'W/"' + hashlib.sha256(plain).hexdigest() + '"'
+    return plain, gzip.compress(plain, compresslevel=9, mtime=0), etag
+
+
+def matches_etag(value: str, etag: str) -> bool:
+    return any(tag.strip() == "*" or tag.strip().removeprefix("W/") == etag.removeprefix("W/")
+               for tag in value.split(","))
