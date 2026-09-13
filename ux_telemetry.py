@@ -14,7 +14,7 @@ from math import ceil
 from typing import Literal
 
 from fastapi import Depends
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 RETENTION_DAYS = 30
 MAX_BATCH = 30
@@ -31,6 +31,8 @@ EVENT_DETAILS: dict[str, set[str]] = {
 
 
 class TelemetryEvent(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     event: Literal["decision", "timeout", "fallback", "reconnect", "sizing", "preaction", "ui"]
     detail: str = Field(min_length=1, max_length=24)
     device: Literal["mobile", "tablet", "desktop"]
@@ -48,6 +50,7 @@ class TelemetryEvent(BaseModel):
 
 
 class TelemetryBatch(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     events: list[TelemetryEvent] = Field(min_length=1, max_length=MAX_BATCH)
 
 
