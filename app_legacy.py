@@ -22,6 +22,7 @@ import daily_quiz
 import online_results_cleanup
 import operations_learning
 import operations_learning_hardening
+import point_ledger_precision
 import ranking_mapping_guard
 import resilience
 import security_hardening
@@ -70,6 +71,7 @@ def _prioritize_extension_routes(fastapi_app) -> None:
 
 
 admin_console.install_admin_console(app)
+point_ledger_precision.ensure_exact_point_ledger(db)
 admin_ledger_stabilization.install(app, admin_console)
 install_account_deletion(app)
 ranking_mapping_guard.install(app, db)
