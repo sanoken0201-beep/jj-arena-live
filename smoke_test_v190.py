@@ -1,19 +1,16 @@
 from __future__ import annotations
 
-"""Compatibility entrypoint used by the Render production build command.
+"""Stable compatibility entrypoint for the Render production build command.
 
-Render keeps invoking smoke_test_v190.py. Compile the immutable-core-derived
-browser assets first, then run the release and runtime-performance gates. The
-resulting `.jj_build/` directory is part of the build artifact consumed by
-`app.py`; production startup itself never runs the UX transform chain.
+Render continues invoking ``smoke_test_v190.py``. The actual release contract
+now lives in ``production_release_gate.py`` and is shared with GitHub CI. That
+gate prebuilds the final browser assets and runs only isolated SQLite checks so
+the Render build environment's production ``DATABASE_URL`` is never used by
+release validation.
 """
 
-from build_served_assets import main as build_assets_main
-from smoke_test_runtime_performance import main as performance_main
-from smoke_test_v1244 import main as release_main
+from production_release_gate import main
 
 
 if __name__ == "__main__":
-    build_assets_main()
-    performance_main()
-    release_main()
+    main()
