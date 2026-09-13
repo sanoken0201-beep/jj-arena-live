@@ -66,9 +66,8 @@ _require_materialized_module(db, "db")
 _require_materialized_module(runtime_poker_engine, "poker_engine")
 
 # Snapshot canonical-core routes before root-level extensions add anything. The
-# object identities are stable for the lifetime of this FastAPI instance and
-# let us preserve the proven "extensions before core" routing contract without
-# maintaining a fragile list of URL prefixes.
+# identities let us distinguish later integration routes without a fragile URL
+# prefix allowlist while preserving every canonical route's relative order.
 _CORE_ROUTE_IDS = frozenset(id(route) for route in app.router.routes)
 
 # Install runtime-only performance improvements after the verified materialized
@@ -81,24 +80,35 @@ online_results_cleanup.apply(db)
 
 
 def _prioritize_extension_routes(fastapi_app, core_route_ids=frozenset()) -> None:
-    """Keep every root-level extension route ahead of canonical core routes.
+    """Place routes appended after the core SPA catch-all immediately before it.
 
-    Earlier releases classified extensions by URL prefixes. That was unsafe:
-    adding a new extension endpoint could be silently shadowed by the core SPA
-    catch-all until its prefix was manually added to the list. Route identity
-    gives the same effective ordering while automatically covering every future
-    root-level extension route.
+    The canonical core already has deliberate route ordering, including the
+    admin-console replacement for `/api/rankings`. We therefore do not globally
+    reorder core and extension routes. We only repair the one structural hazard:
+    root-level integrations registered after the core's `/{path:path}` GET
+    catch-all. New extension endpoints are protected automatically without any
+    URL-prefix maintenance, while all pre-existing route precedence is retained.
     """
     routes = list(fastapi_app.router.routes)
     core_ids = frozenset(core_route_ids)
-    core_routes = [route for route in routes if id(route) in core_ids]
-    extension_routes = [route for route in routes if id(route) not in core_ids]
-    if len(core_routes) != len(core_ids):
-        raise RuntimeError(
-            "canonical route set changed while installing extensions: "
-            f"expected={len(core_ids)} found={len(core_routes)}"
-        )
-    fastapi_app.router.routes[:] = extension_routes + core_routes
+    catch_all = [
+        route
+        for route in routes
+        if id(route) in core_ids and str(getattr(route, "path", "") or "") == "/{path:path}"
+    ]
+    if len(catch_all) != 1:
+        raise RuntimeError(f"expected exactly one canonical SPA catch-all, found={len(catch_all)}")
+
+    spa_route = catch_all[0]
+    spa_index = routes.index(spa_route)
+    trailing = routes[spa_index + 1 :]
+    trailing_core = [route for route in trailing if id(route) in core_ids]
+    if trailing_core:
+        raise RuntimeError("canonical routes unexpectedly exist after the SPA catch-all")
+
+    if not trailing:
+        return
+    fastapi_app.router.routes[:] = routes[:spa_index] + trailing + [spa_route]
 
 
 admin_console.install_admin_console(app)
