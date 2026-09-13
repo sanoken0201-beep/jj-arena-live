@@ -17,6 +17,7 @@ from fastapi import Depends, HTTPException
 from pydantic import BaseModel
 from starlette.requests import Request
 from starlette.responses import Response
+from asset_encoding import accepts_gzip, encoded_asset, matches_etag
 
 import app_materialized as _materialized
 from app_materialized import app, db, runtime_poker_engine, runtime_server
@@ -242,7 +243,19 @@ async def _v2_asset_hotfix(request: Request, call_next):
             headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
             headers["Service-Worker-Allowed"] = "/"
         if body is not None:
-            encoded = body.encode("utf-8")
+            if path in {"/static/app.js", "/static/styles.css"}:
+                plain, compressed, etag = encoded_asset(body)
+                headers["Vary"] = "Accept-Encoding"
+                headers["ETag"] = etag
+                if matches_etag(request.headers.get("if-none-match", ""), etag):
+                    return Response(status_code=304, headers=headers)
+                if accepts_gzip(request.headers.get("accept-encoding", "")) and len(compressed) < len(plain):
+                    encoded = compressed
+                    headers["Content-Encoding"] = "gzip"
+                else:
+                    encoded = plain
+            else:
+                encoded = body.encode("utf-8")
             content = b"" if request.method == "HEAD" else encoded
             headers["Content-Length"] = str(len(encoded))
             return Response(content=content, media_type=media_type, headers=headers)
