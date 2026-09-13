@@ -189,13 +189,6 @@ async def _exercise_timeout_scheduler() -> None:
     FakeServer.state = {
         "status": "playing",
         "session_active": True,
-        "next_hand_at_epoch"] if False else None,
-    }
-    # Keep the literal state construction explicit below; the branch above is
-    # intentionally unreachable and prevents no runtime behavior.
-    FakeServer.state = {
-        "status": "playing",
-        "session_active": True,
         "next_hand_at_epoch": None,
         "seats": [
             {"user_id": 1, "seat": 0, "name": "A", "stack": 100, "sitting_out": False, "ready": True},
