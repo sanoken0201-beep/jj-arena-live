@@ -65,6 +65,11 @@ _require_materialized_module(runtime_server, "server")
 _require_materialized_module(db, "db")
 _require_materialized_module(runtime_poker_engine, "poker_engine")
 
+# Snapshot canonical-core route identities before root-level integrations add
+# anything. This is retained for diagnostics and parity assertions; route repair
+# itself is structural and does not depend on URL-prefix classifications.
+_CORE_ROUTE_IDS = frozenset(id(route) for route in app.router.routes)
+
 # Install runtime-only performance improvements after the verified materialized
 # modules resolve, without mutating the canonical v1.24.4 source tree or game rules.
 runtime_performance.install(db, runtime_server, runtime_poker_engine)
@@ -74,25 +79,33 @@ runtime_performance.install(db, runtime_server, runtime_poker_engine)
 online_results_cleanup.apply(db)
 
 
-def _prioritize_extension_routes(fastapi_app) -> None:
-    """Move extension/API routes ahead of the materialized SPA catch-all."""
+def _prioritize_extension_routes(fastapi_app, core_route_ids=frozenset()) -> None:
+    """Make the canonical SPA catch-all the final route without prefix lists.
+
+    FastAPI evaluates routes in registration order. Any HTTP/API route registered
+    after `/{path:path}` is therefore unreachable unless it is moved ahead of the
+    SPA fallback. The materialized v1.24.4 source itself contains late analysis
+    routes, and root-level integrations append more routes later. Move *all*
+    trailing routes, in their existing relative order, immediately before the
+    one canonical catch-all. Routes already before the catch-all are untouched.
+
+    ``core_route_ids`` remains an explicit contract argument for diagnostics and
+    callers, but routing does not classify by origin or URL prefix.
+    """
     routes = list(fastapi_app.router.routes)
+    catch_all = [
+        route for route in routes
+        if str(getattr(route, "path", "") or "") == "/{path:path}"
+    ]
+    if len(catch_all) != 1:
+        raise RuntimeError(f"expected exactly one SPA catch-all, found={len(catch_all)}")
 
-    def is_extension_route(route) -> bool:
-        path = str(getattr(route, "path", "") or "")
-        return (
-            path in {"/admin", "/admin/", "/api/learning-content"}
-            or path.startswith("/admin-static")
-            or path.startswith("/api/admin/console")
-            or path.startswith("/api/analysis")
-            or path.startswith("/api/quiz/")
-            or path.startswith("/api/home/")
-            or path == "/api/ux-telemetry"
-        )
-
-    extension_routes = [route for route in routes if is_extension_route(route)]
-    other_routes = [route for route in routes if not is_extension_route(route)]
-    fastapi_app.router.routes[:] = extension_routes + other_routes
+    spa_route = catch_all[0]
+    spa_index = routes.index(spa_route)
+    trailing = routes[spa_index + 1 :]
+    if not trailing:
+        return
+    fastapi_app.router.routes[:] = routes[:spa_index] + trailing + [spa_route]
 
 
 admin_console.install_admin_console(app)
@@ -111,4 +124,4 @@ operations_learning.install(app, runtime_server, db, hand_analytics, daily_quiz,
 operations_learning_hardening.apply(operations_learning, db, hand_analytics)
 resilience.install(app, runtime_server, db, admin_console)
 ux_telemetry.install(app, runtime_server, db)
-_prioritize_extension_routes(app)
+_prioritize_extension_routes(app, _CORE_ROUTE_IDS)

@@ -127,9 +127,6 @@ def _action_timeout_seconds() -> int:
         return 45
 
 
-# These remain POST routes because the materialized SPA catch-all GET route is
-# registered before this integration shim. Route-structure cleanup is separate
-# from the asset build change so behavior remains identical here.
 @app.post("/api/poker-config")
 def _poker_config(user=Depends(runtime_server.current_user)):
     return {
@@ -160,6 +157,12 @@ async def _leave_after_hand(
         public = runtime_poker_engine.public_state(state, int(user["id"]))
     await runtime_server.hub.broadcast(table_id)
     return {"ok": True, "status": status, "state": public}
+
+
+# app.py may add integration routes after app_materialized finished installing its
+# extensions. Re-apply the identity-based ordering once so every non-core route,
+# including future GET endpoints, stays ahead of the canonical SPA catch-all.
+_materialized._prioritize_extension_routes(app, _materialized._CORE_ROUTE_IDS)
 
 
 __all__ = [

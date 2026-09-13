@@ -4,6 +4,7 @@ import json
 import subprocess
 import sys
 import tempfile
+from collections import defaultdict
 from pathlib import Path
 
 from runtime_builder import build_runtime
@@ -82,6 +83,32 @@ def _strip_phase4c_extensions(payload: dict) -> dict:
     return clone
 
 
+def _route_contract(rows: list[dict]) -> list[tuple[str, str, tuple[str, ...], str]]:
+    """Compare the complete route multiset independent of global registration order."""
+    return sorted(
+        (
+            str(row.get("kind") or ""),
+            str(row.get("path") or ""),
+            tuple(str(method) for method in (row.get("methods") or [])),
+            str(row.get("name") or ""),
+        )
+        for row in rows
+    )
+
+
+def _duplicate_route_precedence(rows: list[dict]) -> dict[tuple[str, str, tuple[str, ...]], list[str]]:
+    """Keep endpoint precedence strict where order can actually change dispatch."""
+    groups: dict[tuple[str, str, tuple[str, ...]], list[str]] = defaultdict(list)
+    for row in rows:
+        key = (
+            str(row.get("kind") or ""),
+            str(row.get("path") or ""),
+            tuple(str(method) for method in (row.get("methods") or [])),
+        )
+        groups[key].append(str(row.get("name") or ""))
+    return {key: names for key, names in groups.items() if len(names) > 1}
+
+
 def main() -> None:
     assert MATERIALIZED.is_dir(), "materialized_v1244 directory is missing"
     assert MANIFEST.is_file(), "materialized_v1244.manifest.json is missing"
@@ -101,7 +128,12 @@ def main() -> None:
         materialized = _run_contract("app_materialized", tmp / "materialized-contract.json")
 
     comparable = _strip_phase4c_extensions(materialized)
-    assert legacy["routes"] == comparable["routes"], "HTTP/WebSocket route contract mismatch outside audited Phase 4C extensions"
+    assert _route_contract(legacy["routes"]) == _route_contract(comparable["routes"]), (
+        "HTTP/WebSocket route contract mismatch outside audited Phase 4C extensions"
+    )
+    assert _duplicate_route_precedence(legacy["routes"]) == _duplicate_route_precedence(comparable["routes"]), (
+        "duplicate route dispatch precedence changed outside audited Phase 4C extensions"
+    )
     assert legacy["middleware"] == comparable["middleware"], "middleware ordering mismatch"
     assert legacy["sqlite"]["columns"] == comparable["sqlite"]["columns"], "SQLite table/column schema mismatch outside audited Phase 4C extensions"
     assert legacy["sqlite"]["objects"] == comparable["sqlite"]["objects"], "SQLite schema/index SQL mismatch outside audited Phase 4C extensions"
