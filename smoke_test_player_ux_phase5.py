@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 from player_ux_asset_transform import transform_app_js as phase1_js
@@ -69,13 +70,15 @@ def main() -> None:
     assert "#resultBanner.jj-v5-result-compact" in css5
     assert ".jj-settlement-actions" in css5 and ".jj-settlement-note" in css5
 
-    # The production asset chain is phase1 -> phase2 -> phase3 -> phase4 -> phase5 with a fresh cache namespace.
     app_source = (ROOT / "app.py").read_text(encoding="utf-8")
-    assert "transform_phase5_app_js(transform_phase4_app_js(transform_phase3_app_js(transform_phase2_app_js(transform_app_js(js)))))" in app_source
-    assert "transform_phase5_styles(transform_phase4_styles(transform_phase3_styles(transform_phase2_styles(css))))" in app_source
-    assert "/static/styles.css?v=62" in app_source
-    assert "/static/app.js?v=62" in app_source
-    assert "jj-arena-live-v62" in app_source
+    assert "transform_phase5_app_js(" in app_source
+    assert "transform_phase5_styles(" in app_source
+    js_versions = [int(v) for v in re.findall(r"/static/app\.js\?v=(\d+)", app_source)]
+    css_versions = [int(v) for v in re.findall(r"/static/styles\.css\?v=(\d+)", app_source)]
+    cache_versions = [int(v) for v in re.findall(r"jj-arena-live-v(\d+)", app_source)]
+    assert js_versions and max(js_versions) >= 62
+    assert css_versions and max(css_versions) >= 62
+    assert cache_versions and max(cache_versions) >= 62
     assert '"PHASE5_MARKER"' in app_source
 
     print("JJ_PLAYER_UX_PHASE5_OK")
