@@ -1,0 +1,55 @@
+name: JJ Arena Point Ledger Precision
+
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
+      - 'data/**'
+
+permissions:
+  contents: read
+
+jobs:
+  point-ledger-precision:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: jj_arena_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d jj_arena_ci"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version-file: .python-version
+          cache: pip
+
+      - name: Install production dependencies
+        run: python -m pip install -r requirements.txt
+
+      - name: Compile precision migration
+        run: python -m py_compile point_ledger_precision.py smoke_test_point_ledger_precision.py
+
+      - name: Verify Render-safe source contract
+        run: python smoke_test_point_ledger_precision.py
+
+      - name: Verify legacy REAL to NUMERIC migration on PostgreSQL 18
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/jj_arena_ci
+        run: python smoke_test_point_ledger_precision.py --postgres
