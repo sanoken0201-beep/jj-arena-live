@@ -35,6 +35,53 @@ def _migration_keys(payload: dict) -> list[str]:
     return sorted(str(row["key"]) for row in payload["sqlite"].get("migrations", []))
 
 
+def _strip_phase4c_extensions(payload: dict) -> dict:
+    """Remove only the explicitly audited post-materialization Phase 4C surface.
+
+    app_legacy remains the immutable v1.24.4 parity oracle. New root-level
+    production extensions are allowed only when this gate names their exact
+    routes/schema; everything else must still match legacy byte-for-contract.
+    """
+    clone = json.loads(json.dumps(payload))
+    allowed_routes = {
+        ("http", "/api/ux-telemetry", ("POST",)),
+        ("http", "/api/admin/console/ux-telemetry", ("GET",)),
+    }
+    present = {
+        (str(r.get("kind")), str(r.get("path")), tuple(r.get("methods") or []))
+        for r in clone["routes"]
+        if str(r.get("path")) in {"/api/ux-telemetry", "/api/admin/console/ux-telemetry"}
+    }
+    assert present == allowed_routes, f"unexpected Phase 4C route contract: {present}"
+    clone["routes"] = [
+        r for r in clone["routes"]
+        if str(r.get("path")) not in {"/api/ux-telemetry", "/api/admin/console/ux-telemetry"}
+    ]
+
+    columns = clone["sqlite"]["columns"]
+    assert set(columns.get("ux_telemetry_events", [{}])[0].keys()) >= {"cid", "name", "type", "notnull", "dflt_value", "pk"}
+    names = [str(row["name"]) for row in columns.get("ux_telemetry_events", [])]
+    assert names == ["id", "event_type", "detail", "device", "duration_ms", "created_at"], names
+    columns.pop("ux_telemetry_events", None)
+
+    allowed_objects = {
+        "ux_telemetry_events",
+        "idx_ux_telemetry_created",
+        "idx_ux_telemetry_event",
+    }
+    telemetry_objects = {
+        str(row.get("name"))
+        for row in clone["sqlite"]["objects"]
+        if str(row.get("tbl_name")) == "ux_telemetry_events"
+    }
+    assert telemetry_objects == allowed_objects, f"unexpected Phase 4C SQLite objects: {telemetry_objects}"
+    clone["sqlite"]["objects"] = [
+        row for row in clone["sqlite"]["objects"]
+        if str(row.get("tbl_name")) != "ux_telemetry_events"
+    ]
+    return clone
+
+
 def main() -> None:
     assert MATERIALIZED.is_dir(), "materialized_v1244 directory is missing"
     assert MANIFEST.is_file(), "materialized_v1244.manifest.json is missing"
@@ -53,10 +100,11 @@ def main() -> None:
         legacy = _run_contract("app_legacy", tmp / "legacy-contract.json")
         materialized = _run_contract("app_materialized", tmp / "materialized-contract.json")
 
-    assert legacy["routes"] == materialized["routes"], "HTTP/WebSocket route contract mismatch"
-    assert legacy["middleware"] == materialized["middleware"], "middleware ordering mismatch"
-    assert legacy["sqlite"]["columns"] == materialized["sqlite"]["columns"], "SQLite table/column schema mismatch"
-    assert legacy["sqlite"]["objects"] == materialized["sqlite"]["objects"], "SQLite schema/index SQL mismatch"
+    comparable = _strip_phase4c_extensions(materialized)
+    assert legacy["routes"] == comparable["routes"], "HTTP/WebSocket route contract mismatch outside audited Phase 4C extensions"
+    assert legacy["middleware"] == comparable["middleware"], "middleware ordering mismatch"
+    assert legacy["sqlite"]["columns"] == comparable["sqlite"]["columns"], "SQLite table/column schema mismatch outside audited Phase 4C extensions"
+    assert legacy["sqlite"]["objects"] == comparable["sqlite"]["objects"], "SQLite schema/index SQL mismatch outside audited Phase 4C extensions"
     assert _migration_keys(legacy) == _migration_keys(materialized), "migration-key contract mismatch"
 
     legacy_server = Path(legacy["runtime_files"]["server"])

@@ -52,6 +52,7 @@ def _assert_materialized_production_hotfix() -> None:
     phase4_marker = "v2 player-ux phase4a usability 2026-09-12"
     phase5_marker = "v2 player-ux phase4b safe-actions 2026-09-12"
     phase5_mobile_marker = "v2 player-ux phase4b mobile-compat 2026-09-12"
+    phase6_marker = "v2 player-ux phase4c telemetry 2026-09-13"
     hand_history_marker = "participant hand history visibility 2026-09-12"
     assert marker not in disk_css_before, "committed materialized CSS must stay immutable"
     assert ux_marker not in disk_js_before, "committed materialized JS must stay immutable"
@@ -60,6 +61,7 @@ def _assert_materialized_production_hotfix() -> None:
     assert phase3_marker not in disk_js_before, "committed materialized JS must stay immutable"
     assert phase4_marker not in disk_js_before, "committed materialized JS must stay immutable"
     assert phase5_marker not in disk_js_before, "committed materialized JS must stay immutable"
+    assert phase6_marker not in disk_js_before, "committed materialized JS must stay immutable"
     assert hand_history_marker not in disk_js_before, "committed materialized JS must stay immutable"
     assert phase5_mobile_marker not in disk_css_before, "committed materialized CSS must stay immutable"
     assert '/static/styles.css?v=56' in disk_index_before
@@ -68,16 +70,16 @@ def _assert_materialized_production_hotfix() -> None:
 
     with TestClient(module.app) as client:
         home = client.get("/")
-        styles = client.get("/static/styles.css?v=67")
-        app_js = client.get("/static/app.js?v=67")
+        styles = client.get("/static/styles.css?v=68")
+        app_js = client.get("/static/app.js?v=68")
         worker = client.get("/static/sw.js")
 
     assert home.status_code == 200
     assert styles.status_code == 200
     assert app_js.status_code == 200
     assert worker.status_code == 200
-    assert '/static/styles.css?v=67' in home.text
-    assert '/static/app.js?v=67' in home.text
+    assert '/static/styles.css?v=68' in home.text
+    assert '/static/app.js?v=68' in home.text
     assert marker in styles.text
     assert clear_copy_marker in styles.text
     assert mobile_coordinate_marker in styles.text
@@ -99,6 +101,8 @@ def _assert_materialized_production_hotfix() -> None:
     assert phase3_marker in app_js.text
     assert phase4_marker in app_js.text
     assert phase5_marker in app_js.text
+    assert phase6_marker in app_js.text
+    assert "fetch('/api/ux-telemetry'" in app_js.text
     assert "m.type==='chat'" in app_js.text
     assert "renderTableChat()" in app_js.text
     assert "{left:50,top:79}" in app_js.text
@@ -123,9 +127,9 @@ def _assert_materialized_production_hotfix() -> None:
     for color in ("#ffffff", "#d7e2dc", "#c4d0ca", "#a8ebcb", "#ffe08a"):
         assert _contrast(color, bg) >= 4.5, (color, _contrast(color, bg))
 
-    assert "const CACHE='jj-arena-live-v67';" in worker.text
-    assert "'/static/styles.css?v=67'" in worker.text
-    assert "'/static/app.js?v=67'" in worker.text
+    assert "const CACHE='jj-arena-live-v68';" in worker.text
+    assert "'/static/styles.css?v=68'" in worker.text
+    assert "'/static/app.js?v=68'" in worker.text
     assert styles.headers.get("cache-control") == "public, max-age=31536000, immutable"
     assert app_js.headers.get("cache-control") == "public, max-age=31536000, immutable"
     assert "no-store" in worker.headers.get("cache-control", "")
