@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 from player_ux_asset_transform import transform_app_js as phase1_js
@@ -23,7 +24,6 @@ def main() -> None:
     assert phase5_js(js5) == js5
     assert phase5_css(css5) == css5
 
-    # Pre-actions are deliberately zero-chip only. No call-any or automatic raise exists.
     assert "data-jj-preaction=\"check\"" in js5
     assert "data-jj-preaction=\"check_fold\"" in js5
     assert "コール・ベット・レイズは自動実行しません" in js5
@@ -36,10 +36,9 @@ def main() -> None:
     assert 'data-action=\"raise\"' not in pre_code
     assert "document.visibilityState!=='visible'" in pre_code
     assert "!jjV2Connection.fresh" in pre_code
-    assert "live.click()" in pre_code, "pre-action must reuse the existing authoritative click/action path"
+    assert "live.click()" in pre_code
     assert "reserved.key!==jjV5HandKey()" in pre_code
 
-    # Keyboard support is opt-in, avoids native browser Ctrl+F/R/K, and never commits an action by itself.
     assert "localStorage.getItem(jjV3UserKey('hotkeys'))==='1'" in js5
     assert "!e.ctrlKey||!e.shiftKey||e.altKey||e.metaKey||e.repeat" in js5
     assert "jjV5TypingTarget(e.target)||$('#modal')?.open" in js5
@@ -57,25 +56,26 @@ def main() -> None:
     assert 'data-action=\"raise\"' not in hot_code
     assert "doAction(" not in hot_code
     focus_action = hot_code[hot_code.index("if(mode==='focus-action')"):hot_code.index("if(mode==='focus-input')")]
-    assert ".click()" not in focus_action, "Fold/Check keyboard shortcut must only focus, not execute"
+    assert ".click()" not in focus_action
     assert "キーボード補助を有効にする" in js5
     assert "Ctrl+F / Ctrl+R / Ctrl+Kは使用しません" in js5
     assert "フォールド・チェックはショートカットだけでは確定しません" in js5
 
-    # Result details shrink after seven seconds or immediately when the next decision arrives.
     assert "setTimeout(()=>{if(jjV5ResultKey()===key&&!jjV5SettlementExpanded)jjV5SetSettlementCompact(true)},7000)" in js5
     assert "if(tableState?.legal?.can_act&&!jjV5SettlementExpanded)jjV5SetSettlementCompact(true)" in js5
     assert "data-jj-result-toggle" in js5
     assert "#resultBanner.jj-v5-result-compact" in css5
     assert ".jj-settlement-actions" in css5 and ".jj-settlement-note" in css5
 
-    # The production asset chain is phase1 -> phase2 -> phase3 -> phase4 -> phase5 with a fresh cache namespace.
     app_source = (ROOT / "app.py").read_text(encoding="utf-8")
     assert "transform_phase5_app_js(transform_phase4_app_js(transform_phase3_app_js(transform_phase2_app_js(transform_app_js(js)))))" in app_source
     assert "transform_phase5_styles(transform_phase4_styles(transform_phase3_styles(transform_phase2_styles(css))))" in app_source
-    assert "/static/styles.css?v=65" in app_source
-    assert "/static/app.js?v=65" in app_source
-    assert "jj-arena-live-v65" in app_source
+    js_versions = [int(v) for v in re.findall(r"/static/app\.js\?v=(\d+)", app_source)]
+    css_versions = [int(v) for v in re.findall(r"/static/styles\.css\?v=(\d+)", app_source)]
+    cache_versions = [int(v) for v in re.findall(r"jj-arena-live-v(\d+)", app_source)]
+    assert js_versions and max(js_versions) >= 67
+    assert css_versions and max(css_versions) >= 67
+    assert cache_versions and max(cache_versions) >= 67
     assert '"PHASE5_MARKER"' in app_source
 
     print("JJ_PLAYER_UX_PHASE5_OK")
