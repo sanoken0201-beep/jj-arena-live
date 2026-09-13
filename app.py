@@ -57,6 +57,7 @@ from player_ux_phase5_mobile import (
     PHASE5_MOBILE_MARKER,
     transform_styles as transform_phase5_mobile_styles,
 )
+from player_ux_phase6 import PHASE6_MARKER, transform_app_js as transform_phase6_app_js
 
 
 _ROOT = Path(__file__).resolve().parent
@@ -108,6 +109,7 @@ _TODAYS_JJ_CSS = r'''
 .jj-video-kind.is-motivation{
   color:#f6dc8d!important;
   -webkit-text-fill-color:#f6dc8d!important;
+  opacity:1!important;
 }
 .jj-study-card footer,
 .jj-video-card footer,
@@ -138,8 +140,8 @@ _TODAYS_JJ_CSS = r'''
 @lru_cache(maxsize=1)
 def _patched_index() -> str:
     html = (_MATERIALIZED_STATIC / "index.html").read_text(encoding="utf-8")
-    html = html.replace('/static/styles.css?v=56', '/static/styles.css?v=67')
-    html = html.replace('/static/app.js?v=56', '/static/app.js?v=67')
+    html = html.replace('/static/styles.css?v=56', '/static/styles.css?v=68')
+    html = html.replace('/static/app.js?v=56', '/static/app.js?v=68')
     html = html.replace('← Lobby', '← ロビー')
     html = html.replace('>Table Chat<', '>チャット<').replace('>Hand Log<', '>ハンド履歴<')
     html = html.replace('Waiting for players', '着席者を待っています')
@@ -180,7 +182,7 @@ def _patched_app_js() -> str:
     # calls on initial session restore and PIN login, so remove only that exact
     # redundant follow-up while preserving the same visible refresh.
     js = js.replace("showApp();await refreshAll()", "showApp()")
-    return js
+    return transform_phase6_app_js(js)
 
 
 @lru_cache(maxsize=1)
@@ -196,9 +198,9 @@ def _patched_styles() -> str:
 @lru_cache(maxsize=1)
 def _patched_service_worker() -> str:
     worker = (_MATERIALIZED_STATIC / "sw.js").read_text(encoding="utf-8")
-    worker = worker.replace("const CACHE='jj-arena-live-v56';", "const CACHE='jj-arena-live-v67';")
-    worker = worker.replace("'/static/styles.css?v=19'", "'/static/styles.css?v=67'")
-    worker = worker.replace("'/static/app.js?v=19'", "'/static/app.js?v=67'")
+    worker = worker.replace("const CACHE='jj-arena-live-v56';", "const CACHE='jj-arena-live-v68';")
+    worker = worker.replace("'/static/styles.css?v=19'", "'/static/styles.css?v=68'")
+    worker = worker.replace("'/static/app.js?v=19'", "'/static/app.js?v=68'")
     return worker
 
 
@@ -314,6 +316,7 @@ __all__ = [
     "PHASE4_MARKER",
     "PHASE5_MARKER",
     "PHASE5_MOBILE_MARKER",
+    "PHASE6_MARKER",
 ]
 
 
