@@ -69,13 +69,13 @@ def main() -> None:
     assert "#resultBanner.jj-v5-result-compact" in css5
     assert ".jj-settlement-actions" in css5 and ".jj-settlement-note" in css5
 
-    # The production asset chain is phase1 -> phase2 -> phase3 -> phase4 -> phase5 with a fresh cache namespace.
+    # Phase 4B behavior must remain present even when later asset phases advance the cache namespace.
     app_source = (ROOT / "app.py").read_text(encoding="utf-8")
     assert "transform_phase5_app_js(transform_phase4_app_js(transform_phase3_app_js(transform_phase2_app_js(transform_app_js(js)))))" in app_source
     assert "transform_phase5_styles(transform_phase4_styles(transform_phase3_styles(transform_phase2_styles(css))))" in app_source
-    assert "/static/styles.css?v=67" in app_source
-    assert "/static/app.js?v=67" in app_source
-    assert "jj-arena-live-v67" in app_source
+    assert "/static/styles.css?v=68" in app_source
+    assert "/static/app.js?v=68" in app_source
+    assert "jj-arena-live-v68" in app_source
     assert '"PHASE5_MARKER"' in app_source
 
     print("JJ_PLAYER_UX_PHASE5_OK")
