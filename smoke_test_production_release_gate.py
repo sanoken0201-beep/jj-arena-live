@@ -27,6 +27,7 @@ def main() -> None:
             "smoke_test_pwa_update.py",
             "smoke_test_runtime_performance.py",
             "smoke_test_runtime_observability.py",
+            "smoke_test_point_ledger_precision.py",
             "smoke_test_v1244.py",
             "smoke_test_resilience_retention.py",
             "smoke_test_materialized_import_scope.py",
