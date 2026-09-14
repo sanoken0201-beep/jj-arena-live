@@ -53,6 +53,12 @@ from subtractive_redesign import (
     transform_index as transform_subtractive_index,
     transform_styles as transform_subtractive_styles,
 )
+from sitngo_ui import (
+    SITNGO_UI_MARKER,
+    transform_app_js as transform_sitngo_app_js,
+    transform_index as transform_sitngo_index,
+    transform_styles as transform_sitngo_styles,
+)
 
 ROOT = Path(__file__).resolve().parent
 MATERIALIZED_STATIC = ROOT / "materialized_v1244" / "static"
@@ -236,6 +242,9 @@ def build_index() -> str:
     html = transform_subtractive_index(html)
     if SUBTRACTIVE_RED282_MARKER not in html:
         raise RuntimeError("subtractive index transform marker missing")
+    html = transform_sitngo_index(html)
+    if SITNGO_UI_MARKER not in html:
+        raise RuntimeError("Sit&Go index transform marker missing")
     return html
 
 
@@ -265,6 +274,9 @@ def build_app_js() -> str:
     js = transform_subtractive_app_js(js)
     if SUBTRACTIVE_RED282_MARKER not in js:
         raise RuntimeError("subtractive app transform marker missing")
+    js = transform_sitngo_app_js(js)
+    if SITNGO_UI_MARKER not in js:
+        raise RuntimeError("Sit&Go app transform marker missing")
     if js.count(_PWA_REGISTRATION) != 1:
         raise RuntimeError("service worker registration drift: expected one canonical registration")
     return js.replace(_PWA_REGISTRATION, _PWA_REGISTRATION_REPLACEMENT, 1)
@@ -288,6 +300,9 @@ def build_styles() -> str:
     css = transform_subtractive_styles(css)
     if SUBTRACTIVE_RED282_MARKER not in css:
         raise RuntimeError("subtractive styles transform marker missing")
+    css = transform_sitngo_styles(css)
+    if SITNGO_UI_MARKER not in css:
+        raise RuntimeError("Sit&Go styles transform marker missing")
     return css
 
 
@@ -402,6 +417,7 @@ __all__ = [
     "PHASE5_MOBILE_MARKER",
     "PHASE6_MARKER",
     "PLAYER_UX_MARKER",
+    "SITNGO_UI_MARKER",
     "SUBTRACTIVE_RED282_MARKER",
     "build_all",
     "build_app_js",
