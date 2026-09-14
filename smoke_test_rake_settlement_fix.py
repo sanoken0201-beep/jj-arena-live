@@ -37,6 +37,7 @@ def _state(contributions: list[int], *, big_blind: int = 100) -> dict:
                 "cards": [],
             }
         )
+    # Start from the former policy so the runtime correction is regression-tested.
     return {
         "big_blind": big_blind,
         "rake_percent": 0.10,
@@ -67,8 +68,10 @@ def test_heads_up_uncalled_allin(engine) -> None:
 
     gross, rake, pots = _gross_and_rake(engine, state)
     assert gross == 1000
-    assert rake == 100
+    assert rake == 50
     assert pots == [1000]
+    assert float(state["rake_percent"]) == 0.05
+    assert int(state["rake_cap"]) == 300
 
     after = sum(int(p["stack"]) + int(p["contributed"]) for p in state["seats"])
     assert after == before
@@ -82,10 +85,10 @@ def test_three_way_sidepot(engine) -> None:
     gross, rake, pots = _gross_and_rake(engine, state)
     assert pots == [1500, 1000]
     assert gross == 2500
-    assert rake == 250
+    assert rake == 125
 
     alloc = engine._allocate_rake(pots, rake)
-    assert alloc == [150, 100]
+    assert alloc == [75, 50]
     assert sum(alloc) == rake
 
 
@@ -95,11 +98,11 @@ def test_rake_cap_and_tied_top(engine) -> None:
     gross, rake, pots = _gross_and_rake(engine, state)
     assert pots == [12000]
     assert gross == 12000
-    assert rake == 500  # 5bb cap at bb=100
+    assert rake == 300  # 3bb cap at bb=100
 
 
 def _install_on_fake_engine():
-    observations: list[tuple[str, int, list[int]]] = []
+    observations: list[tuple[str, int, list[int], float, int]] = []
 
     def original_showdown(state):
         observations.append(
@@ -107,6 +110,8 @@ def _install_on_fake_engine():
                 "showdown",
                 sum(int(p.get("contributed", 0)) for p in state["seats"]),
                 [int(p.get("stack", 0)) for p in state["seats"]],
+                float(state.get("rake_percent", 0)),
+                int(state.get("rake_cap", 0)),
             )
         )
 
@@ -116,6 +121,8 @@ def _install_on_fake_engine():
                 "uncontested",
                 sum(int(p.get("contributed", 0)) for p in state["seats"]),
                 [int(p.get("stack", 0)) for p in state["seats"]],
+                float(state.get("rake_percent", 0)),
+                int(state.get("rake_cap", 0)),
             )
         )
 
@@ -134,16 +141,16 @@ def test_runtime_wrappers() -> None:
     showdown_state = _state([1000, 500])
     showdown_state["hand"]["board"] = ["2c", "3d", "4h", "5s", "9c"]
     fake._showdown(showdown_state)
-    assert observations[-1] == ("showdown", 1000, [500, 0])
+    assert observations[-1] == ("showdown", 1000, [500, 0], 0.05, 300)
 
     postflop_fold = _state([200, 100])
     postflop_fold["seats"][1]["folded"] = True
     postflop_fold["seats"][0]["stack"] = 800
     postflop_fold["seats"][1]["stack"] = 900
     fake._award_uncontested(postflop_fold, postflop_fold["seats"][0])
-    assert observations[-1] == ("uncontested", 200, [900, 900])
+    assert observations[-1] == ("uncontested", 200, [900, 900], 0.05, 300)
 
-    # Preserve the existing preflop No Flop, No Drop result semantics.  The
+    # Preserve the existing preflop No Flop, No Drop result semantics. The
     # blind imbalance remains represented inside the gross pot because rake is
     # zero there already; changing it would only alter displayed pot history.
     preflop_fold = _state([100, 50])
@@ -151,11 +158,13 @@ def test_runtime_wrappers() -> None:
     preflop_fold["seats"][0]["stack"] = 900
     preflop_fold["seats"][1]["stack"] = 950
     fake._award_uncontested(preflop_fold, preflop_fold["seats"][0])
-    assert observations[-1] == ("uncontested", 150, [900, 950])
+    assert observations[-1] == ("uncontested", 150, [900, 950], 0.05, 300)
 
 
 def main() -> None:
     engine = _load_materialized_engine()
+    fix._INSTALLED = False
+    fix.install(engine)
     test_heads_up_uncalled_allin(engine)
     test_three_way_sidepot(engine)
     test_rake_cap_and_tied_top(engine)

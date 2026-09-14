@@ -38,6 +38,7 @@ from served_assets import (
 
 
 _BUILT_ASSETS = ensure_runtime_assets()
+_RAKE_JS_QUERY = "r=5-3"
 
 
 @lru_cache(maxsize=4)
@@ -46,13 +47,28 @@ def _built_asset(relative: str) -> str:
 
 
 # Compatibility names retained for existing regression tests and diagnostics.
-# They now read precompiled files; they do not execute UX transforms.
+# They read precompiled files; only the configured rake numbers are substituted.
 def _patched_index() -> str:
-    return _built_asset("index.html")
+    value = _built_asset("index.html")
+    value = value.replace(
+        f"/static/app.js?v={ASSET_VERSION}",
+        f"/static/app.js?v={ASSET_VERSION}&{_RAKE_JS_QUERY}",
+    )
+    return value.replace("rake 10%・5bb cap", "rake 5%・3bb cap")
 
 
 def _patched_app_js() -> str:
-    return _built_asset("static/app.js")
+    value = _built_asset("static/app.js")
+    value = value.replace(
+        "RAKE 10% · ${fmt(t.rake_cap_bb)}bb CAP",
+        "RAKE 5% · ${fmt(t.rake_cap_bb)}bb CAP",
+    )
+    value = value.replace("rake 10% / 5bb cap", "rake 5% / 3bb cap")
+    value = value.replace(
+        "pot*0.10,Number(tableState.rake_cap||500)",
+        "pot*0.05,Number(tableState.rake_cap||300)",
+    )
+    return value
 
 
 def _patched_styles() -> str:
@@ -132,8 +148,8 @@ def _poker_config(user=Depends(runtime_server.current_user)):
     return {
         "action_timeout_seconds": _action_timeout_seconds(),
         "ranking_points_per_bb": 3,
-        "rake_percent": 10,
-        "rake_cap_bb": 5,
+        "rake_percent": 5,
+        "rake_cap_bb": 3,
     }
 
 
