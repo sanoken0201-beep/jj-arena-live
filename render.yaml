@@ -1,6 +1,7 @@
 services:
   - type: web
     name: jj-arena-live
+    autoDeployTrigger: checksPass
     runtime: python
     plan: 0.5c-512mb
     region: singapore

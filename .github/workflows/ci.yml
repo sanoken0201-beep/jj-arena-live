@@ -21,6 +21,7 @@ permissions:
 
 jobs:
   smoke:
+    name: production release gate
     runs-on: ubuntu-latest
     timeout-minutes: 14
     services:
@@ -103,6 +104,7 @@ jobs:
           PY
           node --check /tmp/jj-player-ux-app.js
           node --check admin_static/ops_dashboard.js
+          node smoke_test_ops_alerts.js
           node --check admin_static/ops_participation.js
           node smoke_test_learning_ui.js "$RUNTIME/static/app.js"
           node smoke_test_daily_quiz_ui.js "$RUNTIME/static/app.js"
