@@ -3,13 +3,13 @@ from __future__ import annotations
 """Correct cash-game rake settlement for uncalled contributions.
 
 The canonical materialized v1.24.4 engine intentionally remains immutable.
-This integration patch fixes one settlement edge case at runtime: a unique
-highest contribution can contain chips that no opponent matched. Those chips
-must be returned before the contested pot is built and before rake is computed.
+This integration patch keeps the production settlement path poker-correct:
+uncalled chips are returned before contested-pot accounting, then the configured
+rake is applied only to chips that were actually contested.
 
-The existing JJ Arena rules remain unchanged except for the configured rake:
+JJ Arena rake rules:
 - 5% rake;
-- 3bb hand cap;
+- 3bb cap per hand;
 - integer-chip round-down;
 - No Flop, No Drop for preflop uncontested pots;
 - existing main/side-pot, split-pot and odd-chip allocation.
@@ -119,6 +119,25 @@ def refund_uncalled_contribution(state: dict[str, Any]) -> int:
     return refund
 
 
+def _complete_uncontested_result_metadata(poker_engine, state: dict[str, Any], gross_pot: int) -> None:
+    """Keep No-Flop-No-Drop results compatible with hand/result persistence.
+
+    The v1.23 canonical no-flop wrapper predates the online-hand persistence
+    fields and therefore omits ``gross_pot``, ``rake`` and ``net_results``.
+    Fill only those settlement metadata fields after the canonical award path;
+    chip movement and winner selection remain canonical.
+    """
+
+    result = state.get("last_result")
+    if not isinstance(result, dict):
+        return
+    result["gross_pot"] = int(gross_pot)
+    result["rake"] = 0
+    attach = getattr(poker_engine, "_attach_net_results", None)
+    if callable(attach):
+        attach(state)
+
+
 def install(poker_engine) -> None:
     """Install the rake policy and settlement correction exactly once."""
 
@@ -147,12 +166,18 @@ def install(poker_engine) -> None:
     def uncontested_with_uncalled_refund(state: dict[str, Any], *args, **kwargs):
         apply_rake_policy(state)
         hand = state.get("hand") or {}
-        # Preserve the existing No Flop, No Drop payload exactly. Preflop pots
-        # are unraked already, so normalizing the blind imbalance would only
-        # change gross-pot/result presentation without affecting correctness.
-        if len(hand.get("board") or []) > 0:
-            refund_uncalled_contribution(state)
-        return original_award_uncontested(state, *args, **kwargs)
+        no_flop_no_drop = len(hand.get("board") or []) == 0
+
+        # Uncalled chips are never part of a contested pot, regardless of whether
+        # rake is zero. Refunding before the canonical award path keeps gross-pot
+        # history truthful while leaving final stacks unchanged.
+        refund_uncalled_contribution(state)
+        gross_pot = sum(_chip(player.get("contributed")) for player in state.get("seats", []))
+
+        value = original_award_uncontested(state, *args, **kwargs)
+        if no_flop_no_drop:
+            _complete_uncontested_result_metadata(poker_engine, state, gross_pot)
+        return value
 
     poker_engine._showdown = showdown_with_uncalled_refund
     poker_engine._award_uncontested = uncontested_with_uncalled_refund
