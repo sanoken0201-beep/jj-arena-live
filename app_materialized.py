@@ -27,6 +27,7 @@ import online_results_cleanup
 import operations_learning
 import operations_learning_hardening
 import point_ledger_precision
+import poker_lifecycle_fix
 import rake_settlement_fix
 import ranking_mapping_guard
 import resilience
@@ -100,9 +101,14 @@ _CORE_ROUTE_IDS = frozenset(id(route) for route in app.router.routes)
 # modules resolve, without mutating the canonical v1.24.4 source tree or game rules.
 runtime_performance.install(db, runtime_server, runtime_poker_engine)
 
-# Correct uncalled-bet settlement outside the immutable canonical core.  The
+# A live table WebSocket is authoritative presence. This prevents an actively
+# playing user from being misclassified as 15-minute idle during the brief
+# waiting-state transition immediately after showdown/side-pot settlement.
+poker_lifecycle_fix.install(runtime_server)
+
+# Correct uncalled-bet settlement outside the immutable canonical core. The
 # refund happens immediately before rake/pot settlement, so only chips actually
-# contested by at least two players enter the 10% / 5bb rake calculation.
+# contested by at least two players enter the configured 5% / 3bb rake.
 rake_settlement_fix.install(runtime_poker_engine)
 
 # Preserve the already-applied historical migration key. This remains a no-op

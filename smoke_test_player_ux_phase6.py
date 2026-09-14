@@ -26,13 +26,14 @@ def main() -> None:
     assert "keepalive:true" in telemetry
 
     assert "jjV6SyncDecision(l);" in js
-    assert "e.isTrusted&&action" in js, "programmatic pre-action clicks must not skew manual latency"
+    assert "e.isTrusted&&action" in js, "programmatic CHECK pre-action clicks must not skew manual latency"
     assert "jjV6FinishDecision(action.dataset.action)" in js
     assert "jjV6Timeout(timeoutAction)" in js
     assert "jjV6ConnectionClosed();" in js
     assert "jjV6ConnectionOpen();" in js
     assert "jjV6Emit('sizing','slider')" in js
-    assert "jjV6Emit('preaction',pre.dataset.jjPreaction)" in js
+    assert "jjV6Emit('preaction','check')" in js
+    assert "check_fold" not in js
     assert "jjV6Emit('ui','settings')" in js
     assert "jjV6Emit('ui',side.dataset.jjMobileSide==='log'?'history':'chat')" in js
 

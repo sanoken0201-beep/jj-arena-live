@@ -22,6 +22,7 @@ from asset_encoding import accepts_gzip, encoded_asset, matches_etag
 import app_materialized as _materialized
 from app_materialized import app, db, runtime_poker_engine, runtime_server
 from player_ux_phase2 import leave_after_hand_transition
+from poker_client_cleanup import remove_fast_fold
 from served_assets import (
     ASSET_VERSION,
     CLEAR_COPY_MARKER,
@@ -38,7 +39,7 @@ from served_assets import (
 
 
 _BUILT_ASSETS = ensure_runtime_assets()
-_RAKE_JS_QUERY = "r=5-3"
+_APP_JS_QUERY = "r=5-3-pokerfix-1"
 
 
 @lru_cache(maxsize=4)
@@ -47,12 +48,12 @@ def _built_asset(relative: str) -> str:
 
 
 # Compatibility names retained for existing regression tests and diagnostics.
-# They read precompiled files; only the configured rake numbers are substituted.
+# They read precompiled files; only production compatibility substitutions are applied.
 def _patched_index() -> str:
     value = _built_asset("index.html")
     value = value.replace(
         f"/static/app.js?v={ASSET_VERSION}",
-        f"/static/app.js?v={ASSET_VERSION}&{_RAKE_JS_QUERY}",
+        f"/static/app.js?v={ASSET_VERSION}&{_APP_JS_QUERY}",
     )
     return value.replace("rake 10%・5bb cap", "rake 5%・3bb cap")
 
@@ -68,7 +69,7 @@ def _patched_app_js() -> str:
         "pot*0.10,Number(tableState.rake_cap||500)",
         "pot*0.05,Number(tableState.rake_cap||300)",
     )
-    return value
+    return remove_fast_fold(value)
 
 
 def _patched_styles() -> str:
