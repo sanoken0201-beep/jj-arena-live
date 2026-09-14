@@ -48,10 +48,12 @@ from player_ux_phase5_mobile import (
 )
 from player_ux_phase6 import PHASE6_MARKER, transform_app_js as transform_phase6_app_js
 
+from poker_simple import transform_app_js as simple_app_js, transform_styles as simple_styles
+
 ROOT = Path(__file__).resolve().parent
 MATERIALIZED_STATIC = ROOT / "materialized_v1244" / "static"
 BUILD_ROOT = ROOT / ".jj_build"
-ASSET_VERSION = 69
+ASSET_VERSION = 70
 BUILD_FORMAT = 1
 
 _TODAYS_JJ_MARKER = "v2 today's-jj contrast hardening 2026-09-12"
@@ -252,7 +254,7 @@ def build_app_js() -> str:
     js = js.replace("renderPokerRoom();refreshMe().catch(()=>{})", "renderPokerRoom()")
     # showApp() already refreshes the visible view through switchView().
     js = js.replace("showApp();await refreshAll()", "showApp()")
-    js = transform_phase6_app_js(js)
+    js = simple_app_js(transform_phase6_app_js(js))
     if js.count(_PWA_REGISTRATION) != 1:
         raise RuntimeError("service worker registration drift: expected one canonical registration")
     return js.replace(_PWA_REGISTRATION, _PWA_REGISTRATION_REPLACEMENT, 1)
@@ -273,7 +275,7 @@ def build_styles() -> str:
     css = transform_clear_copy_styles(css)
     if _PWA_UPDATE_MARKER not in css:
         css = css.rstrip() + _PWA_UPDATE_CSS + "\n"
-    return css
+    return simple_styles(css)
 
 
 def build_service_worker() -> str:
