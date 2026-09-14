@@ -76,11 +76,7 @@ def _patched_styles() -> str:
 
 
 def _patched_service_worker() -> str:
-    value = _built_asset("static/sw.js")
-    return value.replace(
-        f"'/static/app.js?v={ASSET_VERSION}'",
-        f"'/static/app.js?v={ASSET_VERSION}&{_RAKE_JS_QUERY}'",
-    )
+    return _built_asset("static/sw.js")
 
 
 @app.middleware("http")
