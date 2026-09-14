@@ -1,0 +1,26 @@
+/* JJ Arena Sit&Go admin phase 1 */
+.sng-admin-grid{display:grid;grid-template-columns:minmax(280px,.82fr) minmax(0,1.4fr);gap:18px;align-items:start}
+.sng-fixed-rules{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:14px 0 0}
+.sng-fixed-rules div{padding:10px;border-radius:11px;background:rgba(255,255,255,.045);display:grid;gap:3px}
+.sng-fixed-rules span{font-size:.68rem;color:var(--muted,#91a49b)}
+.sng-fixed-rules b{font-size:.86rem}
+.sng-event-list{display:grid;gap:10px}
+.sng-event{border:1px solid rgba(255,255,255,.08);border-radius:14px;padding:14px;background:rgba(255,255,255,.025);display:grid;gap:10px}
+.sng-event-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
+.sng-event-head h4{margin:3px 0 0;font-size:1rem}
+.sng-status{font-size:.68rem;font-weight:900;padding:5px 8px;border-radius:999px;background:rgba(255,255,255,.07);white-space:nowrap}
+.sng-status.open{background:rgba(78,205,144,.13);color:#90e2b8}
+.sng-status.running{background:rgba(216,180,90,.15);color:#f0d58e}
+.sng-status.cancelled{background:rgba(216,88,88,.13);color:#f0a4a4}
+.sng-event-meta{display:flex;flex-wrap:wrap;gap:8px 14px;font-size:.76rem;color:var(--muted,#91a49b)}
+.sng-event-actions{display:flex;flex-wrap:wrap;gap:8px}
+.sng-event-actions button{min-height:36px}
+.sng-participants{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;padding-top:8px;border-top:1px solid rgba(255,255,255,.07)}
+.sng-participants span{font-size:.72rem;padding:7px 8px;border-radius:9px;background:rgba(255,255,255,.04)}
+.sng-structure-admin{margin-top:16px}
+.sng-structure-admin summary{cursor:pointer;font-weight:800;font-size:.8rem}
+.sng-structure-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;margin-top:10px}
+.sng-structure-grid div{display:grid;gap:2px;padding:8px;border-radius:9px;background:rgba(255,255,255,.04);font-size:.7rem}
+.sng-structure-grid small{color:var(--muted,#91a49b)}
+@media(max-width:980px){.sng-admin-grid{grid-template-columns:1fr}.sng-fixed-rules,.sng-structure-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:620px){.sng-fixed-rules{grid-template-columns:1fr 1fr}.sng-participants{grid-template-columns:1fr}.sng-event-actions{display:grid;grid-template-columns:1fr 1fr}.sng-event-actions button{width:100%}}

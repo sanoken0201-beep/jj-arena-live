@@ -23,6 +23,7 @@ import app_materialized as _materialized
 from app_materialized import app, db, runtime_poker_engine, runtime_server
 from player_ux_phase2 import leave_after_hand_transition
 from poker_client_cleanup import remove_fast_fold
+import sitngo
 from served_assets import (
     ASSET_VERSION,
     CLEAR_COPY_MARKER,
@@ -41,7 +42,7 @@ from served_assets import (
 _BUILT_ASSETS = ensure_runtime_assets()
 # Deliberately changes whenever production browser behavior must bypass an old
 # service-worker/browser cache entry without mutating the immutable core.
-_APP_JS_QUERY = "r=single-public-table-20260915-2"
+_APP_JS_QUERY = "r=sitngo-phase1-20260915-1"
 
 
 @lru_cache(maxsize=4)
@@ -50,12 +51,17 @@ def _built_asset(relative: str) -> str:
 
 
 # Compatibility names retained for existing regression tests and diagnostics.
-# They read precompiled files; only production compatibility substitutions are applied.
+# All UX transforms, including Sit&Go, are applied by build_served_assets.py;
+# runtime only reads validated precompiled output.
 def _patched_index() -> str:
     value = _built_asset("index.html")
     value = value.replace(
         f"/static/app.js?v={ASSET_VERSION}",
         f"/static/app.js?v={ASSET_VERSION}&{_APP_JS_QUERY}",
+    )
+    value = value.replace(
+        f"/static/styles.css?v={ASSET_VERSION}",
+        f"/static/styles.css?v={ASSET_VERSION}&{_APP_JS_QUERY}",
     )
     return value.replace("rake 10%・5bb cap", "rake 5%・3bb cap")
 
@@ -229,6 +235,11 @@ def _prioritize_single_public_table_route() -> None:
     if getattr(first_match, "endpoint", None) is not _single_public_table_list:
         raise RuntimeError("single public table route precedence was not established")
 
+
+# Sit&Go is a root-level integration layer. The immutable v1.24.4 ring core is
+# intentionally left unchanged; scheduling/registration state lives in its own
+# tables and its own lifecycle task.
+_sitngo_service = sitngo.install(app, db, runtime_server)
 
 # First repair all late extension routes around the SPA fallback, then establish
 # the stricter duplicate-route ordering required for GET /api/tables.

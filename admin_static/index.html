@@ -6,6 +6,7 @@
   <meta name="theme-color" content="#0b1712">
   <title>JJ Arena · Admin Console</title>
   <link rel="stylesheet" href="/admin-static/admin.css">
+  <link rel="stylesheet" href="/admin-static/admin_sitngo.css">
 </head>
 <body>
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
@@ -16,6 +17,7 @@
         <button class="nav active" data-view="dashboard"><span>⌂</span>概要</button>
         <button class="nav" data-view="users"><span>♙</span>アカウント</button>
         <button class="nav" data-view="points"><span>↕</span>ポイント</button>
+        <button class="nav" data-view="sitngo"><span>♠</span>Sit&amp;Go</button>
         <button class="nav" data-view="settings"><span>⚙</span>制度設定</button>
         <button class="nav" data-view="audit"><span>◫</span>監査ログ</button>
       </nav>
@@ -24,7 +26,7 @@
 
     <main class="main">
       <header class="topbar"><div><div class="eyebrow">OPERATIONS</div><h1 id="pageTitle">管理概要</h1></div><div class="admin-chip"><small>ADMIN</small><strong id="adminName">—</strong></div></header>
-      <nav class="mobile-nav" aria-label="管理メニュー"><button class="active" data-view="dashboard">概要</button><button data-view="users">アカウント</button><button data-view="points">ポイント</button><button data-view="settings">設定</button><button data-view="audit">監査</button></nav>
+      <nav class="mobile-nav" aria-label="管理メニュー"><button class="active" data-view="dashboard">概要</button><button data-view="users">アカウント</button><button data-view="points">ポイント</button><button data-view="sitngo">Sit&amp;Go</button><button data-view="settings">設定</button><button data-view="audit">監査</button></nav>
 
       <section id="dashboardView" class="view active">
         <div class="hero"><div><div class="eyebrow">CONTROL CENTER</div><h2>運営の数字と異常を、<br>一画面で確認。</h2><p>登録アカウント、公式ポイントの振込・回収、制度設定、操作履歴を一元管理します。</p></div><div class="hero-status"><span>SEASON</span><strong id="seasonLabel">2026.09 — 2027.03</strong><small>公式ポイント管理</small></div></div>
@@ -56,6 +58,17 @@
         </div>
       </section>
 
+      <section id="sitngoView" class="view">
+        <div class="section-head"><div><div class="eyebrow">SIT &amp; GO</div><h2>開催設定</h2><p>定期開催ではありません。必要な大会だけ作成し、開始1時間前から先着6名の受付を自動で開始します。</p></div></div>
+        <div class="sng-admin-grid">
+          <article class="panel operation-card"><div class="panel-head"><div><div class="eyebrow">NEW EVENT</div><h3>Sit&amp;Goを設定</h3></div><span class="immutable">6-MAX</span></div>
+            <form id="sngCreateForm" class="form-stack"><label>大会名<input id="sngName" maxlength="80" value="JJ Sit&Go" required></label><label>開催日時<input id="sngStartsAt" type="datetime-local" required></label><p class="field-note">受付は当日の開始1時間前から自動で開きます。定刻時点で2〜6人なら開始、1人以下なら自動中止します。</p><button class="primary full" type="submit">開催を設定</button></form>
+            <div id="sngFixedRules" class="sng-fixed-rules"></div><div id="sngStructure"></div>
+          </article>
+          <article class="panel"><div class="panel-head"><div><div class="eyebrow">EVENTS</div><h3>開催一覧</h3></div><span class="immutable">AUTO START</span></div><div id="sngEventList" class="sng-event-list"><div class="empty-state">読込中...</div></div></article>
+        </div>
+      </section>
+
       <section id="settingsView" class="view">
         <div class="section-head"><div><div class="eyebrow">POLICY</div><h2>ポイント制度設定</h2><p>制度値の変更も監査ログへ残ります。既存の確定済みハンドを遡って書き換えません。</p></div></div>
         <div class="settings-grid">
@@ -71,5 +84,6 @@
   <dialog id="userDialog"><button class="dialog-close" id="closeUserDialog" aria-label="閉じる">×</button><div id="userDialogBody"></div></dialog>
   <script src="/admin-static/admin.js"></script>
   <script src="/admin-static/admin_delete.js"></script>
+  <script src="/admin-static/admin_sitngo.js"></script>
 </body>
 </html>
