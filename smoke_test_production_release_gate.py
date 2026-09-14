@@ -33,6 +33,7 @@ def main() -> None:
             "smoke_test_materialized_import_scope.py",
             "smoke_test_production_entrypoint_isolated.py",
             "smoke_test_v2_production_cutover.py",
+            "smoke_test_single_public_table.py",
             "audit_ui_labels.py",
         }
         assert set(gate.RELEASE_TESTS) == expected
