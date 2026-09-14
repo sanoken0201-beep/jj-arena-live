@@ -1,0 +1,39 @@
+name: Subtractive Redesign
+
+on:
+  push:
+    branches:
+      - 'subtractive-redesign-*'
+      - 'feature/**'
+      - 'fix/**'
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  subtractive-ui:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version-file: .python-version
+
+      - name: Compile transform and served asset compiler
+        run: python -m py_compile subtractive_redesign.py served_assets.py smoke_test_subtractive_redesign.py
+
+      - name: Run subtractive redesign smoke test
+        run: python smoke_test_subtractive_redesign.py
+
+      - name: Build final served browser assets
+        run: python build_served_assets.py
+
+      - name: Check final browser JavaScript syntax
+        run: node --check .jj_build/static/app.js
