@@ -39,7 +39,9 @@ from served_assets import (
 
 
 _BUILT_ASSETS = ensure_runtime_assets()
-_APP_JS_QUERY = "r=5-3-pokerfix-1"
+# Deliberately changes whenever production browser behavior must bypass an old
+# service-worker/browser cache entry without mutating the immutable core.
+_APP_JS_QUERY = "r=single-public-table-20260915-2"
 
 
 @lru_cache(maxsize=4)
@@ -178,21 +180,60 @@ async def _leave_after_hand(
 
 @app.get("/api/tables", include_in_schema=False)
 def _single_public_table_list(user=Depends(runtime_server.current_user)):
-    """Expose exactly one ring table to players, even to stale cached clients.
+    """Expose exactly one ring table to players, including stale cached clients.
 
-    The materialized core intentionally retains both historical fixed tables for
-    rollback/data compatibility.  The public API is narrower: only the first
-    canonical table is returned.  This makes the one-table product rule
-    server-authoritative instead of relying solely on a frontend renderer.
+    The immutable materialized core retains both historical fixed tables for
+    rollback/data compatibility. The public contract is narrower and returns
+    only the first canonical table.
     """
     tables = runtime_server.tables(user)
     return tables[:1]
 
 
-# app.py may add integration routes after app_materialized finished installing its
-# extensions. Re-apply the identity-based ordering once so every non-core route,
-# including future GET endpoints, stays ahead of the canonical SPA catch-all.
+def _prioritize_single_public_table_route() -> None:
+    """Put the one-table route ahead of the canonical two-table route.
+
+    FastAPI resolves duplicate method/path routes by registration order. The
+    materialized core registered its historical GET /api/tables route long
+    before this integration shim, so merely registering a replacement route is
+    insufficient. Move this exact APIRoute ahead of every other matching GET
+    route and assert the invariant at startup.
+    """
+    routes = list(app.router.routes)
+    replacement = next(
+        (route for route in routes if getattr(route, "endpoint", None) is _single_public_table_list),
+        None,
+    )
+    if replacement is None:
+        raise RuntimeError("single public table route is missing")
+
+    routes.remove(replacement)
+    matching_indexes = [
+        index
+        for index, route in enumerate(routes)
+        if getattr(route, "path", None) == "/api/tables"
+        and "GET" in (getattr(route, "methods", None) or set())
+    ]
+    if not matching_indexes:
+        raise RuntimeError("canonical GET /api/tables route is missing")
+
+    routes.insert(min(matching_indexes), replacement)
+    app.router.routes[:] = routes
+
+    first_match = next(
+        route
+        for route in app.router.routes
+        if getattr(route, "path", None) == "/api/tables"
+        and "GET" in (getattr(route, "methods", None) or set())
+    )
+    if getattr(first_match, "endpoint", None) is not _single_public_table_list:
+        raise RuntimeError("single public table route precedence was not established")
+
+
+# First repair all late extension routes around the SPA fallback, then establish
+# the stricter duplicate-route ordering required for GET /api/tables.
 _materialized._prioritize_extension_routes(app, _materialized._CORE_ROUTE_IDS)
+_prioritize_single_public_table_route()
 
 
 __all__ = [
