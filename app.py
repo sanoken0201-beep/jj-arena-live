@@ -23,7 +23,7 @@ import app_materialized as _materialized
 from app_materialized import app, db, runtime_poker_engine, runtime_server
 from player_ux_phase2 import leave_after_hand_transition
 from served_assets import (
-    ASSET_VERSION as PREBUILT_ASSET_VERSION,
+    ASSET_VERSION,
     CLEAR_COPY_MARKER,
     HAND_HISTORY_VISIBILITY_MARKER,
     PHASE2_MARKER,
@@ -37,11 +37,8 @@ from served_assets import (
 )
 
 
-# Numeric-only rake policy refresh. The underlying prebuilt asset compiler stays
-# unchanged; this one-step cache revision ensures clients receive the new 5% / 3bb
-# values instead of retaining the previous immutable 10% / 5bb browser bundle.
-ASSET_VERSION = PREBUILT_ASSET_VERSION + 1
 _BUILT_ASSETS = ensure_runtime_assets()
+_RAKE_JS_QUERY = "r=5-3"
 
 
 @lru_cache(maxsize=4)
@@ -50,11 +47,13 @@ def _built_asset(relative: str) -> str:
 
 
 # Compatibility names retained for existing regression tests and diagnostics.
-# They read the validated precompiled files and only substitute the configured
-# rake numbers plus the cache revision needed to deliver those numbers.
+# They read precompiled files; only the configured rake numbers are substituted.
 def _patched_index() -> str:
     value = _built_asset("index.html")
-    value = value.replace(f"?v={PREBUILT_ASSET_VERSION}", f"?v={ASSET_VERSION}")
+    value = value.replace(
+        f"/static/app.js?v={ASSET_VERSION}",
+        f"/static/app.js?v={ASSET_VERSION}&{_RAKE_JS_QUERY}",
+    )
     return value.replace("rake 10%・5bb cap", "rake 5%・3bb cap")
 
 
@@ -78,11 +77,10 @@ def _patched_styles() -> str:
 
 def _patched_service_worker() -> str:
     value = _built_asset("static/sw.js")
-    value = value.replace(
-        f"jj-arena-live-v{PREBUILT_ASSET_VERSION}",
-        f"jj-arena-live-v{ASSET_VERSION}",
+    return value.replace(
+        f"'/static/app.js?v={ASSET_VERSION}'",
+        f"'/static/app.js?v={ASSET_VERSION}&{_RAKE_JS_QUERY}'",
     )
-    return value.replace(f"?v={PREBUILT_ASSET_VERSION}", f"?v={ASSET_VERSION}")
 
 
 @app.middleware("http")
