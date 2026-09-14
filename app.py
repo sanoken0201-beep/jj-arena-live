@@ -24,7 +24,6 @@ from app_materialized import app, db, runtime_poker_engine, runtime_server
 from player_ux_phase2 import leave_after_hand_transition
 from poker_client_cleanup import remove_fast_fold
 import sitngo
-import sitngo_ui
 from served_assets import (
     ASSET_VERSION,
     CLEAR_COPY_MARKER,
@@ -52,10 +51,10 @@ def _built_asset(relative: str) -> str:
 
 
 # Compatibility names retained for existing regression tests and diagnostics.
-# They read precompiled files; production compatibility substitutions are kept
-# idempotent so local/test fallback builds receive the same Sit&Go surface.
+# All UX transforms, including Sit&Go, are applied by build_served_assets.py;
+# runtime only reads validated precompiled output.
 def _patched_index() -> str:
-    value = sitngo_ui.transform_index(_built_asset("index.html"))
+    value = _built_asset("index.html")
     value = value.replace(
         f"/static/app.js?v={ASSET_VERSION}",
         f"/static/app.js?v={ASSET_VERSION}&{_APP_JS_QUERY}",
@@ -68,7 +67,7 @@ def _patched_index() -> str:
 
 
 def _patched_app_js() -> str:
-    value = sitngo_ui.transform_app_js(_built_asset("static/app.js"))
+    value = _built_asset("static/app.js")
     value = value.replace(
         "RAKE 10% · ${fmt(t.rake_cap_bb)}bb CAP",
         "RAKE 5% · ${fmt(t.rake_cap_bb)}bb CAP",
@@ -82,7 +81,7 @@ def _patched_app_js() -> str:
 
 
 def _patched_styles() -> str:
-    return sitngo_ui.transform_styles(_built_asset("static/styles.css"))
+    return _built_asset("static/styles.css")
 
 
 def _patched_service_worker() -> str:
