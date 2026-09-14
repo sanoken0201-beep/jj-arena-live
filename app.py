@@ -23,7 +23,7 @@ import app_materialized as _materialized
 from app_materialized import app, db, runtime_poker_engine, runtime_server
 from player_ux_phase2 import leave_after_hand_transition
 from served_assets import (
-    ASSET_VERSION,
+    ASSET_VERSION as PREBUILT_ASSET_VERSION,
     CLEAR_COPY_MARKER,
     HAND_HISTORY_VISIBILITY_MARKER,
     PHASE2_MARKER,
@@ -37,6 +37,10 @@ from served_assets import (
 )
 
 
+# Numeric-only rake policy refresh. The underlying prebuilt asset compiler stays
+# unchanged; this one-step cache revision ensures clients receive the new 5% / 3bb
+# values instead of retaining the previous immutable 10% / 5bb browser bundle.
+ASSET_VERSION = PREBUILT_ASSET_VERSION + 1
 _BUILT_ASSETS = ensure_runtime_assets()
 
 
@@ -46,13 +50,26 @@ def _built_asset(relative: str) -> str:
 
 
 # Compatibility names retained for existing regression tests and diagnostics.
-# They now read precompiled files; they do not execute UX transforms.
+# They read the validated precompiled files and only substitute the configured
+# rake numbers plus the cache revision needed to deliver those numbers.
 def _patched_index() -> str:
-    return _built_asset("index.html")
+    value = _built_asset("index.html")
+    value = value.replace(f"?v={PREBUILT_ASSET_VERSION}", f"?v={ASSET_VERSION}")
+    return value.replace("rake 10%・5bb cap", "rake 5%・3bb cap")
 
 
 def _patched_app_js() -> str:
-    return _built_asset("static/app.js")
+    value = _built_asset("static/app.js")
+    value = value.replace(
+        "RAKE 10% · ${fmt(t.rake_cap_bb)}bb CAP",
+        "RAKE 5% · ${fmt(t.rake_cap_bb)}bb CAP",
+    )
+    value = value.replace("rake 10% / 5bb cap", "rake 5% / 3bb cap")
+    value = value.replace(
+        "pot*0.10,Number(tableState.rake_cap||500)",
+        "pot*0.05,Number(tableState.rake_cap||300)",
+    )
+    return value
 
 
 def _patched_styles() -> str:
@@ -60,7 +77,12 @@ def _patched_styles() -> str:
 
 
 def _patched_service_worker() -> str:
-    return _built_asset("static/sw.js")
+    value = _built_asset("static/sw.js")
+    value = value.replace(
+        f"jj-arena-live-v{PREBUILT_ASSET_VERSION}",
+        f"jj-arena-live-v{ASSET_VERSION}",
+    )
+    return value.replace(f"?v={PREBUILT_ASSET_VERSION}", f"?v={ASSET_VERSION}")
 
 
 @app.middleware("http")
@@ -132,8 +154,8 @@ def _poker_config(user=Depends(runtime_server.current_user)):
     return {
         "action_timeout_seconds": _action_timeout_seconds(),
         "ranking_points_per_bb": 3,
-        "rake_percent": 10,
-        "rake_cap_bb": 5,
+        "rake_percent": 5,
+        "rake_cap_bb": 3,
     }
 
 
