@@ -176,6 +176,19 @@ async def _leave_after_hand(
     return {"ok": True, "status": status, "state": public}
 
 
+@app.get("/api/tables", include_in_schema=False)
+def _single_public_table_list(user=Depends(runtime_server.current_user)):
+    """Expose exactly one ring table to players, even to stale cached clients.
+
+    The materialized core intentionally retains both historical fixed tables for
+    rollback/data compatibility.  The public API is narrower: only the first
+    canonical table is returned.  This makes the one-table product rule
+    server-authoritative instead of relying solely on a frontend renderer.
+    """
+    tables = runtime_server.tables(user)
+    return tables[:1]
+
+
 # app.py may add integration routes after app_materialized finished installing its
 # extensions. Re-apply the identity-based ordering once so every non-core route,
 # including future GET endpoints, stays ahead of the canonical SPA catch-all.
