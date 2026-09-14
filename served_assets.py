@@ -1,6 +1,6 @@
 """Deterministic build-time compiler for JJ Arena's served browser assets.
 
-`materialized_v1244/static` is the immutable canonical input.  Production must
+`materialized_v1244/static` is the immutable canonical input. Production must
 serve the compiled output under `.jj_build/` instead of executing the historical
 UX transform chain on visitor requests or process startup.
 """
@@ -47,11 +47,17 @@ from player_ux_phase5_mobile import (
     transform_styles as transform_phase5_mobile_styles,
 )
 from player_ux_phase6 import PHASE6_MARKER, transform_app_js as transform_phase6_app_js
+from subtractive_redesign import (
+    SUBTRACTIVE_RED282_MARKER,
+    transform_app_js as transform_subtractive_app_js,
+    transform_index as transform_subtractive_index,
+    transform_styles as transform_subtractive_styles,
+)
 
 ROOT = Path(__file__).resolve().parent
 MATERIALIZED_STATIC = ROOT / "materialized_v1244" / "static"
 BUILD_ROOT = ROOT / ".jj_build"
-ASSET_VERSION = 69
+ASSET_VERSION = 70
 BUILD_FORMAT = 1
 
 _TODAYS_JJ_MARKER = "v2 today's-jj contrast hardening 2026-09-12"
@@ -227,6 +233,9 @@ def build_index() -> str:
         'JJ内の練習用プレイマネーテーブルです。A/Bの2卓のみ、6-max、0.5/1bb、着席時150bb固定。各ハンドは10% rake・5bb capで、結果は1bb=3ptとして後期ランキングへ自動反映されます。テーブル画面との接続・操作が15分ない場合、ハンド終了後に自動離席します。',
         'プレイマネー｜6-max｜0.5/1bb｜150bb固定｜rake 10%・5bb cap｜ランキング 1bb=3pt｜15分無操作でハンド終了後に自動離席',
     )
+    html = transform_subtractive_index(html)
+    if SUBTRACTIVE_RED282_MARKER not in html:
+        raise RuntimeError("subtractive index transform marker missing")
     return html
 
 
@@ -253,6 +262,9 @@ def build_app_js() -> str:
     # showApp() already refreshes the visible view through switchView().
     js = js.replace("showApp();await refreshAll()", "showApp()")
     js = transform_phase6_app_js(js)
+    js = transform_subtractive_app_js(js)
+    if SUBTRACTIVE_RED282_MARKER not in js:
+        raise RuntimeError("subtractive app transform marker missing")
     if js.count(_PWA_REGISTRATION) != 1:
         raise RuntimeError("service worker registration drift: expected one canonical registration")
     return js.replace(_PWA_REGISTRATION, _PWA_REGISTRATION_REPLACEMENT, 1)
@@ -273,6 +285,9 @@ def build_styles() -> str:
     css = transform_clear_copy_styles(css)
     if _PWA_UPDATE_MARKER not in css:
         css = css.rstrip() + _PWA_UPDATE_CSS + "\n"
+    css = transform_subtractive_styles(css)
+    if SUBTRACTIVE_RED282_MARKER not in css:
+        raise RuntimeError("subtractive styles transform marker missing")
     return css
 
 
@@ -387,6 +402,7 @@ __all__ = [
     "PHASE5_MOBILE_MARKER",
     "PHASE6_MARKER",
     "PLAYER_UX_MARKER",
+    "SUBTRACTIVE_RED282_MARKER",
     "build_all",
     "build_app_js",
     "build_index",
