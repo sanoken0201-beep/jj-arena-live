@@ -1,5 +1,6 @@
 from __future__ import annotations
 import json
+from datetime import datetime, timedelta, timezone
 import shutil
 import tempfile
 from pathlib import Path
@@ -38,7 +39,7 @@ def state(check=False, waiting=False, players=2):
     for i in range(1,players):
         seats.append({"user_id":i+1,"seat":i,"name":"Player "+str(i),"stack":14900,"round_bet":100 if i==1 else 0,"contributed":100 if i==1 else 0,"in_hand":True,"folded":False,"cards":["??","??"],"ready":True})
     return {"id":"jj-table-a","name":"JJ Table A","max_seats":6,"status":"playing","session_active":True,"big_blind":100,"small_blind":50,"button_seat":0,"seats":seats,
-        "hand":{"id":"visibility-hand","phase":"preflop","action_seat":1 if waiting else 0,"action_deadline":"2099-01-01T00:00:00Z","board":[],"current_bet":100,"log":[]},
+        "hand":{"id":"visibility-hand","phase":"preflop","action_seat":1 if waiting else 0,"action_deadline":(datetime.now(timezone.utc)+timedelta(seconds=45)).isoformat(),"board":[],"current_bet":100,"log":[]},
         "legal":{"can_act":not waiting,"can_check":check,"can_call":not check,"can_raise":not waiting,"can_all_in":not waiting,"call_amount":0 if check else 50,"min_raise_to":200,"max_raise_to":15000},"last_result":None}
 
 def main():
@@ -98,7 +99,7 @@ def main():
                 assert page.evaluate("JJ_TEST.pending()")
                 # WS can deliver another decision before the HTTP receipt arrives.
                 newer=state(check=check)
-                newer["hand"]["action_deadline"]="2099-01-01T00:00:01Z"
+                newer["hand"]["action_deadline"]=(datetime.now(timezone.utc)+timedelta(seconds=46)).isoformat()
                 page.evaluate("s=>JJ_TEST.setState(s)",newer)
                 assert page.locator(f'#actionBar [data-action="{action}"]').is_disabled()
                 older=state(waiting=True)
