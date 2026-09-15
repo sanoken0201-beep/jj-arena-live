@@ -3,7 +3,7 @@ on:
   pull_request:
     branches: [main]
   push:
-    branches: [main, 'fix/poker-simple-*', 'fix-oop-check-*']
+    branches: [main, 'fix/poker-simple-*', 'fix-oop-check-*', 'audit-poker-controls-*']
 permissions:
   contents: read
 jobs:
@@ -23,6 +23,7 @@ jobs:
       - run: python smoke_test_oop_check_freshness.py
       - run: python smoke_test_poker_simple.py
       - run: python smoke_test_oop_check_browser.py
+      - run: python smoke_test_poker_control_audit.py
       - uses: actions/upload-artifact@v4
         if: always()
         with:
