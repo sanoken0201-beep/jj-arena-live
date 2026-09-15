@@ -103,15 +103,14 @@ def main() -> None:
                 page.goto(html_path.resolve().as_uri())
                 page.wait_for_function("!!window.JJ_TEST && !!window.JJ_CONTROL_AUDIT")
 
-                # Baseline action matrix: each legal direct action must be usable.
+                # Baseline direct-action matrix.
                 for action, check in (("fold", False), ("call", False), ("check", True)):
                     page.evaluate("s=>JJ_TEST.setState(s)", state(check=check))
                     button = page.locator(f'#actionBar [data-action="{action}"]')
                     assert button.count() == 1, (width, height, action, "missing")
                     assert button.is_enabled(), (width, height, action, "disabled")
 
-                # READY must recover after an HTTP/server failure. Otherwise a
-                # transient error strands the player until another rerender.
+                # READY failure recovery.
                 page.evaluate("s=>JJ_TEST.setState(s)", waiting_state())
                 page.evaluate("JJ_CONTROL_AUDIT.clear();JJ_CONTROL_AUDIT.rejectPost()")
                 ready = page.locator("#jjReadyBtn")
@@ -121,8 +120,7 @@ def main() -> None:
                 if ready.is_disabled():
                     failures.append(f"{width}x{height}: READY remains disabled after failed request")
 
-                # Presence controls are state mutations. Two fast taps must not
-                # generate two concurrent requests.
+                # Sit-out duplicate-submit resistance.
                 page.evaluate("s=>JJ_TEST.setState(s)", between_hands_state())
                 page.evaluate("JJ_CONTROL_AUDIT.clear();JJ_CONTROL_AUDIT.deferPost()")
                 sitout = page.locator('[data-table-presence="sitout"]')
@@ -137,8 +135,7 @@ def main() -> None:
                 if presence_calls != 1:
                     failures.append(f"{width}x{height}: sit-out fast double tap sent {presence_calls} requests")
 
-                # Immediate leave is destructive enough that a double request
-                # can turn a successful leave into a trailing 400/error toast.
+                # Immediate-leave duplicate-submit resistance.
                 leave_state = waiting_state()
                 leave_state["seats"][0]["sitting_out"] = True
                 page.evaluate("s=>JJ_TEST.setState(s)", leave_state)
@@ -155,19 +152,23 @@ def main() -> None:
                 if leave_calls != 1:
                     failures.append(f"{width}x{height}: immediate leave fast double tap sent {leave_calls} requests")
 
-                # All-in confirmation must be tied to the currently rendered
-                # button. A harmless state rerender between taps must not turn a
-                # visually unconfirmed fresh button into an immediate all-in.
+                # A max raise commits the whole stack and is therefore the
+                # production all-in confirmation path. Confirmation must not
+                # survive a complete control rerender invisibly.
                 allin_state = state(check=False)
                 page.evaluate("s=>JJ_TEST.setState(s)", allin_state)
                 page.evaluate("JJ_CONTROL_AUDIT.clear();JJ_CONTROL_AUDIT.immediatePost()")
-                allin = page.locator('#actionBar [data-action="allin"]')
-                assert allin.count() == 1 and allin.is_enabled()
-                allin.click()
-                assert page.evaluate("JJ_CONTROL_AUDIT.calls.length") == 0
+                raise_button = page.locator('#actionBar [data-action="raise"]')
+                assert raise_button.count() == 1 and raise_button.is_enabled(), (width, height, "raise missing")
+                page.locator("#raiseTo").fill("150")
+                raise_button.click()
+                assert page.evaluate("JJ_CONTROL_AUDIT.calls.length") == 0, (width, height, "first all-in tap submitted")
+                assert raise_button.evaluate("el=>el.classList.contains('jj-confirm-allin')"), (width, height, "confirmation not shown")
                 page.evaluate("JJ_TEST.render()")
-                allin = page.locator('#actionBar [data-action="allin"]')
-                allin.click()
+                raise_button = page.locator('#actionBar [data-action="raise"]')
+                # Refill because the renderer intentionally recreates the editor.
+                page.locator("#raiseTo").fill("150")
+                raise_button.click()
                 page.wait_for_timeout(40)
                 if page.evaluate("JJ_CONTROL_AUDIT.calls.length") != 0:
                     failures.append(f"{width}x{height}: all-in confirmation survived a control rerender")
