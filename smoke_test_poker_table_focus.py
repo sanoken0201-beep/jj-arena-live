@@ -3,69 +3,30 @@ from __future__ import annotations
 import json
 
 from build_served_assets import POKER_FOCUS_QUERY, main as build_assets
-from materialized_v1244.poker_engine import public_state
+from materialized_v1244.poker_engine import blank_table_state, public_state, seat_player, start_hand
 from poker_table_focus import POKER_TABLE_FOCUS_MARKER
 from served_assets import BUILD_ROOT, MATERIALIZED_STATIC
 
 
 def _privacy_contract() -> None:
-    state = {
-        "id": "focus-test",
-        "name": "Focus Test",
-        "max_seats": 6,
-        "small_blind": 50,
-        "big_blind": 100,
-        "min_buyin": 100,
-        "max_buyin": 20000,
-        "owner_id": None,
-        "status": "playing",
-        "button_seat": 0,
-        "seats": [
-            {
-                "user_id": 1,
-                "name": "Hero",
-                "seat": 0,
-                "stack": 14900,
-                "in_hand": True,
-                "folded": False,
-                "all_in": False,
-                "round_bet": 50,
-                "contributed": 50,
-                "cards": ["As", "Kh"],
-            },
-            {
-                "user_id": 2,
-                "name": "Villain",
-                "seat": 3,
-                "stack": 14900,
-                "in_hand": True,
-                "folded": False,
-                "all_in": False,
-                "round_bet": 100,
-                "contributed": 100,
-                "cards": ["Qc", "Qd"],
-            },
-        ],
-        "hand": {
-            "id": "focus-test-hand",
-            "phase": "preflop",
-            "board": [],
-            "current_bet": 100,
-            "min_raise": 100,
-            "acted": [],
-            "action_seat": 0,
-            "action_deadline": None,
-        },
-        "hand_no": 1,
-        "last_result": None,
-        "rake_percent": 0.05,
-        "rake_cap": 300,
-    }
-    state["hand"]["starting_stacks"] = {"1": 15000, "2": 15000}
+    state = blank_table_state(
+        table_id="focus-test",
+        name="Focus Test",
+        max_seats=6,
+        small_blind=50,
+        big_blind=100,
+        min_buyin=100,
+        max_buyin=20000,
+    )
+    seat_player(state, user_id=1, name="Hero", seat=0, stack=15000)
+    seat_player(state, user_id=2, name="Villain", seat=3, stack=15000)
+    start_hand(state)
+    original_hero = next(player for player in state["seats"] if player["user_id"] == 1)
     view = public_state(state, 1)
     hero = next(player for player in view["seats"] if player["user_id"] == 1)
     villain = next(player for player in view["seats"] if player["user_id"] == 2)
-    assert hero["cards"] == ["As", "Kh"], "server redacted the viewer's own cards"
+    assert len(original_hero["cards"]) == 2
+    assert hero["cards"] == original_hero["cards"], "server redacted the viewer's own cards"
     assert villain["cards"] == ["??", "??"], "opponent private cards leaked"
 
 
