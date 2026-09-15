@@ -1,0 +1,29 @@
+name: Poker Table Focus
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  focus-regression:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version-file: .python-version
+      - name: Compile focus layer
+        run: python -m py_compile poker_table_focus.py build_served_assets.py smoke_test_poker_table_focus.py smoke_test_poker_table_focus_layout.py
+      - name: Build production browser assets
+        run: python build_served_assets.py
+      - name: Check final browser JavaScript syntax
+        run: node --check .jj_build/static/app.js
+      - name: Verify hero cards and desktop actions
+        run: python smoke_test_poker_table_focus.py
+      - name: Verify focused table layout in Chrome
+        run: python smoke_test_poker_table_focus_layout.py
