@@ -4,12 +4,13 @@ import tempfile
 from pathlib import Path
 from playwright.sync_api import sync_playwright
 from served_assets import build_all
+from poker_connection_fix import apply_to_build
 from smoke_test_poker_simple import HOOKS, state
 
 
 def main():
     with tempfile.TemporaryDirectory() as td, sync_playwright() as pw:
-        root=Path(td);build_all(root)
+        root=Path(td);manifest=build_all(root);apply_to_build(root,manifest)
         js=(root/'static/app.js').read_text().replace('  init();','  bind();',1)
         end=js.rfind('})();')
         (root/'static/app.js').write_text(js[:end]+HOOKS+js[end:])
