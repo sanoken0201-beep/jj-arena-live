@@ -44,7 +44,7 @@ body.jj-poker-simple #pokerRoom .jj-v7-menu button{margin:0!important;min-height
 body.jj-poker-simple #pokerRoom .jj-v4-mobile-tools{display:flex!important;gap:6px!important;margin:0!important}
 body.jj-poker-simple #pokerRoom .poker-layout{display:block!important}
 body.jj-poker-simple #pokerRoom .table-side{display:none!important}
-body.jj-poker-simple.jj-v4-side-open #pokerRoom .table-side{display:flex!important;position:fixed!important;z-index:210!important;left:auto!important;right:12px!important;top:64px!important;bottom:auto!important;width:min(380px,calc(100vw - 24px))!important;max-height:70dvh!important;height:auto!important;overflow:auto!important;background:#14231b!important}
+body.jj-poker-simple.jj-v4-side-open #pokerRoom .table-side{display:flex!important;position:fixed!important;z-index:230!important;left:auto!important;right:12px!important;top:64px!important;bottom:auto!important;width:min(380px,calc(100vw - 24px))!important;max-height:70dvh!important;height:auto!important;overflow:auto!important;background:#14231b!important}
 body.jj-poker-simple.jj-v4-side-open:after{display:none!important}
 body.jj-poker-simple.jj-v4-side-open #pokerRoom:after{content:'';position:fixed;inset:0;z-index:205;background:#02070599}
 body.jj-poker-simple #pokerRoom .jj-v4-side-head{display:flex!important;justify-content:space-between;align-items:center}
