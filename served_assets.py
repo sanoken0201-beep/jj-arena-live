@@ -60,6 +60,8 @@ from sitngo_ui import (
     transform_styles as transform_sitngo_styles,
 )
 
+from poker_simple import transform_app_js as simple_app_js, transform_styles as simple_styles
+
 ROOT = Path(__file__).resolve().parent
 MATERIALIZED_STATIC = ROOT / "materialized_v1244" / "static"
 BUILD_ROOT = ROOT / ".jj_build"
@@ -277,6 +279,7 @@ def build_app_js() -> str:
     js = transform_sitngo_app_js(js)
     if SITNGO_UI_MARKER not in js:
         raise RuntimeError("Sit&Go app transform marker missing")
+    js = simple_app_js(js)
     if js.count(_PWA_REGISTRATION) != 1:
         raise RuntimeError("service worker registration drift: expected one canonical registration")
     return js.replace(_PWA_REGISTRATION, _PWA_REGISTRATION_REPLACEMENT, 1)
@@ -303,7 +306,7 @@ def build_styles() -> str:
     css = transform_sitngo_styles(css)
     if SITNGO_UI_MARKER not in css:
         raise RuntimeError("Sit&Go styles transform marker missing")
-    return css
+    return simple_styles(css)
 
 
 def build_service_worker() -> str:
