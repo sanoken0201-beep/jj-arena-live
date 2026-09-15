@@ -35,6 +35,7 @@ RELEASE_TESTS = (
     "smoke_test_v2_production_cutover.py",
     "smoke_test_single_public_table.py",
     "smoke_test_sitngo_phase1.py",
+    "smoke_test_poker_table_focus.py",
     "audit_ui_labels.py",
 )
 
