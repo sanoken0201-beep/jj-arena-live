@@ -30,7 +30,7 @@ _APP_PATCH = r'''
     const registrationOpen=new Date(event.registration_opens_at).getTime(),starts=new Date(event.starts_at).getTime(),now=Date.now();
     const untilOpen=now<registrationOpen,untilStart=now<starts;
     let action='';
-    if(status==='running')action=registered?`<div class="jj-sng-seat">あなたの席 <strong>Seat ${Number(event.seat)+1}</strong></div>`:'<div class="jj-sng-note">大会は開催中です。</div>';
+    if(status==='running'||status==='finished')action=event.table_id?`<button type="button" class="primary jj-sng-register" data-sng-open="${safe(event.table_id)}">${status==='finished'?'結果を見る':registered?'大会テーブルへ':'観戦する'}</button>`:'<div class="jj-sng-note">テーブル準備中</div>';
     else if(registered&&event.can_cancel_registration)action=`<div class="jj-sng-reg"><span>参加登録済み · 受付順 #${event.registration_order||'—'}</span><button type="button" class="soft" data-sng-cancel="${safe(event.id)}">参加を取り消す</button></div>`;
     else if(event.can_register)action=`<button type="button" class="primary jj-sng-register" data-sng-register="${safe(event.id)}">参加する</button>`;
     else if(full)action='<button type="button" class="soft jj-sng-register" disabled>満席</button>';
@@ -38,11 +38,11 @@ _APP_PATCH = r'''
     else if(!untilStart)action='<button type="button" class="soft jj-sng-register" disabled>受付終了</button>';
     const timer=untilOpen?`受付開始まで <b data-jj-sng-deadline="${safe(event.registration_opens_at)}">${jjSngCountdown(event.registration_opens_at)}</b>`:untilStart&&status!=='running'?`開始まで <b data-jj-sng-deadline="${safe(event.starts_at)}">${jjSngCountdown(event.starts_at)}</b>`:'定刻開始済み';
     const participants=status==='running'&&Array.isArray(event.participants)?`<div class="jj-sng-seats">${event.participants.filter(x=>x.status!=='cancelled').sort((a,b)=>Number(a.seat)-Number(b.seat)).map(x=>`<span>Seat ${Number(x.seat)+1} · ${safe(x.name)}</span>`).join('')}</div>`:'';
-    return `<article class="card jj-sng-card"><div class="jj-sng-head"><div><div class="eyebrow">${safe(jjSngStatusLabel[status]||status)}</div><h4>${safe(event.name||'JJ Sit&Go')}</h4></div><span class="jj-sng-count">${event.participant_count}/${event.max_players}</span></div><div class="jj-sng-datetime">${safe(jjSngLocal(event.starts_at))}</div><div class="jj-sng-timer">${timer}</div><div class="jj-sng-rules"><span>6-max</span><span>10,000点</span><span>10分レベル</span><span>BB Ante</span><span>90分終了目標</span></div><p class="hint">受付は当日の開始1時間前から先着順。定刻になれば2〜6人で開始し、1人以下の場合は自動中止します。席は開始時にサーバー側で完全ランダムに決定します。</p>${action}${participants}${jjSngStructureHtml(levels||event.structure)}</article>`;
+    return `<article class="card jj-sng-card"><div class="jj-sng-head"><div><div class="eyebrow">${safe(jjSngStatusLabel[status]||status)}</div><h4>${safe(event.name||'JJ Sit&Go')}</h4></div><span class="jj-sng-count">${event.participant_count}/${event.max_players}</span></div><div class="jj-sng-datetime">${safe(jjSngLocal(event.starts_at))}</div><div class="jj-sng-timer">${timer}</div><div class="jj-sng-rules"><span>6-max</span><span>10,000点</span><span>10分レベル</span><span>BB Ante</span><span>無料 · 賞品なし</span><span>再参加なし</span></div><p class="hint">受付は当日の開始1時間前から先着順。定刻になれば2〜6人で開始し、1人以下の場合は自動中止します。席は抽選で決定します。通信切断中もブラインドは発生します。</p>${action}${participants}${jjSngStructureHtml(levels||event.structure)}</article>`;
   }
   async function renderSitNGo(){
     const host=$('#sitngoNext');if(!host)return;
-    try{const data=await api('/sitngo/next'),event=data?.event;host.innerHTML=event?jjSngEventHtml(event,data.structure):jjSngEmpty();jjSngRefreshClocks()}catch(err){host.innerHTML=`<article class="card empty">${safe(err.message)}</article>`}
+    try{const data=await api('/sitngo/next'),event=data?.event;if(currentTableId?.startsWith('sng-'))return;host.innerHTML=(event?jjSngEventHtml(event,data.structure):jjSngEmpty())+(data.recent||[]).map(x=>jjSngEventHtml(x,x.structure)).join('');jjSngRefreshClocks()}catch(err){host.innerHTML=`<article class="card empty">${safe(err.message)}</article>`}
   }
   function jjSetPlayMode(mode){
     jjPlayMode=mode==='sitngo'?'sitngo':'ring';
@@ -78,6 +78,11 @@ _APP_PATCH = r'''
 _CSS_PATCH = r'''
 
 /* jj sitngo phase1 ui 2026-09-15 */
+#jjSngTableInfo{display:flex;flex-wrap:wrap;justify-content:space-between;gap:4px 12px;padding:5px 12px;color:#e8d39d;font-size:12px;font-variant-numeric:tabular-nums}
+.jj-sng-finish{display:flex;flex-wrap:wrap;justify-content:center;gap:8px 16px;padding:12px}
+.jj-sng-finish strong,.jj-sng-finish small{flex-basis:100%;text-align:center}
+body.jj-sng-playing .jj-empty-seat,body.jj-sng-playing [data-table-presence],body.jj-sng-playing #leaveSeatBtn,body.jj-sng-playing [data-jj-leave-after],body.jj-sng-playing #rebuyBtn,body.jj-sng-playing #jjReadyBtn,body.jj-sng-playing #jjJoinTableBtn,body.jj-sng-playing .jj-room-join-banner{display:none!important}
+
 .jj-play-switch{display:flex;gap:6px;width:max-content;margin:0 auto 18px;padding:5px;border:1px solid rgba(255,255,255,.1);border-radius:14px;background:rgba(11,23,18,.48)}
 .jj-play-switch button{border:0;border-radius:10px;padding:9px 20px;background:transparent;color:var(--muted,#9fb2aa);font-weight:800;cursor:pointer}
 .jj-play-switch button.active{background:var(--accent,#d8b45a);color:#102018}
@@ -136,7 +141,11 @@ def transform_app_js(source: str) -> str:
     position = source.rfind(anchor)
     if position < 0:
         raise RuntimeError("Sit&Go UI drift: init anchor not found")
-    return source[:position] + "\n" + _APP_PATCH.rstrip() + source[position:]
+    value = source[:position] + "\n" + _APP_PATCH.rstrip() + source[position:]
+    end = value.rfind("})();")
+    if end < 0:
+        raise RuntimeError("Sit&Go gameplay UI: final closure missing")
+    return value[:end] + _GAMEPLAY_PATCH + value[end:]
 
 
 def transform_styles(source: str) -> str:
@@ -146,3 +155,57 @@ def transform_styles(source: str) -> str:
 
 
 __all__ = ["SITNGO_UI_MARKER", "transform_app_js", "transform_index", "transform_styles"]
+
+_GAMEPLAY_PATCH = r'''
+
+  // Sit&Go gameplay uses the ring renderer, input handlers and state transport.
+  const jjSngRingPot=totalPot;
+  totalPot=function(){return jjSngRingPot()+Number(tableState?.tournament?.ante_paid||0)};
+  const jjSngRingOpen=openTable;
+  openTable=async function(id){
+    const result=await jjSngRingOpen(id);
+    if(tableState?.tournament){jjPlayMode='sitngo';$('#sitngoPanel')?.classList.add('hidden')}
+    return result;
+  };
+  const jjSngRingControls=renderTableControls;
+  renderTableControls=function(){
+    if(!tableState?.tournament)return jjSngRingControls();
+    const t=tableState.tournament,result=t.results?.find(x=>x.user_id===me?.id);
+    $('#tableControls').innerHTML=`<span class="hint">${result?`${result.place}位${t.status==='finished'?' · 大会終了':' · 観戦中'}`:'無料大会 · 再参加なし'}</span>`;
+  };
+  const jjSngRingSeat=renderSeat;
+  renderSeat=function(seat){
+    if(tableState?.tournament&&!tableState.seats.some(p=>p.seat===seat))return '';
+    return jjSngRingSeat(seat);
+  };
+  function jjSngTableClock(){
+    const el=$('#jjSngTableInfo'),t=tableState?.tournament;if(!el||!t)return;
+    el.innerHTML=`<span>Lv.${Number(t.level)} · ${fmt(tableState.small_blind)}/${fmt(tableState.big_blind)} · BBA ${fmt(t.bb_ante)}</span><span>残り${Number(t.remaining)}/${Number(t.entrants)}人${t.status==='finished'?' · 終了':t.next_level_at?` · 次 ${jjSngCountdown(t.next_level_at)}`:''}</span>`;
+  }
+  const jjSngRingRoom=renderPokerRoom;
+  renderPokerRoom=function(){
+    jjSngRingRoom();
+    const t=tableState?.tournament;document.body.classList.toggle('jj-sng-playing',!!t&&!!currentTableId);
+    if(!t){$('#jjSngTableInfo')?.remove();return}
+    $('#sitngoPanel')?.classList.add('hidden');
+    const head=$('#pokerRoom .room-head');
+    if(head&&!$('#jjSngTableInfo'))head.insertAdjacentHTML('afterend','<div id="jjSngTableInfo" role="status"></div>');
+    jjSngTableClock();
+    $('#jjObserverJoin')?.remove();
+    if(t.status==='finished'){
+      $('#actionBar').innerHTML=`<div class="jj-sng-finish"><strong>大会終了</strong>${t.results.map(x=>`<span>${x.place}位 · ${safe(x.name)}</span>`).join('')}<small>無料大会 · ポイントの増減なし</small></div>`;
+    }else if(t.results.some(x=>x.user_id===me?.id)){
+      const r=t.results.find(x=>x.user_id===me.id);
+      $('#actionBar').innerHTML=`<div class="jj-sng-finish"><strong>${r.place}位で終了しました</strong><span>このまま観戦できます</span></div>`;
+    }
+  };
+  const jjSngFinalLobby=renderLobby;
+  renderLobby=async function(){if(currentTableId?.startsWith('sng-'))return;return jjSngFinalLobby()};
+  const jjSngFinalClocks=jjSngRefreshClocks;
+  jjSngRefreshClocks=function(){jjSngFinalClocks();jjSngTableClock()};
+  document.addEventListener('click',async e=>{
+    const open=e.target.closest('[data-sng-open]');if(!open)return;
+    open.disabled=true;try{await openTable(open.dataset.sngOpen)}catch(err){toast(err.message);open.disabled=false}
+  });
+
+'''
