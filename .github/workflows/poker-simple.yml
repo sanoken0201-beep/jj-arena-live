@@ -3,7 +3,7 @@ on:
   pull_request:
     branches: [main]
   push:
-    branches: [main, 'fix/poker-simple-*']
+    branches: [main, 'fix/poker-simple-*', 'fix-oop-check-*']
 permissions:
   contents: read
 jobs:
@@ -20,7 +20,9 @@ jobs:
       - run: python build_served_assets.py
       - run: node --check .jj_build/static/app.js
       - run: python smoke_test_prebuilt_assets.py
+      - run: python smoke_test_oop_check_freshness.py
       - run: python smoke_test_poker_simple.py
+      - run: python smoke_test_oop_check_browser.py
       - uses: actions/upload-artifact@v4
         if: always()
         with:
