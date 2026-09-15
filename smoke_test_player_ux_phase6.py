@@ -26,13 +26,14 @@ def main() -> None:
     assert "keepalive:true" in telemetry
 
     assert "jjV6SyncDecision(l);" in js
-    assert "e.isTrusted&&action" in js, "programmatic pre-action clicks must not skew manual latency"
+    assert "e.isTrusted&&action" in js, "programmatic CHECK pre-action clicks must not skew manual latency"
     assert "jjV6FinishDecision(action.dataset.action)" in js
     assert "jjV6Timeout(timeoutAction)" in js
     assert "jjV6ConnectionClosed();" in js
     assert "jjV6ConnectionOpen();" in js
     assert "jjV6Emit('sizing','slider')" in js
-    assert "jjV6Emit('preaction',pre.dataset.jjPreaction)" in js
+    assert "jjV6Emit('preaction','check')" in js
+    assert "check_fold" not in js
     assert "jjV6Emit('ui','settings')" in js
     assert "jjV6Emit('ui',side.dataset.jjMobileSide==='log'?'history':'chat')" in js
 
@@ -45,7 +46,7 @@ def main() -> None:
     assert "transform_phase6_app_js(js)" in compiler
     assert "encoded_asset(body)" in app_source, "v67 lossless asset transfer must be preserved"
     assert "transform_phase6_app_js" not in app_source, "production runtime must not run phase 6 transform"
-    assert ASSET_VERSION == 69
+    assert ASSET_VERSION == 70
     index = build_index()
     worker = build_service_worker()
     assert f"/static/app.js?v={ASSET_VERSION}" in index

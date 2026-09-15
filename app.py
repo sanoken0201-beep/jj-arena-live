@@ -22,6 +22,8 @@ from asset_encoding import accepts_gzip, encoded_asset, matches_etag
 import app_materialized as _materialized
 from app_materialized import app, db, runtime_poker_engine, runtime_server
 from player_ux_phase2 import leave_after_hand_transition
+from poker_client_cleanup import remove_fast_fold
+import sitngo
 from served_assets import (
     ASSET_VERSION,
     CLEAR_COPY_MARKER,
@@ -38,6 +40,9 @@ from served_assets import (
 
 
 _BUILT_ASSETS = ensure_runtime_assets()
+# Deliberately changes whenever production browser behavior must bypass an old
+# service-worker/browser cache entry without mutating the immutable core.
+_APP_JS_QUERY = "r=sitngo-phase1-20260915-1"
 
 
 @lru_cache(maxsize=4)
@@ -46,13 +51,33 @@ def _built_asset(relative: str) -> str:
 
 
 # Compatibility names retained for existing regression tests and diagnostics.
-# They now read precompiled files; they do not execute UX transforms.
+# All UX transforms, including Sit&Go, are applied by build_served_assets.py;
+# runtime only reads validated precompiled output.
 def _patched_index() -> str:
-    return _built_asset("index.html")
+    value = _built_asset("index.html")
+    value = value.replace(
+        f"/static/app.js?v={ASSET_VERSION}",
+        f"/static/app.js?v={ASSET_VERSION}&{_APP_JS_QUERY}",
+    )
+    value = value.replace(
+        f"/static/styles.css?v={ASSET_VERSION}",
+        f"/static/styles.css?v={ASSET_VERSION}&{_APP_JS_QUERY}",
+    )
+    return value.replace("rake 10%・5bb cap", "rake 5%・3bb cap")
 
 
 def _patched_app_js() -> str:
-    return _built_asset("static/app.js")
+    value = _built_asset("static/app.js")
+    value = value.replace(
+        "RAKE 10% · ${fmt(t.rake_cap_bb)}bb CAP",
+        "RAKE 5% · ${fmt(t.rake_cap_bb)}bb CAP",
+    )
+    value = value.replace("rake 10% / 5bb cap", "rake 5% / 3bb cap")
+    value = value.replace(
+        "pot*0.10,Number(tableState.rake_cap||500)",
+        "pot*0.05,Number(tableState.rake_cap||300)",
+    )
+    return remove_fast_fold(value)
 
 
 def _patched_styles() -> str:
@@ -132,8 +157,8 @@ def _poker_config(user=Depends(runtime_server.current_user)):
     return {
         "action_timeout_seconds": _action_timeout_seconds(),
         "ranking_points_per_bb": 3,
-        "rake_percent": 10,
-        "rake_cap_bb": 5,
+        "rake_percent": 5,
+        "rake_cap_bb": 3,
     }
 
 
@@ -159,10 +184,67 @@ async def _leave_after_hand(
     return {"ok": True, "status": status, "state": public}
 
 
-# app.py may add integration routes after app_materialized finished installing its
-# extensions. Re-apply the identity-based ordering once so every non-core route,
-# including future GET endpoints, stays ahead of the canonical SPA catch-all.
+@app.get("/api/tables", include_in_schema=False)
+def _single_public_table_list(user=Depends(runtime_server.current_user)):
+    """Expose exactly one ring table to players, including stale cached clients.
+
+    The immutable materialized core retains both historical fixed tables for
+    rollback/data compatibility. The public contract is narrower and returns
+    only the first canonical table.
+    """
+    tables = runtime_server.tables(user)
+    return tables[:1]
+
+
+def _prioritize_single_public_table_route() -> None:
+    """Put the one-table route ahead of the canonical two-table route.
+
+    FastAPI resolves duplicate method/path routes by registration order. The
+    materialized core registered its historical GET /api/tables route long
+    before this integration shim, so merely registering a replacement route is
+    insufficient. Move this exact APIRoute ahead of every other matching GET
+    route and assert the invariant at startup.
+    """
+    routes = list(app.router.routes)
+    replacement = next(
+        (route for route in routes if getattr(route, "endpoint", None) is _single_public_table_list),
+        None,
+    )
+    if replacement is None:
+        raise RuntimeError("single public table route is missing")
+
+    routes.remove(replacement)
+    matching_indexes = [
+        index
+        for index, route in enumerate(routes)
+        if getattr(route, "path", None) == "/api/tables"
+        and "GET" in (getattr(route, "methods", None) or set())
+    ]
+    if not matching_indexes:
+        raise RuntimeError("canonical GET /api/tables route is missing")
+
+    routes.insert(min(matching_indexes), replacement)
+    app.router.routes[:] = routes
+
+    first_match = next(
+        route
+        for route in app.router.routes
+        if getattr(route, "path", None) == "/api/tables"
+        and "GET" in (getattr(route, "methods", None) or set())
+    )
+    if getattr(first_match, "endpoint", None) is not _single_public_table_list:
+        raise RuntimeError("single public table route precedence was not established")
+
+
+# Sit&Go is a root-level integration layer. The immutable v1.24.4 ring core is
+# intentionally left unchanged; scheduling/registration state lives in its own
+# tables and its own lifecycle task.
+_sitngo_service = sitngo.install(app, db, runtime_server)
+
+# First repair all late extension routes around the SPA fallback, then establish
+# the stricter duplicate-route ordering required for GET /api/tables.
 _materialized._prioritize_extension_routes(app, _materialized._CORE_ROUTE_IDS)
+_prioritize_single_public_table_route()
 
 
 __all__ = [
