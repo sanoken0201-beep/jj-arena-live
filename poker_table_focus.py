@@ -30,7 +30,7 @@ _APP_PATCH = r'''
     const hero=jjFocusHero(),playing=tableState?.status==='playing';
     const cards=Array.isArray(hero?.cards)?hero.cards:[];
     let dock=$('#jjHeroHandDock',table);
-    if(!hero||!playing){dock?.remove();return}
+    if(!hero||!playing||!hero.in_hand){dock?.remove();return}
     if(!dock){
       dock=document.createElement('div');
       dock.id='jjHeroHandDock';
@@ -168,7 +168,6 @@ _CSS_PATCH = r'''
   #pokerRoom .poker-zone{padding-top:8px!important}
   #pokerRoom #pokerTable{min-height:520px!important}
   #pokerRoom #actionBar{max-width:760px!important;margin:8px auto 0!important;padding:8px 10px!important}
-  #pokerRoom #actionBar .jj-main-actions{grid-template-columns:repeat(var(--jj-action-count,3),minmax(0,1fr))!important}
   #pokerRoom #actionBar .jj-action-btn{font-size:.82rem!important}
   #pokerRoom #actionBar .jj-action-btn b{font-size:.9rem!important}
   #pokerRoom #tableControls{max-width:760px!important;margin-inline:auto!important}
