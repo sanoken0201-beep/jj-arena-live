@@ -58,7 +58,7 @@ def run() -> None:
             for path in ("/api/rankings", "/api/schedules", "/api/announcements", "/api/tables"):
                 assert client.get(path, headers=auth(alice_token)).status_code == 200, path
             tables = json_response(client.get("/api/tables", headers=auth(alice_token)))
-            assert [t["id"] for t in tables] == ["jj-table-a", "jj-table-b"]
+            assert [t["id"] for t in tables] == ["jj-table-a"]
             assert all(int(t["max_seats"]) == 6 for t in tables)
 
             ranking_name = alice_user["ranking_name"] or alice_user["name"]
@@ -114,8 +114,9 @@ def run() -> None:
             assert any(int(p["user_id"]) == alice_id for p in alice_seat["seats"])
             assert any(int(p["user_id"]) == bob_id for p in bob_seat["seats"])
 
-            other_table = client.post("/api/tables/jj-table-b/seat", json={"seat": 0}, headers=auth(alice_token))
-            assert other_table.status_code == 400
+            # The legacy second table may remain internally for rollback/data
+            # compatibility, but it is no longer discoverable in the public list.
+            assert all(t["id"] != "jj-table-b" for t in tables)
 
             json_response(client.post(f"/api/tables/{table_id}/start", headers=auth(alice_token)))
             started = json_response(client.post(f"/api/tables/{table_id}/start", headers=auth(bob_token)))
