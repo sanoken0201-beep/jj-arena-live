@@ -90,6 +90,9 @@ def main() -> None:
     build_assets()
     for filename in RELEASE_TESTS:
         _run_test(filename)
+    # Tests may rebuild canonical assets in the shared output directory.
+    # The deployed output must always include every production post-transform.
+    build_assets()
     print(f"JJ_PRODUCTION_RELEASE_GATE_OK tests={len(RELEASE_TESTS)}", flush=True)
 
 
