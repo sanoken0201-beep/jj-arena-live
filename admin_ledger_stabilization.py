@@ -51,6 +51,53 @@ def _bounds(server, season: str) -> tuple[str, str]:
     return (start, end) if season == "fall" else ("0000-01-01", start)
 
 
+def _ensure_reversal_claims(db) -> None:
+    """Install a non-destructive exactly-once claim for ledger reversals.
+
+    Historical rows are never deleted or rewritten. If an old database already
+    contains more than one reversal for the same transaction, the oldest row is
+    recorded as the claim holder and the historical anomaly remains visible for
+    audit. New reversal requests cannot create another row for that original.
+    """
+    with db.connect() as con:
+        con.execute(
+            """
+            CREATE TABLE IF NOT EXISTS point_ledger_reversal_claims(
+                reversal_of TEXT PRIMARY KEY REFERENCES point_ledger(id),
+                reversal_id TEXT NOT NULL UNIQUE REFERENCES point_ledger(id),
+                created_at TEXT NOT NULL
+            )
+            """
+        )
+        rows = con.execute(
+            """
+            SELECT id,reversal_of,created_at
+            FROM point_ledger
+            WHERE reversal_of IS NOT NULL
+            ORDER BY created_at ASC,id ASC
+            """
+        ).fetchall()
+        for row in rows:
+            con.execute(
+                """
+                INSERT INTO point_ledger_reversal_claims(reversal_of,reversal_id,created_at)
+                VALUES (?,?,?) ON CONFLICT(reversal_of) DO NOTHING
+                """,
+                (row["reversal_of"], row["id"], row["created_at"]),
+            )
+
+
+def _claim_reversal(con, txid: str, reversal_id: str, created_at: str) -> bool:
+    cursor = con.execute(
+        """
+        INSERT INTO point_ledger_reversal_claims(reversal_of,reversal_id,created_at)
+        VALUES (?,?,?) ON CONFLICT(reversal_of) DO NOTHING
+        """,
+        (txid, reversal_id, created_at),
+    )
+    return int(getattr(cursor, "rowcount", 0) or 0) == 1
+
+
 def install(app, admin_console) -> None:
     """Correct ledger semantics without changing historical ledger rows.
 
@@ -59,7 +106,8 @@ def install(app, admin_console) -> None:
     ``quiz_reward`` rows. Total ranking points were correct, but the admin UI
     mislabeled quiz rewards as manual adjustments and could offer reversal of
     non-manual rewards. This compatibility layer keeps total rankings intact
-    while separating ledger categories and restricting the manual ledger API.
+    while separating ledger categories, restricting the manual ledger API, and
+    making reversal exactly-once at the database boundary.
     """
     if getattr(app.state, "jj_admin_ledger_stabilized", False):
         return
@@ -68,6 +116,7 @@ def install(app, admin_console) -> None:
     import db
     import server
 
+    _ensure_reversal_claims(db)
     original_rankings = admin_console._rankings
 
     def rankings(db_module, server_module, month=None, season="fall"):
@@ -206,9 +255,16 @@ def install(app, admin_console) -> None:
                 raise HTTPException(400, "管理者による振込・回収だけを取消できます")
             if original["reversal_of"]:
                 raise HTTPException(400, "取消取引は再取消できません")
+            # Retain the old read check for a clear response on historical rows,
+            # but rely on the claim table below for cross-worker concurrency.
             if con.execute("SELECT 1 FROM point_ledger WHERE reversal_of=?", (txid,)).fetchone():
                 raise HTTPException(409, "すでに取消済みです")
+
             reversal_id = "pt-" + uuid.uuid4().hex
+            created_at = admin_console._now(db)
+            if not _claim_reversal(con, txid, reversal_id, created_at):
+                raise HTTPException(409, "すでに取消済みです")
+
             amount = -float(original["amount"])
             con.execute(
                 """
@@ -224,7 +280,7 @@ def install(app, admin_console) -> None:
                     f"取消: {original['reason']}",
                     original["effective_at"],
                     user["id"],
-                    admin_console._now(db),
+                    created_at,
                     txid,
                 ),
             )
