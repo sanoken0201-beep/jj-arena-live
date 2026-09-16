@@ -42,7 +42,7 @@ from served_assets import (
 _BUILT_ASSETS = ensure_runtime_assets()
 # Deliberately changes whenever production browser behavior must bypass an old
 # service-worker/browser cache entry without mutating the immutable core.
-_APP_JS_QUERY = "r=sitngo-playable-20260915-1"
+_APP_JS_QUERY = "r=sitngo-playable-20260916-2"
 
 
 @lru_cache(maxsize=4)

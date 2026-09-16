@@ -35,7 +35,7 @@ def main() -> None:
             "smoke_test_v2_production_cutover.py",
             "smoke_test_single_public_table.py",
             "smoke_test_sitngo_phase1.py",
-        "smoke_test_sitngo_gameplay.py",
+            "smoke_test_sitngo_gameplay.py",
             "audit_ui_labels.py",
         }
         assert set(gate.RELEASE_TESTS) == expected
@@ -44,6 +44,21 @@ def main() -> None:
 
         wrapper = (gate.ROOT / "smoke_test_v190.py").read_text(encoding="utf-8")
         assert "production_release_gate import main" in wrapper
+        # Reproduce a test replacing final assets with base-only output.
+        from unittest.mock import patch
+        import build_served_assets as compiler
+        import served_assets
+        from poker_connection_fix import MARKER as connection_marker
+        from poker_control_safety import MARKER as controls_marker
+        with tempfile.TemporaryDirectory(prefix="jj-final-assets-") as directory:
+            root = Path(directory)
+            def overwrite(_filename):
+                served_assets.build_all(root)
+            with patch.object(compiler, "BUILD_ROOT", root), patch.object(gate, "_run_test", overwrite):
+                gate.main()
+            js = (root / "static/app.js").read_text()
+            assert connection_marker in js and controls_marker in js
+            served_assets.validate_built_assets(root)
         print("JJ_PRODUCTION_RELEASE_GATE_CONTRACT_OK")
     finally:
         if original_database_url is None:

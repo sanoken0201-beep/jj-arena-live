@@ -248,13 +248,14 @@ async def _exercise_broadcast() -> None:
 
 
 def _guard_client_and_gateway_efficiency() -> None:
-    from served_assets import ASSET_VERSION, BUILD_ROOT, build_all, validate_built_assets
+    from served_assets import ASSET_VERSION, BUILD_ROOT, validate_built_assets
+    from build_served_assets import main as build_production_assets
 
     app_source = (ROOT / "app.py").read_text(encoding="utf-8")
     build_source = (ROOT / "served_assets.py").read_text(encoding="utf-8")
     proxy_source = (ROOT / "public_proxy.py").read_text(encoding="utf-8")
 
-    build_all(BUILD_ROOT)
+    build_production_assets()
     manifest = validate_built_assets(BUILD_ROOT)
     js = (BUILD_ROOT / "static/app.js").read_text(encoding="utf-8")
     worker = (BUILD_ROOT / "static/sw.js").read_text(encoding="utf-8")
