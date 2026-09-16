@@ -4,7 +4,7 @@ import tempfile
 from pathlib import Path
 
 from frontend_build_pipeline import PIPELINE_VERSION, POST_BUILD_STAGES, build_production_frontend
-from frontend_governance import ADMIN_NEW, ADMIN_OLD, MARKER as GOVERNANCE_MARKER
+from frontend_governance import ADMIN_NEW, ADMIN_OLD, CACHE_QUERY, MARKER as GOVERNANCE_MARKER
 from non_sng_safety import MARKER as NON_SNG_MARKER
 from poker_connection_fix import MARKER as CONNECTION_MARKER
 from poker_control_safety import MARKER as CONTROL_MARKER
@@ -30,6 +30,7 @@ def main() -> None:
 
         assert ADMIN_OLD not in first_app
         assert ADMIN_NEW in first_app
+        assert CACHE_QUERY in first_index
         assert 'data-view="schedule"' not in first_index
         assert 'data-view="discussion"' not in first_index
 
