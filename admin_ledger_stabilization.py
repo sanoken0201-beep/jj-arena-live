@@ -64,7 +64,7 @@ def _ensure_reversal_claims(db) -> None:
             """
             CREATE TABLE IF NOT EXISTS point_ledger_reversal_claims(
                 reversal_of TEXT PRIMARY KEY REFERENCES point_ledger(id),
-                reversal_id TEXT NOT NULL UNIQUE REFERENCES point_ledger(id),
+                reversal_id TEXT NOT NULL UNIQUE,
                 created_at TEXT NOT NULL
             )
             """
