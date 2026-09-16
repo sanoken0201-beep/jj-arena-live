@@ -29,3 +29,4 @@ jobs:
         with:
           name: poker-simple-browser
           path: test-artifacts/poker-simple
+

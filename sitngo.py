@@ -192,6 +192,11 @@ class SitNGoService:
                             rng = secrets.SystemRandom()
                             rng.shuffle(participants)
                             seats = rng.sample(range(int(event.get("max_players") or MAX_PLAYERS)), len(participants))
+                            if hasattr(self, 'runtime'):
+                                busy = con.execute("SELECT id FROM sitngo_events WHERE status='running' AND id<>? LIMIT 1", (event_id,)).fetchone()
+                                if busy:
+                                    continue
+                                self.runtime.create(con, event, list(zip(participants, seats)), now)
                             for user_id, seat in zip(participants, seats):
                                 con.execute(
                                     "UPDATE sitngo_registrations SET status='active',seat=?,cancelled_at=NULL WHERE event_id=? AND user_id=? AND status='registered'",
@@ -258,7 +263,14 @@ class SitNGoService:
             "structure": BLIND_STRUCTURE,
             "bb_ante": True,
         }
-        if status == "running" or admin:
+        if hasattr(self, 'runtime') and status in {'running', 'finished'}:
+            try:
+                game = self.runtime.public(self.runtime.load(str(row['id'])), user_id)
+                payload.update(table_id=row['id'], tournament=game['tournament'])
+            except HTTPException:
+                payload['table_id'] = None
+        payload.update(entry_fee=0, prize_points=0, reentry=False)
+        if status in {'running', 'finished'} or admin:
             payload["participants"] = [
                 {
                     "user_id": int(r["user_id"]),
@@ -286,7 +298,10 @@ class SitNGoService:
                     "SELECT * FROM sitngo_events WHERE starts_at>=? AND status<>'cancelled' ORDER BY starts_at,id LIMIT 1",
                     (now,),
                 ).fetchone()
-        return {"event": self._event_payload(dict(row), user_id) if row else None, "structure": BLIND_STRUCTURE}
+        with self.db.connect() as con:
+            recent = con.execute("SELECT * FROM sitngo_events WHERE status='finished' ORDER BY updated_at DESC LIMIT 5").fetchall()
+        return {"event": self._event_payload(dict(row), user_id) if row else None, "structure": BLIND_STRUCTURE,
+                "recent": [self._event_payload(dict(r), user_id) for r in recent]}
 
     def admin_events(self, actor_id: int) -> dict:
         self.reconcile()
@@ -414,6 +429,8 @@ class SitNGoService:
         return {"ok": True}
 
     def register(self, event_id: str, user_id: int) -> dict:
+        if hasattr(self, "runtime") and self.runtime.ring_seated(user_id):
+            raise HTTPException(409, "リングの席を離れてから大会に参加登録してください")
         self.reconcile()
         now = _utcnow()
         with self._lock, self.db.connect() as con:
@@ -476,6 +493,8 @@ class SitNGoService:
         return self._event_payload(self._row(event_id), user_id)
 
     async def lifecycle_loop(self) -> None:
+        if hasattr(self, "runtime"):
+            return await self.runtime.run()
         while True:
             try:
                 await asyncio.to_thread(self.reconcile)
@@ -492,6 +511,9 @@ def install(app, db, server) -> SitNGoService:
         return existing
 
     service = SitNGoService(app, db, server)
+    from sitngo_runtime import TournamentRuntime
+    import sys
+    service.runtime = TournamentRuntime(service, sys.modules["poker_engine"])
     app.state.jj_sitngo = service
 
     @app.get("/api/sitngo/next")
@@ -499,8 +521,9 @@ def install(app, db, server) -> SitNGoService:
         return service.next_event(int(user["id"]))
 
     @app.post("/api/sitngo/{event_id}/register")
-    def sitngo_register(event_id: str, user=Depends(server.current_user)):
-        return service.register(event_id, int(user["id"]))
+    async def sitngo_register(event_id: str, user=Depends(server.current_user)):
+        async with server.table_membership_lock:
+            return service.register(event_id, int(user["id"]))
 
     @app.post("/api/sitngo/{event_id}/cancel-registration")
     def sitngo_cancel_registration(event_id: str, user=Depends(server.current_user)):
