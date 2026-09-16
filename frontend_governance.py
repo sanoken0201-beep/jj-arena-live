@@ -14,6 +14,7 @@ import json
 from pathlib import Path
 
 MARKER = "frontend governance 2026-09-17"
+CACHE_QUERY = "fg=admin-api-20260917-1"
 ADMIN_OLD = "/admin/members"
 ADMIN_NEW = "/admin/console/users"
 
@@ -36,11 +37,27 @@ def transform_app_js(source: str) -> str:
 def apply_to_build(output_root: Path | str, manifest: dict) -> dict:
     root = Path(output_root)
     app_path = root / "static/app.js"
+    index_path = root / "index.html"
+
     app_js = transform_app_js(app_path.read_text(encoding="utf-8"))
     app_path.write_text(app_js, encoding="utf-8", newline="\n")
 
+    index = index_path.read_text(encoding="utf-8")
+    if CACHE_QUERY not in index:
+        needle = f"/static/app.js?v={int(manifest.get('asset_version', 0))}"
+        start = index.find(needle)
+        if start < 0:
+            raise RuntimeError("frontend governance drift: app.js URL missing")
+        end = index.find('"', start)
+        if end < 0:
+            raise RuntimeError("frontend governance drift: app.js URL terminator missing")
+        current = index[start:end]
+        index = index[:start] + current + "&" + CACHE_QUERY + index[end:]
+    index_path.write_text(index, encoding="utf-8", newline="\n")
+
     outputs = dict(manifest.get("outputs") or {})
     outputs["static/app.js"] = _digest(app_js)
+    outputs["index.html"] = _digest(index)
     manifest["outputs"] = outputs
     post = dict(manifest.get("post_transforms") or {})
     post["frontend_governance"] = MARKER
@@ -53,4 +70,4 @@ def apply_to_build(output_root: Path | str, manifest: dict) -> dict:
     return manifest
 
 
-__all__ = ["ADMIN_NEW", "ADMIN_OLD", "MARKER", "apply_to_build", "transform_app_js"]
+__all__ = ["ADMIN_NEW", "ADMIN_OLD", "CACHE_QUERY", "MARKER", "apply_to_build", "transform_app_js"]
