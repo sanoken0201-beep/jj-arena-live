@@ -13,6 +13,9 @@ permissions:
   contents: read
 
 jobs:
+  # Job id intentionally remains `phase4b` because main branch protection uses
+  # this historical check name. The implementation now validates the canonical
+  # frontend pipeline rather than reconstructing phase1→phase5 inside YAML.
   phase4b:
     runs-on: ubuntu-latest
     timeout-minutes: 8
@@ -31,26 +34,14 @@ jobs:
           python -m pip install -r requirements.txt
           python -m pip install httpx==0.28.1
 
-      - name: Build final served browser assets
+      - name: Build canonical served browser assets
         run: python build_served_assets.py
 
-      - name: Compile phase 4B files
-        run: python -m py_compile player_ux_phase5.py player_ux_phase5_mobile.py smoke_test_player_ux_phase5.py smoke_test_player_ux_phase5_layout.py
+      - name: Compile phase 4B compatibility tests
+        run: python -m py_compile player_ux_phase5.py player_ux_phase5_mobile.py smoke_test_player_ux_phase5.py smoke_test_player_ux_phase5_layout.py frontend_build_pipeline.py
 
-      - name: Check phase 4B and final served JavaScript syntax
-        run: |
-          python - <<'PY'
-          from pathlib import Path
-          from player_ux_asset_transform import transform_app_js as phase1
-          from player_ux_phase2 import transform_app_js as phase2
-          from player_ux_phase3 import transform_app_js as phase3
-          from player_ux_phase4 import transform_app_js as phase4
-          from player_ux_phase5 import transform_app_js as phase5
-          source = Path('materialized_v1244/static/app.js').read_text(encoding='utf-8')
-          Path('/tmp/jj-player-ux-phase5.js').write_text(phase5(phase4(phase3(phase2(phase1(source))))), encoding='utf-8')
-          PY
-          node --check /tmp/jj-player-ux-phase5.js
-          node --check .jj_build/static/app.js
+      - name: Check final served JavaScript syntax
+        run: node --check .jj_build/static/app.js
 
       - name: Run phase 4B safety regression
         run: python smoke_test_player_ux_phase5.py
@@ -58,5 +49,7 @@ jobs:
       - name: Run phase 4B real-browser layout regression
         run: python smoke_test_player_ux_phase5_layout.py
 
-      - name: Verify served v68 asset contract
-        run: python smoke_test_learning_contrast.py
+      - name: Verify final frontend contract
+        run: |
+          python smoke_test_frontend_pipeline.py
+          python smoke_test_learning_contrast.py
