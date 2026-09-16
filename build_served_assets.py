@@ -1,6 +1,7 @@
 """Compile production browser assets from the immutable materialized core."""
 from __future__ import annotations
 
+from non_sng_safety import apply_to_build as apply_non_sng_safety
 from poker_connection_fix import apply_to_build as apply_oop_check_freshness
 from poker_control_safety import apply_to_build as apply_poker_control_safety
 from served_assets import ASSET_VERSION, BUILD_ROOT, build_all, validate_built_assets
@@ -10,6 +11,7 @@ def main() -> None:
     manifest = build_all(BUILD_ROOT)
     manifest = apply_oop_check_freshness(BUILD_ROOT, manifest)
     manifest = apply_poker_control_safety(BUILD_ROOT, manifest)
+    manifest = apply_non_sng_safety(BUILD_ROOT, manifest)
     validate_built_assets(BUILD_ROOT)
     print(
         "JJ_SERVED_ASSETS_BUILT "
@@ -19,4 +21,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

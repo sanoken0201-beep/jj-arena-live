@@ -25,6 +25,10 @@ def main() -> None:
         expected = {
             "smoke_test_prebuilt_assets.py",
             "smoke_test_pwa_update.py",
+            "smoke_test_public_proxy_security.py",
+            "smoke_test_admin_reversal_safety.py",
+            "smoke_test_admin_export_safety.py",
+            "smoke_test_non_sng_safety.py",
             "smoke_test_runtime_performance.py",
             "smoke_test_runtime_observability.py",
             "smoke_test_point_ledger_precision.py",
@@ -48,6 +52,7 @@ def main() -> None:
         from unittest.mock import patch
         import build_served_assets as compiler
         import served_assets
+        from non_sng_safety import MARKER as non_sng_marker
         from poker_connection_fix import MARKER as connection_marker
         from poker_control_safety import MARKER as controls_marker
         with tempfile.TemporaryDirectory(prefix="jj-final-assets-") as directory:
@@ -57,7 +62,7 @@ def main() -> None:
             with patch.object(compiler, "BUILD_ROOT", root), patch.object(gate, "_run_test", overwrite):
                 gate.main()
             js = (root / "static/app.js").read_text()
-            assert connection_marker in js and controls_marker in js
+            assert connection_marker in js and controls_marker in js and non_sng_marker in js
             served_assets.validate_built_assets(root)
         print("JJ_PRODUCTION_RELEASE_GATE_CONTRACT_OK")
     finally:

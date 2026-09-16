@@ -38,7 +38,8 @@ jobs:
 
       - name: Compile security boundary
         run: |
-          python -m py_compile security_hardening.py admin_pin_verification.py smoke_test_auth_hardening.py
+          python -m py_compile security_hardening.py admin_pin_verification.py admin_ledger_stabilization.py public_proxy.py non_sng_safety.py
+          python -m py_compile smoke_test_auth_hardening.py smoke_test_public_proxy_security.py smoke_test_admin_reversal_safety.py smoke_test_admin_export_safety.py smoke_test_non_sng_safety.py
           node --check admin_static/admin_pin_verify.js
           node --check .jj_build/static/app.js
 
@@ -47,3 +48,15 @@ jobs:
 
       - name: Preserve WebSocket authentication boundary
         run: python smoke_test_websocket_auth.py
+
+      - name: Enforce public gateway origin boundary
+        run: python smoke_test_public_proxy_security.py
+
+      - name: Enforce exactly-once admin ledger reversal
+        run: python smoke_test_admin_reversal_safety.py
+
+      - name: Harden admin export and point submission
+        run: python smoke_test_admin_export_safety.py
+
+      - name: Harden official point form submission
+        run: python smoke_test_non_sng_safety.py

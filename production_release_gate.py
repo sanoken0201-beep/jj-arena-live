@@ -25,6 +25,10 @@ ROOT = Path(__file__).resolve().parent
 RELEASE_TESTS = (
     "smoke_test_prebuilt_assets.py",
     "smoke_test_pwa_update.py",
+    "smoke_test_public_proxy_security.py",
+    "smoke_test_admin_reversal_safety.py",
+    "smoke_test_admin_export_safety.py",
+    "smoke_test_non_sng_safety.py",
     "smoke_test_runtime_performance.py",
     "smoke_test_runtime_observability.py",
     "smoke_test_point_ledger_precision.py",

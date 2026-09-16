@@ -3,7 +3,7 @@ import re
 from pathlib import Path
 
 
-ADMIN_ASSET_VERSION = "124"
+ADMIN_ASSET_VERSION = "125"
 
 
 def apply(static_dir: Path) -> None:
@@ -85,4 +85,33 @@ def _js(p: Path) -> None:
       ('管理者による1回の振込・回収上限','管理者による1回の付与・回収上限'),
     ]
     for old,new in replacements:s=s.replace(old,new)
+
+    # CSV values can be opened by spreadsheet software. HTML escaping is not
+    # relevant there: user-controlled strings beginning with formula prefixes
+    # must be converted to inert text before quoting the CSV cell. This patch is
+    # intentionally idempotent because app imports and regression tests may
+    # apply admin_copy_patch more than once in one checkout.
+    old_csv="esc=v=>`\"${String(v??'').replaceAll('\"','\"\"')}\"`"
+    new_csv="esc=v=>{let raw=v,txt=String(raw??'');if(typeof raw==='string'&&/^[\\t\\r ]*[=+\\-@]/.test(txt))txt=\"'\"+txt;return `\"${txt.replaceAll('\\\"','\\\"\\\"')}\"`}"
+    if new_csv not in s:
+        if s.count(old_csv)!=1:
+            raise RuntimeError('admin CSV safety anchor missing')
+        s=s.replace(old_csv,new_csv,1)
+
+    # Prevent an accidental fast double-submit from creating two independent
+    # point-ledger transactions. Unsafe gateway requests are never retried, so
+    # one in-flight form submission is the correct browser-side boundary.
+    point_start="$('#pointForm').addEventListener('submit',async e=>{e.preventDefault();const uid="
+    point_start_new="$('#pointForm').addEventListener('submit',async e=>{e.preventDefault();const form=e.currentTarget;if(form.dataset.jjSubmitting==='1')return;form.dataset.jjSubmitting='1';const submit=form.querySelector('button[type=\"submit\"],button:not([type])');if(submit)submit.disabled=true;const uid="
+    if point_start_new not in s:
+        if s.count(point_start)!=1:
+            raise RuntimeError('admin point submit start anchor missing')
+        s=s.replace(point_start,point_start_new,1)
+    point_end="catch(err){toast(err.message)}});\n    $('#refreshLedger')"
+    point_end_new="catch(err){toast(err.message)}finally{delete form.dataset.jjSubmitting;if(submit&&submit.isConnected)submit.disabled=false}});\n    $('#refreshLedger')"
+    if point_end_new not in s:
+        if s.count(point_end)!=1:
+            raise RuntimeError('admin point submit end anchor missing')
+        s=s.replace(point_end,point_end_new,1)
+
     p.write_text(s,encoding='utf-8')

@@ -65,7 +65,7 @@ def main() -> None:
     assert "runtime_performance.install(db, runtime_server, runtime_poker_engine)" in materialized
 
     admin_patch = (ROOT / "admin_copy_patch.py").read_text(encoding="utf-8")
-    assert 'ADMIN_ASSET_VERSION = "124"' in admin_patch
+    assert 'ADMIN_ASSET_VERSION = "125"' in admin_patch
     assert "ux_telemetry.css" in admin_patch and "ux_telemetry.js" in admin_patch
 
     admin_js = (ROOT / "admin_static" / "ux_telemetry.js").read_text(encoding="utf-8")
