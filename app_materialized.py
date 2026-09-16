@@ -15,9 +15,11 @@ import secrets
 import sys
 from pathlib import Path
 
+import admin_api_consolidation
 import admin_copy_patch
 import admin_ledger_stabilization
 import admin_pin_verification
+import admin_runtime_safety
 import hand_analytics
 import hand_analytics_hardening
 import hand_history_visibility
@@ -148,10 +150,15 @@ def _prioritize_extension_routes(fastapi_app, core_route_ids=frozenset()) -> Non
 admin_console.install_admin_console(app)
 point_ledger_precision.ensure_exact_point_ledger(db)
 admin_ledger_stabilization.install(app, admin_console)
+# First let deletion and ranking guards wrap the real canonical/legacy routes.
+# Then preserve the historical ring-ejection semantics on the canonical update
+# and retire the old /api/admin/members* surface last.
 install_account_deletion(app)
 ranking_mapping_guard.install(app, db)
-# Keep the historical URL installed as a disabled compatibility endpoint. It no
-# longer verifies user PIN candidates; see admin_pin_verification.py.
+admin_runtime_safety.install(app, runtime_server, db)
+admin_api_consolidation.install(app, runtime_server)
+# Keep the historical verify-PIN URL installed as an explicit disabled endpoint.
+# It no longer verifies user PIN candidates; see admin_pin_verification.py.
 admin_pin_verification.install(app, admin_console)
 security_hardening.install(app, runtime_server, db)
 learning_content.install(app)
