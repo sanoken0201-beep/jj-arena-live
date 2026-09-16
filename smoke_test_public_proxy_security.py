@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from public_proxy import _browser_http_allowed, _browser_websocket_allowed, _origin_matches_host
+from public_proxy_security import _browser_http_allowed, _browser_websocket_allowed, _origin_matches_host
 
 
 def main() -> None:

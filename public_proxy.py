@@ -3,13 +3,14 @@ from __future__ import annotations
 import asyncio
 import os
 import time
-from collections.abc import Mapping
 from urllib.parse import urlsplit
 
 import httpx
 import websockets
 from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
 from fastapi.responses import Response
+
+from public_proxy_security import _browser_http_allowed, _browser_websocket_allowed
 
 UPSTREAM = os.environ.get("JJ_UPSTREAM_URL", "https://jj-arena-live.onrender.com").rstrip("/")
 UPSTREAM_WS = ("wss://" if UPSTREAM.startswith("https://") else "ws://") + urlsplit(UPSTREAM).netloc
@@ -51,80 +52,8 @@ RESPONSE_STRIP = {
 # to the browser during a gateway/upstream wake transition.
 COLD_START_STATUSES = {502, 503, 504}
 SAFE_RETRY_METHODS = {"GET", "HEAD", "OPTIONS"}
-UNSAFE_BROWSER_METHODS = {"POST", "PUT", "PATCH", "DELETE"}
 COLD_START_BUDGET_SECONDS = 55.0
 COLD_START_RETRY_DELAY_SECONDS = 1.5
-
-
-def _header(headers: Mapping[str, str], name: str) -> str:
-    wanted = name.lower()
-    for key, value in headers.items():
-        if str(key).lower() == wanted:
-            return str(value or "").strip()
-    return ""
-
-
-def _default_port(scheme: str) -> int | None:
-    if scheme.lower() in {"https", "wss"}:
-        return 443
-    if scheme.lower() in {"http", "ws"}:
-        return 80
-    return None
-
-
-def _origin_matches_host(value: str, host: str) -> bool:
-    """Return True only when an explicit browser origin/referer matches Host.
-
-    The gateway must validate the browser-facing origin *before* replacing it
-    with the upstream Render origin. Otherwise the upstream same-origin guard
-    sees only the trusted rewritten value and cannot distinguish a hostile page.
-    """
-    value = str(value or "").strip()
-    host = str(host or "").strip()
-    if not value or not host:
-        return False
-    try:
-        origin = urlsplit(value)
-        if origin.scheme.lower() not in {"http", "https"} or not origin.hostname:
-            return False
-        host_parts = urlsplit("//" + host)
-        if not host_parts.hostname:
-            return False
-        if origin.hostname.lower().rstrip(".") != host_parts.hostname.lower().rstrip("."):
-            return False
-        origin_port = origin.port or _default_port(origin.scheme)
-        host_port = host_parts.port or _default_port(origin.scheme)
-        return origin_port == host_port
-    except (TypeError, ValueError):
-        return False
-
-
-def _browser_http_allowed(method: str, headers: Mapping[str, str]) -> bool:
-    if str(method or "").upper() not in UNSAFE_BROWSER_METHODS:
-        return True
-    if _header(headers, "sec-fetch-site").lower() == "cross-site":
-        return False
-    host = _header(headers, "host")
-    origin = _header(headers, "origin")
-    if origin:
-        return _origin_matches_host(origin, host)
-    # Some browser paths omit Origin. Referer is a safe fallback when supplied;
-    # if both are absent we retain native/non-browser API compatibility and let
-    # the authenticated upstream endpoint make the authorization decision.
-    referer = _header(headers, "referer")
-    if referer:
-        return _origin_matches_host(referer, host)
-    return True
-
-
-def _browser_websocket_allowed(headers: Mapping[str, str]) -> bool:
-    if _header(headers, "sec-fetch-site").lower() == "cross-site":
-        return False
-    origin = _header(headers, "origin")
-    if not origin:
-        # Native/testing clients do not necessarily send Origin.
-        return True
-    return _origin_matches_host(origin, _header(headers, "host"))
 
 
 def _request_headers(request: Request) -> dict[str, str]:
