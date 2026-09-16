@@ -12,6 +12,7 @@ import secrets
 import sys
 from pathlib import Path
 
+import admin_api_consolidation
 import admin_copy_patch
 import admin_ledger_stabilization
 import admin_pin_verification
@@ -60,6 +61,7 @@ def _prioritize_extension_routes(fastapi_app) -> None:
             path in {"/admin", "/admin/", "/api/learning-content"}
             or path.startswith("/admin-static")
             or path.startswith("/api/admin/console")
+            or path.startswith("/api/admin/members")
             or path.startswith("/api/analysis")
             or path.startswith("/api/quiz/")
             or path.startswith("/api/home/")
@@ -73,6 +75,7 @@ def _prioritize_extension_routes(fastapi_app) -> None:
 admin_console.install_admin_console(app)
 point_ledger_precision.ensure_exact_point_ledger(db)
 admin_ledger_stabilization.install(app, admin_console)
+admin_api_consolidation.install(app, runtime_server)
 install_account_deletion(app)
 ranking_mapping_guard.install(app, db)
 admin_pin_verification.install(app, admin_console)
