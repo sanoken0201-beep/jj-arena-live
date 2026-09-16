@@ -16,6 +16,7 @@ import admin_api_consolidation
 import admin_copy_patch
 import admin_ledger_stabilization
 import admin_pin_verification
+import admin_runtime_safety
 import hand_analytics
 import hand_analytics_hardening
 import learning_content
@@ -75,9 +76,10 @@ def _prioritize_extension_routes(fastapi_app) -> None:
 admin_console.install_admin_console(app)
 point_ledger_precision.ensure_exact_point_ledger(db)
 admin_ledger_stabilization.install(app, admin_console)
-admin_api_consolidation.install(app, runtime_server)
 install_account_deletion(app)
 ranking_mapping_guard.install(app, db)
+admin_runtime_safety.install(app, runtime_server, db)
+admin_api_consolidation.install(app, runtime_server)
 admin_pin_verification.install(app, admin_console)
 security_hardening.install(app, runtime_server, db)
 learning_content.install(app)
