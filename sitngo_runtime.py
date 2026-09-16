@@ -10,6 +10,7 @@ import contextvars
 import importlib.util
 import json
 import time
+import threading
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -89,6 +90,7 @@ class TournamentRuntime:
         self.engine = make_engine()
         self.event = None
         self.loop = None
+        self._runner_guard = threading.Lock()
         with self.db.connect() as con:
             con.execute('''CREATE TABLE IF NOT EXISTS sitngo_games(
                 event_id TEXT PRIMARY KEY REFERENCES sitngo_events(id),
@@ -104,8 +106,13 @@ class TournamentRuntime:
         self.install_routes()
 
     def signal(self):
-        if self.event and self.loop:
-            self.loop.call_soon_threadsafe(self.event.set)
+        loop, event = self.loop, self.event
+        if loop is not None and event is not None and not loop.is_closed():
+            try:
+                loop.call_soon_threadsafe(event.set)
+            except RuntimeError:
+                if not loop.is_closed():
+                    raise
 
     def create(self, con, event, participants, now):
         eid = event['id']
@@ -370,11 +377,15 @@ class TournamentRuntime:
         return min(deadlines)
 
     async def run(self):
+        # An app can have overlapping lifespan contexts (e.g. concurrent test
+        # clients). Only one scheduler may own its events and table locks.
+        while not self._runner_guard.acquire(blocking=False):
+            await asyncio.sleep(.1)
         self.loop=asyncio.get_running_loop()
         self.event=asyncio.Event()
         recovered=set()
-        self.recover_legacy()
         try:
+            self.recover_legacy()
             while True:
                 self.event.clear()
                 self.service.reconcile()
@@ -389,9 +400,10 @@ class TournamentRuntime:
                     except Exception as exc:
                         import resilience
                         resilience.record_error(self.db,'sitngo_lifecycle',f'{type(exc).__name__}: {exc}',path=eid)
-                # save() signals; consume our own writes before waiting. Actions
-                # cannot interleave here without an await; external writes wake us.
-                self.event.clear()
+                # tick() does not signal its own checkpoint. Preserve signals
+                # from actions arriving while a broadcast yielded control.
+                if self.event.is_set():
+                    continue
                 try:
                     await asyncio.wait_for(self.event.wait(),timeout=max(.05,due-time.time()))
                 except TimeoutError:
@@ -399,3 +411,4 @@ class TournamentRuntime:
         finally:
             self.event=None
             self.loop=None
+            self._runner_guard.release()
