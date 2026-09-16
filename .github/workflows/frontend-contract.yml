@@ -1,0 +1,66 @@
+name: JJ Arena Frontend Contract
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches:
+      - main
+      - 'feature/**'
+      - 'fix/**'
+      - 'refactor/**'
+
+permissions:
+  contents: read
+
+jobs:
+  frontend-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version-file: .python-version
+          cache: pip
+
+      - name: Install production and test dependencies
+        run: |
+          python -m pip install -r requirements.txt
+          python -m pip install httpx==0.28.1
+
+      - name: Build canonical served browser assets
+        run: python build_served_assets.py
+
+      - name: Compile frontend contract modules
+        run: |
+          python -m py_compile frontend_build_pipeline.py frontend_governance.py feature_lifecycle.py test_catalog.py
+          python -m py_compile hand_history_visibility.py player_ux_phase3.py player_ux_phase4.py player_ux_phase6.py subtractive_redesign.py
+          python -m py_compile smoke_test_frontend_pipeline.py smoke_test_feature_lifecycle.py smoke_test_hand_history_visibility.py
+          node --check .jj_build/static/app.js
+          node --check admin_static/ux_telemetry.js
+
+      - name: Verify canonical frontend pipeline
+        run: |
+          python smoke_test_frontend_pipeline.py
+          python smoke_test_feature_lifecycle.py
+          python smoke_test_prebuilt_assets.py
+          python smoke_test_pwa_update.py
+
+      - name: Preserve participant hand-history boundary
+        run: python smoke_test_hand_history_visibility.py
+
+      - name: Preserve historical UX compatibility stages
+        run: |
+          python smoke_test_player_ux_phase3.py
+          python smoke_test_player_ux_phase3_layout.py
+          python smoke_test_player_ux_phase4.py
+          python smoke_test_player_ux_phase4_layout.py
+          python smoke_test_player_ux_phase6.py
+          python smoke_test_ux_telemetry.py
+          python smoke_test_asset_encoding.py
+          python smoke_test_learning_contrast.py
+          python smoke_test_subtractive_redesign.py
