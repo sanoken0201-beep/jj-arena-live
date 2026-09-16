@@ -34,6 +34,14 @@ def main() -> None:
     assert "e.data.type==='SKIP_WAITING'" in worker
     assert "self.skipWaiting()" in worker
 
+    # Authenticated/dynamic traffic must never be written to Cache Storage.
+    # The application shell and static assets may be cached; API and WebSocket
+    # paths are explicitly bypassed before any respondWith/cache.put branch.
+    assert "e.request.method!=='GET'||u.pathname.startsWith('/api/')||u.pathname.startsWith('/ws/')" in worker
+    api_guard = worker.index("u.pathname.startsWith('/api/')")
+    cache_write = worker.index("c.put(e.request,copy)")
+    assert api_guard < cache_write
+
     print("JJ_PWA_UPDATE_OK")
 
 
