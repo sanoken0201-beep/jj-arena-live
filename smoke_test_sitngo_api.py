@@ -33,6 +33,7 @@ def main():
     state=response.json()['state']
     assert state['tournament']['entry_fee']==0
     assert state['big_blind']==400 and state['tournament']['bb_ante']==400
+    assert state['turn_id'] and state['hand']['turn_id']==state['turn_id']
     for operation,body in [('seat',{'seat':3}),('join',{}),('rebuy',{}),('presence',{'mode':'rebuy'}),('leave',{}),('leave-after-hand',{'enabled':True}),('start',{})]:
         assert client.post(f'/api/tables/{eid}/{operation}',json=body).status_code==409,operation
     assert client.post('/api/tables/jj-table-a/join',json={}).status_code==400
@@ -40,7 +41,7 @@ def main():
     assert client.get('/api/tables/'+eid).json()['messages'][0]['body']=='大会チャット'
     actor=next(p for p in state['seats'] if p['seat']==state['hand']['action_seat'])['user_id']
     login(actor)
-    body={'action':'fold','action_id':'sng-api-idempotent-1','hand_id':state['hand']['id']}
+    body={'action':'fold','action_id':'sng-api-idempotent-1','hand_id':state['hand']['id'],'turn_id':state['turn_id']}
     assert client.post(f'/api/tables/{eid}/action',json={**body,'hand_id':'old-hand'}).status_code==409
     first=client.post(f'/api/tables/{eid}/action',json=body)
     assert first.status_code==200,first.text
@@ -69,6 +70,7 @@ def main():
     assert state['tournament']['level']==2 and state['big_blind']==600
     assert state['tournament']['bb_ante']==600
     assert state['status']=='playing'
+    assert state['hand']['turn_id']
     # A disconnected actor keeps their seat and is timed out, never removed.
     actor=next(p for p in state['seats'] if p['seat']==state['hand']['action_seat'])
     state['hand']['action_deadline']=(datetime.now(timezone.utc)-timedelta(seconds=1)).isoformat()
