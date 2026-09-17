@@ -5,6 +5,7 @@ import tempfile
 from pathlib import Path
 
 import production_release_gate as gate
+from test_suites import PRODUCTION_RELEASE_SELECTION, production_release_tests
 
 
 def main() -> None:
@@ -26,6 +27,7 @@ def main() -> None:
             "smoke_test_prebuilt_assets.py",
             "smoke_test_pwa_update.py",
             "smoke_test_public_proxy_security.py",
+            "smoke_test_structure_consolidation.py",
             "smoke_test_admin_reversal_safety.py",
             "smoke_test_admin_export_safety.py",
             "smoke_test_non_sng_safety.py",
@@ -42,28 +44,47 @@ def main() -> None:
             "smoke_test_sitngo_gameplay.py",
             "audit_ui_labels.py",
         }
-        assert set(gate.RELEASE_TESTS) == expected
-        for filename in gate.RELEASE_TESTS:
+        assert gate.RELEASE_TESTS == production_release_tests()
+        assert {filename for _, filename in gate.RELEASE_TESTS} == expected
+        assert {group for group, _ in gate.RELEASE_TESTS} == {
+            group for group, _ in PRODUCTION_RELEASE_SELECTION
+        }
+        for group, filename in gate.RELEASE_TESTS:
+            assert group
             assert (gate.ROOT / filename).is_file(), filename
 
         wrapper = (gate.ROOT / "smoke_test_v190.py").read_text(encoding="utf-8")
         assert "production_release_gate import main" in wrapper
-        # Reproduce a test replacing final assets with base-only output.
+        # Reproduce a test replacing final assets with base-only output. The
+        # release gate must always rebuild the complete final pipeline after all
+        # isolated tests, regardless of their group ownership.
         from unittest.mock import patch
         import build_served_assets as compiler
         import served_assets
+        from browser_structure_consolidation import MARKER as structure_marker
         from non_sng_safety import MARKER as non_sng_marker
         from poker_connection_fix import MARKER as connection_marker
         from poker_control_safety import MARKER as controls_marker
         with tempfile.TemporaryDirectory(prefix="jj-final-assets-") as directory:
             root = Path(directory)
-            def overwrite(_filename):
+            def overwrite(_filename, *, group="adhoc"):
+                assert group
                 served_assets.build_all(root)
             with patch.object(compiler, "BUILD_ROOT", root), patch.object(gate, "_run_test", overwrite):
                 gate.main()
             js = (root / "static/app.js").read_text()
-            assert connection_marker in js and controls_marker in js and non_sng_marker in js
-            served_assets.validate_built_assets(root)
+            assert connection_marker in js
+            assert controls_marker in js
+            assert non_sng_marker in js
+            assert structure_marker in js
+            manifest = served_assets.validate_built_assets(root)
+            assert manifest.get("pipeline_version") == 2
+            assert manifest.get("pipeline_stages") == [
+                "oop_check_freshness",
+                "poker_control_safety",
+                "non_sng_safety",
+                "structure_consolidation",
+            ]
         print("JJ_PRODUCTION_RELEASE_GATE_CONTRACT_OK")
     finally:
         if original_database_url is None:
