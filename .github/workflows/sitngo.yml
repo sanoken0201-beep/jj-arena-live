@@ -21,6 +21,7 @@ jobs:
       - run: python build_served_assets.py
       - run: python smoke_test_sitngo_phase1.py
       - run: python smoke_test_sitngo_chip_rules.py
+      - run: python smoke_test_sitngo_freezeout_contract.py
       - run: python -c "from production_release_gate import _run_test; _run_test('smoke_test_sitngo_gameplay.py')"
       - run: python smoke_test_sitngo_api.py
       - run: python smoke_test_sitngo_browser.py
@@ -57,4 +58,5 @@ jobs:
       - run: python build_served_assets.py
       - run: python smoke_test_sitngo_phase1.py
       - run: python smoke_test_sitngo_chip_rules.py
+      - run: python smoke_test_sitngo_freezeout_contract.py
       - run: python smoke_test_sitngo_gameplay.py
