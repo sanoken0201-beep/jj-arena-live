@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 from datetime import datetime, timedelta, timezone
+from unittest.mock import patch
 
 # The release gate deliberately strips production secrets. Create a cheap local
 # administrator before importing the production entrypoint so this test remains
@@ -43,6 +44,10 @@ def add_member(index: int) -> int:
         )
 
 
+def registration_moment(event: dict) -> datetime:
+    return datetime.fromisoformat(event["registration_opens_at"]) + timedelta(seconds=1)
+
+
 def main() -> None:
     app = production_app.app
     db = production_app.db
@@ -80,25 +85,30 @@ def main() -> None:
     require(event["starting_stack"] == 30_000, "new default starting stack must be 30,000")
     require(event["structure"][0]["small_blind"] == 200 and event["structure"][0]["big_blind"] == 400, "event default structure not persisted")
     require(event["prepared_minutes"] == 150 and event["target_minutes"] == 90, "default timing metadata drift")
-    require(datetime.fromisoformat(event["registration_opens_at"]) <= now, "30-minute-away event should already be open")
+    open_at = datetime.fromisoformat(event["registration_opens_at"])
+    require(open_at < starts, "registration must open before the event")
 
-    for order, uid in enumerate(members[:6], start=1):
-        registered = service.register(event["id"], uid)
-        require(registered["is_registered"], f"member {uid} registration not persisted")
-        require(registered["registration_order"] == order, "registration must remain first-come-first-served")
-    full = service._event_payload(service._row(event["id"]), members[0])
-    require(full["participant_count"] == 6 and full["full"], "event must close at six registrations")
-    try:
-        service.register(event["id"], members[6])
-    except HTTPException as exc:
-        require(exc.status_code == 409, "seventh registration should be a conflict/full response")
-    else:
-        raise AssertionError("seventh registration was incorrectly accepted")
+    # Simulate the actual registration window explicitly so the test remains
+    # correct across JST midnight, where registration is never opened on the
+    # preceding calendar date.
+    with patch.object(sitngo, "_utcnow", return_value=registration_moment(event)):
+        for order, uid in enumerate(members[:6], start=1):
+            registered = service.register(event["id"], uid)
+            require(registered["is_registered"], f"member {uid} registration not persisted")
+            require(registered["registration_order"] == order, "registration must remain first-come-first-served")
+        full = service._event_payload(service._row(event["id"]), members[0])
+        require(full["participant_count"] == 6 and full["full"], "event must close at six registrations")
+        try:
+            service.register(event["id"], members[6])
+        except HTTPException as exc:
+            require(exc.status_code == 409, "seventh registration should be a conflict/full response")
+        else:
+            raise AssertionError("seventh registration was incorrectly accepted")
 
-    cancelled = service.cancel_registration(event["id"], members[2])
-    require(cancelled["participant_count"] == 5, "registration cancellation did not reopen one seat")
-    replacement = service.register(event["id"], members[6])
-    require(replacement["registration_order"] == 6, "replacement registration should become sixth active entrant")
+        cancelled = service.cancel_registration(event["id"], members[2])
+        require(cancelled["participant_count"] == 5, "registration cancellation did not reopen one seat")
+        replacement = service.register(event["id"], members[6])
+        require(replacement["registration_order"] == 6, "replacement registration should become sixth active entrant")
 
     service.reconcile(starts + timedelta(seconds=1))
     running = service._event_payload(service._row(event["id"]), members[0], admin=True)
@@ -117,7 +127,8 @@ def main() -> None:
         sitngo.SitNGoCreateIn(name="Minimum players check", starts_at=short_start.isoformat()),
         admin_id,
     )
-    service.register(short["id"], members[0])
+    with patch.object(sitngo, "_utcnow", return_value=registration_moment(short)):
+        service.register(short["id"], members[0])
     service.reconcile(short_start + timedelta(seconds=1))
     short_row = service._row(short["id"])
     require(short_row["status"] == "cancelled", "one-player event must auto-cancel at start")
@@ -151,8 +162,9 @@ def main() -> None:
     require(edited["starting_stack"] == 50_000 and edited["structure"][0]["big_blind"] == 800, "admin tournament settings update failed")
     require(edited["config_editable"], "pre-start event must report editable configuration")
 
-    service.register(editable["id"], members[0])
-    service.register(editable["id"], members[1])
+    with patch.object(sitngo, "_utcnow", return_value=registration_moment(edited)):
+        service.register(editable["id"], members[0])
+        service.register(editable["id"], members[1])
     service.reconcile(moved + timedelta(seconds=1))
     locked = service._event_payload(service._row(editable["id"]), admin_id, admin=True)
     require(not locked["config_editable"], "running event must report locked configuration")
