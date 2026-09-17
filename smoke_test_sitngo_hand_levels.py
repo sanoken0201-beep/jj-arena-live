@@ -34,7 +34,9 @@ def main() -> None:
         admin = con.execute("SELECT id FROM users WHERE role='admin' ORDER BY id LIMIT 1").fetchone()
     require(admin is not None, "test admin missing")
     admin_id = int(admin["id"])
-    members = [add_member(1200 + i) for i in range(2)]
+    # Keep this fixture namespace distinct from freezeout/API tests because the
+    # PostgreSQL CI job intentionally reuses one disposable database.
+    members = [add_member(5200 + i) for i in range(2)]
 
     starts = datetime.now(timezone.utc) + timedelta(minutes=30)
     event = service.create_event(
