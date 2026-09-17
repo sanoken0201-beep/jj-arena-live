@@ -1,6 +1,8 @@
 """Regression tests for TDA-style Sit&Go simultaneous elimination ranking."""
 from __future__ import annotations
 
+from pathlib import Path
+
 import sitngo_chip_rules
 import sitngo_runtime
 import sitngo_tournament_rules
@@ -13,6 +15,15 @@ sitngo_chip_rules.install(sitngo_runtime)
 def require(condition, message):
     if not condition:
         raise AssertionError(message)
+
+
+def test_production_wiring():
+    source = Path("app.py").read_text(encoding="utf-8")
+    require("import sitngo_tournament_rules" in source, "production app does not import tournament rules")
+    tournament_install = source.find("sitngo_tournament_rules.install(sitngo_runtime)")
+    chip_install = source.find("sitngo_chip_rules.install(sitngo_runtime)")
+    require(tournament_install >= 0, "production app does not install tournament rules")
+    require(chip_install > tournament_install, "tournament rules must install before chip-rule wrapper")
 
 
 def ranked_state(engine, *, button_stack: int, bb_stack: int, bb_ante: int = 5_000):
@@ -125,6 +136,7 @@ def test_legacy_hand_falls_back_to_raw_starting_stack(engine):
 
 
 def main():
+    test_production_wiring()
     engine = sitngo_runtime.make_engine()
     test_bba_changes_same_hand_order(engine)
     test_equal_comparison_stacks_tie(engine)
