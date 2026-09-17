@@ -1,6 +1,6 @@
 """Tournament-only blind/button and betting-reopen rules for JJ Sit&Go.
 
-The materialized ring engine stays immutable.  This module wraps only the
+The materialized ring engine stays immutable. This module wraps only the
 isolated Sit&Go engine and enforces the tournament contracts that differ from
 cash-table convenience behavior:
 
@@ -18,6 +18,8 @@ from __future__ import annotations
 
 import time
 from typing import Any
+
+import sitngo_chip_rules
 
 
 def _int(value: Any, default: int = 0) -> int:
@@ -52,11 +54,11 @@ def _positions(state: dict[str, Any], live: list[dict[str, Any]]) -> tuple[int, 
     """Return (button position, SB position, live BB seat).
 
     For 3+ players the previous SB position becomes the new button position and
-    the previous BB position becomes the new SB position.  Those positions may
-    be empty; only the BB skips forward to the next live seat.  This is the
+    the previous BB position becomes the new SB position. Those positions may
+    be empty; only the BB skips forward to the next live seat. This is the
     practical dead-button rule and preserves each player's blind obligations.
 
-    For heads-up the button must be live and is also the SB.  The next BB is the
+    For heads-up the button must be live and is also the SB. The next BB is the
     first live player clockwise from the previous BB, which automatically avoids
     assigning the same surviving player the BB twice when a table changes from
     three players to two.
@@ -87,7 +89,7 @@ def _positions(state: dict[str, Any], live: list[dict[str, Any]]) -> tuple[int, 
         )
 
     # First hand: seats were already randomized at tournament start, so choose a
-    # normal live BTN/SB/BB trio.  Dead positions are introduced only by later
+    # normal live BTN/SB/BB trio. Dead positions are introduced only by later
     # eliminations.
     button_seat = _next_live_seat(state, _int(state.get("button_seat"), -1), live)
     sb_seat = _next_live_seat(state, button_seat, live)
@@ -97,13 +99,26 @@ def _positions(state: dict[str, Any], live: list[dict[str, Any]]) -> tuple[int, 
 
 def _deal_order(state: dict[str, Any], live: list[dict[str, Any]], button_seat: int) -> list[dict[str, Any]]:
     span = max(2, _int(state.get("max_seats"), 6))
-    # First card goes to the first live seat left of the button.  A live button
+    # First card goes to the first live seat left of the button. A live button
     # therefore receives the final card on each pass; a dead button is simply a
     # positional marker and is skipped naturally.
     return sorted(
         live,
         key=lambda p: ((_int(p.get("seat")) - int(button_seat) - 1) % span, _int(p.get("seat"))),
     )
+
+
+def _prepare_chip_unit(state: dict[str, Any]) -> None:
+    """Retain the tournament color-up contract even when this wrapper is outermost."""
+    target = sitngo_chip_rules.chip_unit_for_level(state)
+    if "chip_unit" not in state:
+        state["chip_unit"] = sitngo_chip_rules.MIN_CHIP
+    current = max(sitngo_chip_rules.MIN_CHIP, _int(state.get("chip_unit"), sitngo_chip_rules.MIN_CHIP))
+    if target > current:
+        sitngo_chip_rules.color_up(state, target)
+    else:
+        state["chip_unit"] = target
+    sitngo_chip_rules.validate_chip_integrity(state)
 
 
 def _start_tournament_hand(engine, state: dict[str, Any]) -> None:
@@ -113,6 +128,8 @@ def _start_tournament_hand(engine, state: dict[str, Any]) -> None:
     state.pop("showdown_hold_until_epoch", None)
     if state.get("status") == "playing":
         raise ValueError("hand already in progress")
+
+    _prepare_chip_unit(state)
 
     # Tournament players cannot voluntarily sit out or leave to avoid blinds.
     for player in state.get("seats", []):
@@ -157,7 +174,7 @@ def _start_tournament_hand(engine, state: dict[str, Any]) -> None:
     engine._post_blind(bb_player, _int(state.get("big_blind")))
 
     # Big-blind-first BBA: if the BB is short, the blind is satisfied before any
-    # remaining chips fund the ante.  The ante is dead money and never call
+    # remaining chips fund the ante. The ante is dead money and never call
     # credit, matching the existing Sit&Go side-pot adapter.
     tournament = state.get("tournament") or {}
     ante = min(_int(bb_player.get("stack")), max(0, _int(tournament.get("bb_ante"))))
@@ -179,7 +196,7 @@ def _start_tournament_hand(engine, state: dict[str, Any]) -> None:
         "acted": [],
         "raise_closed_for": [],
         "action_seat": None,
-        # These are positional seats.  Under dead-button rules the SB position
+        # These are positional seats. Under dead-button rules the SB position
         # may be empty; the BB position must always contain a live player.
         "small_blind_seat": sb_seat,
         "big_blind_seat": bb_seat,
@@ -195,6 +212,7 @@ def _start_tournament_hand(engine, state: dict[str, Any]) -> None:
     tournament["button_policy"] = "dead_button"
     engine._set_next_action(state, bb_seat)
     engine._auto_progress_if_needed(state)
+    sitngo_chip_rules.validate_chip_integrity(state)
     return None
 
 
