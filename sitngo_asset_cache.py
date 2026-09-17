@@ -3,6 +3,11 @@
 The repository-wide ``served_assets.ASSET_VERSION`` is shared by many release
 checks. Sit&Go configuration changes therefore use a dedicated query token
 instead of mutating that global contract.
+
+``install()`` is also the final root-level Sit&Go bootstrap invoked by app.py
+before ``sitngo.install()`` constructs TournamentRuntime.  Tournament-only
+button/blind rules are installed here so the immutable materialized core remains
+untouched and browser-only build jobs stay dependency-free.
 """
 from __future__ import annotations
 
@@ -10,6 +15,15 @@ CACHE_QUERY = "sngcfg=admin-structure-20260917-1"
 
 
 def install() -> None:
+    # app.py calls this after sitngo_chip_rules.install() and before the service
+    # constructs its isolated engine.  The tournament wrapper therefore keeps
+    # chip denomination/color-up behavior while replacing only tournament deal,
+    # button/blind movement, and cumulative-short-all-in reopen semantics.
+    import sitngo_runtime
+    import sitngo_tournament_rules
+
+    sitngo_tournament_rules.install(sitngo_runtime)
+
     import sitngo_ui as ui
 
     if getattr(ui, "_JJ_SNG_CACHE_PATCHED", False):
