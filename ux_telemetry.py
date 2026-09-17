@@ -88,11 +88,13 @@ def prune(db, now: datetime | None = None) -> int:
 def record(db, events: list[TelemetryEvent], now: datetime | None = None) -> int:
     stamp = _iso(now or _now())
     rows = [(e.event, e.detail, e.device, e.duration_ms, stamp) for e in events]
+    insert_sql = "INSERT INTO ux_telemetry_events(event_type,detail,device,duration_ms,created_at) VALUES (?,?,?,?,?)"
     with db.connect() as con:
-        con.executemany(
-            "INSERT INTO ux_telemetry_events(event_type,detail,device,duration_ms,created_at) VALUES (?,?,?,?,?)",
-            rows,
-        )
+        # The production PostgreSQL compatibility wrapper intentionally exposes
+        # execute(), not sqlite3.Connection.executemany(). Keep telemetry on the
+        # shared DB contract so SQLite and PostgreSQL behave identically.
+        for row in rows:
+            con.execute(insert_sql, row)
     prune(db, now=now)
     return len(rows)
 

@@ -8,6 +8,7 @@ on:
     branches:
       - main
       - 'ux/player-audit-phase4c*'
+      - 'fix/ux-telemetry-postgres-500'
 
 permissions:
   contents: read
@@ -16,6 +17,22 @@ jobs:
   phase4c:
     runs-on: ubuntu-latest
     timeout-minutes: 8
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: jj_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d jj_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -35,7 +52,7 @@ jobs:
         run: python build_served_assets.py
 
       - name: Compile telemetry files
-        run: python -m py_compile ux_telemetry.py player_ux_phase6.py smoke_test_ux_telemetry.py smoke_test_player_ux_phase6.py
+        run: python -m py_compile ux_telemetry.py player_ux_phase6.py smoke_test_ux_telemetry.py smoke_test_ux_telemetry_postgres.py smoke_test_player_ux_phase6.py
 
       - name: Check final production JavaScript syntax
         run: |
@@ -44,6 +61,11 @@ jobs:
 
       - name: Run privacy and aggregation regression
         run: python smoke_test_ux_telemetry.py
+
+      - name: Run PostgreSQL telemetry regression
+        env:
+          JJ_TEST_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/jj_test
+        run: python smoke_test_ux_telemetry_postgres.py
 
       - name: Run client telemetry regression
         run: python smoke_test_player_ux_phase6.py
