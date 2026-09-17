@@ -55,13 +55,17 @@ def main():
     with client.websocket_connect('/ws/tables/'+eid) as ws:
         frame=ws.receive_json()
         assert frame['type']=='state' and frame['state']['tournament']['event_id']==eid
-    # Level changes only on the following hand and must use the persisted structure.
+    # A blind level changes only between hands. Simulate twelve completed hands
+    # in the persisted counter; the following deal must be hand 13 at level 2.
+    # Elapsed time is intentionally large but is not the progression source.
     state=rt.load(eid)
-    state['tournament']['elapsed_seconds']=601
+    state['tournament']['elapsed_seconds']=60_001
+    state['hand_no']=12
     state['next_hand_at_epoch']=0
     rt.save(state)
     asyncio.run(rt.tick(eid))
     state=rt.load(eid)
+    assert state['hand_no']==13
     assert state['tournament']['level']==2 and state['big_blind']==600
     assert state['tournament']['bb_ante']==600
     assert state['status']=='playing'

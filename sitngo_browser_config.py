@@ -5,14 +5,25 @@ compiler remains usable in lightweight CI jobs that do not install FastAPI.
 """
 from __future__ import annotations
 
-CACHE_QUERY = "sngcfg=admin-structure-20260918-3"
+CACHE_QUERY = "sngcfg=12-hand-levels-20260918-1"
 CHIP_UI_MARKER = "jj sitngo chip unit ui 2026-09-18"
+HAND_LEVEL_UI_MARKER = "jj sng 12-hand levels 2026-09-18"
 
 
 def _replace_once(source: str, old: str, new: str, label: str) -> str:
     if source.count(old) != 1:
         raise RuntimeError(f"Sit&Go configurable UI drift: {label}")
     return source.replace(old, new, 1)
+
+
+def _replace_prefixed_line(source: str, prefix: str, replacement: str, label: str) -> str:
+    lines = source.splitlines(keepends=True)
+    matches = [i for i, line in enumerate(lines) if line.startswith(prefix)]
+    if len(matches) != 1:
+        raise RuntimeError(f"Sit&Go configurable UI drift: {label}")
+    newline = "\n" if lines[matches[0]].endswith("\n") else ""
+    lines[matches[0]] = replacement.rstrip("\n") + newline
+    return "".join(lines)
 
 
 def install() -> None:
@@ -113,6 +124,50 @@ def install() -> None:
         ui._APP_PATCH = source
         ui._JJ_ADMIN_STRUCTURE_PATCHED = True
 
+    # The production browser bundle is compiled before the FastAPI runtime is
+    # imported, so the 12-hand labels must be applied in this dependency-free
+    # build path rather than only in the runtime integration module. The source
+    # strings themselves are the durable idempotency signal because build/test
+    # code may reload this installer while retaining the already-patched UI module.
+    if HAND_LEVEL_UI_MARKER in ui._APP_PATCH and "hand_in_level" in ui._GAMEPLAY_PATCH:
+        ui._JJ_HAND_LEVELS_BUILD_PATCHED = True
+
+    if not getattr(ui, "_JJ_HAND_LEVELS_BUILD_PATCHED", False):
+        ui._SITNGO_PANEL = ui._SITNGO_PANEL.replace(
+            "6-MAX · ADMIN STRUCTURE · BB ANTE",
+            "6-MAX · 12 HAND LEVELS · BB ANTE",
+        ).replace(
+            "6-MAX · 10 MIN LEVELS · BB ANTE",
+            "6-MAX · 12 HAND LEVELS · BB ANTE",
+        )
+
+        source = ui._APP_PATCH
+        source = _replace_prefixed_line(
+            source,
+            "  const jjSngLevelSummary=",
+            "  const jjSngLevelSummary=levels=>'12ハンド/レベル';",
+            "12-hand level summary",
+        )
+        source = _replace_prefixed_line(
+            source,
+            "  function jjSngStructureHtml(",
+            "  function jjSngStructureHtml(levels,targetMinutes){return `<details class=\"jj-sng-structure\"><summary>ブラインドストラクチャーを見る</summary><div class=\"jj-sng-levels\">${(levels||[]).map(x=>`<div class=\"jj-sng-level\"><span>Lv.${x.level}</span><b>${fmt(x.small_blind)} / ${fmt(x.big_blind)}</b><small>BBA ${fmt(x.bb_ante)} · 12ハンド</small></div>`).join('')}</div></details>`}",
+            "12-hand structure renderer",
+        )
+        source = source.replace(
+            "jjSngStructureHtml(eventLevels,event.target_minutes)",
+            "jjSngStructureHtml(eventLevels)",
+        )
+        source += f"\n  // {HAND_LEVEL_UI_MARKER}\n"
+        ui._APP_PATCH = source
+
+        gameplay = ui._GAMEPLAY_PATCH
+        old_clock = "    el.innerHTML=`<span>Lv.${Number(t.level)} · ${fmt(tableState.small_blind)}/${fmt(tableState.big_blind)} · BBA ${fmt(t.bb_ante)}</span><span>残り${Number(t.remaining)}/${Number(t.entrants)}人${t.status==='finished'?' · 終了':t.next_level_at?` · 次 ${jjSngCountdown(t.next_level_at)}`:''}</span>`;"
+        new_clock = "    el.innerHTML=`<span>Lv.${Number(t.level)} · ${fmt(tableState.small_blind)}/${fmt(tableState.big_blind)} · BBA ${fmt(t.bb_ante)}</span><span>${t.status==='finished'?'終了':`${Number(t.hand_in_level||0)}/${Number(t.hands_per_level||12)}ハンド`} · 残り${Number(t.remaining)}/${Number(t.entrants)}人</span>`;"
+        gameplay = _replace_once(gameplay, old_clock, new_clock, "12-hand table clock")
+        ui._GAMEPLAY_PATCH = gameplay
+        ui._JJ_HAND_LEVELS_BUILD_PATCHED = True
+
     if not getattr(ui, "_JJ_SNG_CACHE_PATCHED", False):
         original_transform_index = ui.transform_index
 
@@ -135,4 +190,4 @@ def install() -> None:
         ui._JJ_SNG_CACHE_PATCHED = True
 
 
-__all__ = ["CACHE_QUERY", "CHIP_UI_MARKER", "install"]
+__all__ = ["CACHE_QUERY", "CHIP_UI_MARKER", "HAND_LEVEL_UI_MARKER", "install"]
