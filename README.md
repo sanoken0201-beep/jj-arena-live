@@ -44,6 +44,19 @@ python -m uvicorn app:app --host 0.0.0.0 --port $PORT
 5. CI成功後にのみ `main` へ反映する。
 6. production DBは既存の `jj-arena-db` を継続利用し、通常releaseで破壊的migrationを行わない。
 
+## Canonical project memory
+
+長期開発ではChatGPTの会話履歴をプロジェクトの正本として扱いません。新しい開発チャットや引き継ぎでは、まず次を確認してください。
+
+1. `docs/PROJECT_STATE.md` — 現在の正しいプロジェクト状態と情報源の優先順位
+2. `ARCHITECTURE_STATUS.md` — active / compatibility-only / retired の分類
+3. `docs/DECISION_LOG.md` — 将来も維持すべき設計・運用判断と理由
+4. 対象機能のdomain document（例: `docs/SITNGO_GAMEPLAY.md`）
+5. production作業なら `OPERATIONS.md`
+6. 必要な場合のみ最新のchat handoff
+
+チャットが長くなった場合は全文を次のチャットへ移さず、`docs/CHAT_HANDOFF_TEMPLATE.md` を使います。永続すべき内容はGitHub上のcode/tests/docsへ昇格させ、古いChatGPT会話は依存先にしません。
+
 ## 認証
 
 現在のユーザー認証は次の方式です。
@@ -87,7 +100,7 @@ JJ_ADMIN_PIN=<新しい6桁PIN>
 ### Realtime Poker
 
 - 2 / 6 / 8 / 9-max engine support
-- JJ本番ロビーは2卓・6-max・150bb固定
+- JJ本番ロビーは1卓・6-max・150bb固定
 - 着席 / 離席 / 退席 / Rebuy
 - SB / BB / BTNローテーション
 - Preflop / Flop / Turn / River
