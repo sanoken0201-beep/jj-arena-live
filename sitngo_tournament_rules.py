@@ -1,4 +1,4 @@
-"""Tournament-only blind/button and betting-reopen rules for JJ Sit&Go.
+"""Tournament-only blind/button, elimination-ranking, and betting rules for JJ Sit&Go.
 
 The materialized ring engine stays immutable. This module wraps only the
 isolated Sit&Go engine and enforces the tournament contracts that differ from
@@ -9,6 +9,8 @@ cash-table convenience behavior:
   assigned the BB again immediately;
 * the BTN/SB receives the last hole card heads-up, and the button is dealt last
   in normal flop-game dealing as well;
+* TDA-style simultaneous elimination ranking, including the 2026 BBA rule that
+  compares stacks after the ante is posted rather than raw pre-hand stacks;
 * cumulative short all-ins re-open betting once a previously-acted player is
   facing at least the last full raise increment.
 
@@ -182,6 +184,14 @@ def _start_tournament_hand(engine, state: dict[str, Any]) -> None:
     bb_player["all_in"] = _int(bb_player.get("stack")) == 0
     state["_ante_paid"] = ante
 
+    # TDA 2026 simultaneous-elimination comparison under BBA uses the player's
+    # hand-start stack after the ante is accounted for. Blinds are not deducted
+    # from this comparison value. Only the actual ante paid is deducted, so a
+    # short BB that cannot fund the full BBA is not charged a fictional amount.
+    elimination_stacks = dict(starting_stacks)
+    bb_key = str(bb_player["user_id"])
+    elimination_stacks[bb_key] = max(0, _int(starting_stacks.get(bb_key)) - ante)
+
     state["hand"] = {
         "id": f"{state['id']}-{state['hand_no']}-{engine.uuid.uuid4().hex[:10]}",
         "phase": "preflop",
@@ -205,15 +215,93 @@ def _start_tournament_hand(engine, state: dict[str, Any]) -> None:
         "log": [f"Hand #{state['hand_no']} started"],
         "showdown": None,
         "starting_stacks": starting_stacks,
+        "elimination_stacks_after_ante": elimination_stacks,
+        "elimination_ranking_basis": "tda_2026_post_ante",
+        "bba_paid_for_ranking": {bb_key: ante},
         "revealed_user_ids": [],
         "result_persisted": False,
     }
     state["status"] = "playing"
     tournament["button_policy"] = "dead_button"
+    tournament["elimination_ranking_policy"] = "tda_2026_post_ante"
     engine._set_next_action(state, bb_seat)
     engine._auto_progress_if_needed(state)
     sitngo_chip_rules.validate_chip_integrity(state)
     return None
+
+
+def _finish_tda_ranked(self, state: dict[str, Any], original_finish) -> None:
+    """Rank same-hand bustouts by the TDA comparison stack.
+
+    Legacy hands created before this rule was deployed do not have the new
+    comparison snapshot. They intentionally fall back to the previous runtime
+    logic so an in-flight event is never reinterpreted mid-hand.
+    """
+    hand = state.get("hand") or {}
+    ranking_stacks = hand.get("elimination_stacks_after_ante")
+    if not isinstance(ranking_stacks, dict):
+        return original_finish(self, state)
+
+    tournament = state["tournament"]
+    if state.get("status") == "playing" or tournament.get("status") == "finished":
+        return
+    hand_id = hand.get("id")
+    if state.get("_ranked_hand") == hand_id:
+        return
+    state["_ranked_hand"] = hand_id
+
+    existing = {x["user_id"] for x in tournament.get("results", [])}
+    busted = [
+        p for p in state.get("seats", [])
+        if _int(p.get("stack")) == 0 and p.get("user_id") not in existing
+    ]
+    starting_stacks = hand.get("starting_stacks") or {}
+    alive = [p for p in state.get("seats", []) if _int(p.get("stack")) > 0]
+
+    def ranking_stack(player: dict[str, Any]) -> int:
+        uid = str(player.get("user_id"))
+        return _int(ranking_stacks.get(uid), _int(starting_stacks.get(uid)))
+
+    for player in busted:
+        uid = str(player["user_id"])
+        comparison = ranking_stack(player)
+        # Standard competition ranking: equal comparison stacks share the same
+        # finishing place; the next distinct lower stack skips the tied place(s).
+        place = len(alive) + 1 + sum(ranking_stack(other) > comparison for other in busted)
+        tie_size = sum(ranking_stack(other) == comparison for other in busted)
+        tournament["results"].append({
+            "user_id": player["user_id"],
+            "name": player["name"],
+            "place": place,
+            "hand_no": state["hand_no"],
+            "starting_stack": _int(starting_stacks.get(uid)),
+            "ranking_stack": comparison,
+            "ranking_basis": hand.get("elimination_ranking_basis", "tda_2026_post_ante"),
+            "tie_size": tie_size,
+            "prize_points": 0,
+        })
+
+    if len(alive) == 1:
+        player = alive[0]
+        tournament["results"].append({
+            "user_id": player["user_id"],
+            "name": player["name"],
+            "place": 1,
+            "hand_no": state["hand_no"],
+            "starting_stack": _int(player.get("stack")),
+            "ranking_stack": _int(player.get("stack")),
+            "ranking_basis": "winner",
+            "tie_size": 1,
+            "prize_points": 0,
+        })
+        tournament.update(status="finished", finished_at=self.db.utcnow())
+        state.update(session_active=False, next_hand_at_epoch=None)
+    elif len(alive) >= 2:
+        state["session_active"] = True
+        state["next_hand_at_epoch"] = max(
+            time.time() + 1.6,
+            float(state.get("showdown_hold_until_epoch") or 0),
+        )
 
 
 def _cumulative_reopen(state: dict[str, Any], user_id: int) -> bool:
@@ -230,11 +318,12 @@ def _cumulative_reopen(state: dict[str, Any], user_id: int) -> bool:
 
 
 def install(sitngo_runtime) -> None:
-    """Patch only newly-created isolated Sit&Go engines."""
+    """Patch only newly-created isolated Sit&Go engines and tournament ranking."""
     if getattr(sitngo_runtime, "_JJ_TOURNAMENT_RULES_INSTALLED", False):
         return
 
     original_make_engine = sitngo_runtime.make_engine
+    original_finish = sitngo_runtime.TournamentRuntime.finish
 
     def make_engine():
         engine = original_make_engine()
@@ -273,7 +362,11 @@ def install(sitngo_runtime) -> None:
         engine.apply_action = apply_action
         return engine
 
+    def finish(self, state):
+        return _finish_tda_ranked(self, state, original_finish)
+
     sitngo_runtime.make_engine = make_engine
+    sitngo_runtime.TournamentRuntime.finish = finish
     sitngo_runtime._JJ_TOURNAMENT_RULES_INSTALLED = True
 
 
