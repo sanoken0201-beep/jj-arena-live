@@ -6,7 +6,7 @@ mutating that global contract.
 """
 from __future__ import annotations
 
-CACHE_QUERY = "sngcfg=late-reg-reentry-20260918-2"
+CACHE_QUERY = "sngcfg=late-reg-reentry-20260918-3"
 
 
 def install() -> None:
@@ -15,8 +15,10 @@ def install() -> None:
     import sitngo
     import sitngo_entry_rules
     import sitngo_runtime
+    import sitngo_terminal_reentry_guard
 
     sitngo_entry_rules.install(sitngo, sitngo_runtime)
+    sitngo_terminal_reentry_guard.install(sitngo_runtime, sitngo_entry_rules)
 
     import sitngo_ui as ui
 
