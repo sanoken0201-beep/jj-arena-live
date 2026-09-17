@@ -1,15 +1,15 @@
 """Tournament-only chip denomination, color-up, and odd-chip rules.
 
-The immutable materialized poker engine remains untouched.  Sit&Go receives an
+The immutable materialized poker engine remains untouched. Sit&Go receives an
 isolated engine instance, so these rules apply only to tournament tables:
 
-* 100 is the absolute minimum denomination.
+* 100 is the absolute minimum denomination;
 * scheduled color-ups happen only between hands;
 * color-ups preserve the tournament chip total and never bust a live player;
 * normal raises must use the current denomination;
 * split pots never create sub-denomination chips;
-* odd chips are awarded from the first seat left of the button, per button-game
-  tournament convention.
+* odd chips are awarded from the first seat left of the button;
+* the big-blind ante is dead money in the main pot, not a second logical pot.
 """
 from __future__ import annotations
 
@@ -93,7 +93,7 @@ def color_up(state: dict[str, Any], new_unit: int | None = None) -> list[dict[st
     """Convert every live stack to ``new_unit`` exactly between hands.
 
     This online color-up uses deterministic bounded apportionment rather than
-    inventing fractional chips.  The total chip supply is unchanged, and every
+    inventing fractional chips. The total chip supply is unchanged, and every
     player who had chips before the color-up keeps at least one chip afterward.
     """
     if state.get("status") == "playing":
@@ -105,7 +105,7 @@ def color_up(state: dict[str, Any], new_unit: int | None = None) -> list[dict[st
 
     target = max(MIN_CHIP, _int(new_unit, chip_unit_for_level(state)))
     old_unit = max(MIN_CHIP, _int(state.get("chip_unit"), MIN_CHIP))
-    if target < old_unit or target % old_unit:
+    if target < old_unit:
         raise RuntimeError("Sit&Go denomination progression is invalid")
     if target == old_unit:
         state["chip_unit"] = target
@@ -186,11 +186,43 @@ def color_up(state: dict[str, Any], new_unit: int | None = None) -> list[dict[st
     return adjustments
 
 
+def _merge_dead_ante_into_main_pot(engine, state: dict[str, Any], base_builder) -> list[dict[str, Any]]:
+    """Fold the runtime's synthetic BBA pot into the actual main pot.
+
+    The original tournament adapter represented BBA as a leading synthetic pot
+    so it did not count as a call credit. That is useful for contribution logic,
+    but showdown must treat the ante as dead money in the main pot; otherwise a
+    tied hand can receive two independent odd-chip decisions.
+    """
+    pots = list(base_builder(state))
+    ante = _int(state.get("_ante_paid"))
+    if ante <= 0 or not pots:
+        return pots
+    first = pots[0]
+    if _int(first.get("amount")) != ante:
+        raise RuntimeError("Sit&Go BBA pot ordering invariant failed")
+    if len(pots) == 1:
+        return pots
+
+    ante_pot = pots.pop(0)
+    main = pots[0]
+    main["amount"] = _int(main.get("amount")) + ante
+
+    # Every non-folded player still in the hand is eligible for dead ante money.
+    # Unioning eligibility is defensive for short-stack/legacy states while
+    # preserving the canonical order of the actual main-pot participants.
+    eligible = {_int(p.get("user_id")): p for p in main.get("eligible", [])}
+    for player in ante_pot.get("eligible", []):
+        eligible.setdefault(_int(player.get("user_id")), player)
+    main["eligible"] = sorted(eligible.values(), key=lambda p: _int(p.get("seat")))
+    return pots
+
+
 def _reallocate_showdown(engine, state: dict[str, Any]) -> None:
     """Replace canonical 1-point split logic with denomination-sized odd chips."""
     unit = _int(state.get("chip_unit"))
     if unit < MIN_CHIP:
-        # Legacy hand already in progress when this code was deployed.  It will
+        # Legacy hand already in progress when this code was deployed. It will
         # be colored up before the next hand instead of mutating history mid-hand.
         return
     result = state.get("last_result") or {}
@@ -287,6 +319,12 @@ def install(sitngo_runtime) -> None:
         original_start = engine.start_hand
         original_action = engine.apply_action
         original_showdown = engine._showdown
+        original_side_pots = engine._build_side_pots
+
+        def build_side_pots(state):
+            if state.get("tournament"):
+                return _merge_dead_ante_into_main_pot(engine, state, original_side_pots)
+            return original_side_pots(state)
 
         def start_hand(state):
             if state.get("tournament"):
@@ -318,6 +356,7 @@ def install(sitngo_runtime) -> None:
                 validate_chip_integrity(state)
             return value
 
+        engine._build_side_pots = build_side_pots
         engine.start_hand = start_hand
         engine.apply_action = apply_action
         engine._showdown = showdown
