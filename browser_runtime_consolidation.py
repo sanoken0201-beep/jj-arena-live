@@ -34,8 +34,11 @@ def transform_index(source: str, asset_version: int) -> str:
         raise RuntimeError("runtime consolidation drift: app.js URL terminator missing")
     current = value[start:end]
     if CACHE_QUERY not in current:
-        separator = "&" if "?" in current else "?"
-        current = current + separator + CACHE_QUERY
+        # Preserve the exact production URL ordering that the former app.py
+        # request-time patch produced: v=<asset>&r=<release>&...other guards.
+        # This keeps caches and regression contracts stable while ownership
+        # moves entirely into the deterministic build pipeline.
+        current = current.replace(base, f"{base}&{CACHE_QUERY}", 1)
         value = value[:start] + current + value[end:]
     return value
 
