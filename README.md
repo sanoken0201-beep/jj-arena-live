@@ -24,7 +24,7 @@ python -m uvicorn app:app --host 0.0.0.0 --port $PORT
 
 現在のproduction coreは、検証済みv1.24.4 Golden Masterをコミット済みソースとして固定した **`materialized_v1244/`** です。`app_materialized.py` がこのcoreを読み込み、管理・学習・分析・レジリエンス・性能・セキュリティ等のroot-level extensionを既定順序で適用します。`app.py` はRender-facingの安定entrypointで、materialized coreを直接変更せずにproduction統合を行います。
 
-旧 `release_v14` + patch chainによるruntime再構築はproduction startupでは使用しません。旧経路は **`app_legacy.py`** と `runtime_builder.py` に残してあり、parity検証と緊急rollbackの基準として利用します。
+旧 `release_v14` + patch chainによるruntime再構築はproduction startupでもcompatibility runtimeでも使用しません。**`app_legacy.py`** はparity / emergency rollbackの隔離oracleとして残し、`runtime_builder.py` は `materialized_v1244.manifest.json` に記録された検証済みsnapshotから互換runtimeを構築します。historical patch chainと `release_v14` はforensic/history参照であり、runtime依存先ではありません。
 
 ### Browser asset build
 
@@ -43,6 +43,19 @@ python -m uvicorn app:app --host 0.0.0.0 --port $PORT
 4. materialized coreとのparity・production entrypoint・PostgreSQL・browser regressionをCIで維持する。
 5. CI成功後にのみ `main` へ反映する。
 6. production DBは既存の `jj-arena-db` を継続利用し、通常releaseで破壊的migrationを行わない。
+
+## Canonical project memory
+
+長期開発ではChatGPTの会話履歴をプロジェクトの正本として扱いません。新しい開発チャットや引き継ぎでは、まず次を確認してください。
+
+1. `docs/PROJECT_STATE.md` — 現在の正しいプロジェクト状態と情報源の優先順位
+2. `ARCHITECTURE_STATUS.md` — active / compatibility-only / retired の分類
+3. `docs/DECISION_LOG.md` — 将来も維持すべき設計・運用判断と理由
+4. 対象機能のdomain document（例: `docs/SITNGO_GAMEPLAY.md`）
+5. production作業なら `OPERATIONS.md`
+6. 必要な場合のみ最新のchat handoff
+
+チャットが長くなった場合は全文を次のチャットへ移さず、`docs/CHAT_HANDOFF_TEMPLATE.md` を使います。永続すべき内容はGitHub上のcode/tests/docsへ昇格させ、古いChatGPT会話は依存先にしません。
 
 ## 認証
 
@@ -87,7 +100,7 @@ JJ_ADMIN_PIN=<新しい6桁PIN>
 ### Realtime Poker
 
 - 2 / 6 / 8 / 9-max engine support
-- JJ本番ロビーは2卓・6-max・150bb固定
+- JJ本番ロビーは1卓・6-max・150bb固定
 - 着席 / 離席 / 退席 / Rebuy
 - SB / BB / BTNローテーション
 - Preflop / Flop / Turn / River
@@ -166,6 +179,6 @@ GitHub Actionsはpushとpull requestで、主に次を検証します。
 - 変更はbranch -> CI -> main -> Render -> logsの順で確認する
 - poker engine変更とUI変更を同一修正で混在させない
 - 本番障害時はDBを触る前に最後の正常commitへrollbackする
-- `app_legacy.py` / historical patch chainはparity・rollback参照として保持する
+- `app_legacy.py` / `runtime_builder.py` のcompatibility runtimeは検証済みmaterialized snapshotから構築し、historical patch replayを再導入しない
 
 詳しい復旧・デプロイ手順は `OPERATIONS.md` を参照してください。
