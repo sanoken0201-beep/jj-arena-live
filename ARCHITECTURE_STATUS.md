@@ -18,17 +18,18 @@ This document classifies production surfaces so compatibility code is not mistak
 
 ## Compatibility-only surfaces
 
-These remain because old cached clients or historical data may reference them. They must not receive new product behavior.
+These remain because old cached clients, historical data, rollback safety or the deterministic browser compiler still depend on them. They are not destinations for new product behavior unless an explicit product decision promotes them back to active status.
 
 - Internal historical Ring table B: retained for rollback/data compatibility; not returned by the public table list.
-- Schedule backend/data: retained because schedule records are surfaced through announcements, although the dedicated top-level schedule navigation is hidden.
+- Schedule backend/data: retained because historical schedule records are surfaced through announcements, although the dedicated top-level schedule navigation is hidden.
 - Strategy discussion backend/data: retained for historical data compatibility; not a top-level product destination.
-- `app_legacy.py`: emergency rollback/parity oracle only.
+- Table-message backend/storage: retained for historical/stale-client compatibility; chat is not a primary live-table surface.
+- `app_legacy.py`: emergency rollback/parity oracle only and not part of the production import path.
 - Historical browser transform modules: implementation units used by the deterministic build compiler. Production ordering is declared centrally by `browser_asset_pipeline.py`.
 
 ## Retired surfaces
 
-These are intentionally unavailable and must not be revived by a later patch without an explicit product decision.
+These are intentionally unavailable as product surfaces and must not be revived by a later patch without an explicit product decision.
 
 - `GET /api/admin/members` — replaced by `/api/admin/console/users`.
 - `PATCH /api/admin/members/{user_id}` — replaced by `/api/admin/console/users/{uid}`.
@@ -39,7 +40,15 @@ These are intentionally unavailable and must not be revived by a later patch wit
 - Top-level Strategy Discussion navigation.
 - In-hand chat/live hand-log presentation as a primary live-table surface.
 
-The legacy member-admin URLs remain only as authenticated HTTP 410 tombstones so stale clients fail explicitly instead of falling through to an old implementation.
+The legacy member-admin URLs remain only as authenticated HTTP 410 tombstones so stale clients fail explicitly instead of falling through to an old implementation. Legacy email signup/login likewise remain as explicit HTTP 410 tombstones in the immutable core.
+
+## Feature lifecycle enforcement
+
+`feature_lifecycle.py` is the machine-readable source of truth for Stage 4. Every classified product surface is one of `active`, `compatibility_only`, or `retired`; the three sets are validated as mutually exclusive and complete.
+
+`smoke_test_feature_lifecycle.py` enforces the important product-boundary contracts in an isolated database: retired admin/auth URLs must still resolve only to tombstones, compatibility schedule/discussion data routes must remain available for historical clients, `app_legacy.py` must not enter the production import path, the public Ring table list must expose only `jj-table-a`, and retired Schedule/Discussion navigation must stay absent from the canonical browser build.
+
+Compatibility-only does not mean "safe to build on". New UI, new writes, new API consumers or new business logic must target an active surface unless the lifecycle classification is deliberately changed in the same reviewed release.
 
 ## Browser build ownership
 
@@ -62,5 +71,7 @@ Tests are grouped by operational concern in `test_suites.py`:
 - `browser_contract`
 - `runtime_release`
 - `sitngo`
+
+The Stage 4 lifecycle regression is owned by `runtime_release` so the release gate rejects accidental feature resurrection without introducing a new test-suite taxonomy before the separate test-ownership cleanup stage.
 
 The production release gate selects deterministic production-dependency tests from those groups. Browser/Playwright tests remain in GitHub Actions and are not required inside the Render build image.

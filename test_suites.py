@@ -33,6 +33,7 @@ TEST_SUITES: dict[str, tuple[str, ...]] = {
         "audit_ui_labels.py",
     ),
     "runtime_release": (
+        "smoke_test_feature_lifecycle.py",
         "smoke_test_runtime_performance.py",
         "smoke_test_runtime_observability.py",
         "smoke_test_resilience_retention.py",
@@ -65,6 +66,7 @@ PRODUCTION_RELEASE_SELECTION: tuple[tuple[str, tuple[str, ...]], ...] = (
         "smoke_test_point_ledger_precision.py",
     )),
     ("runtime_release", (
+        "smoke_test_feature_lifecycle.py",
         "smoke_test_runtime_performance.py",
         "smoke_test_runtime_observability.py",
         "smoke_test_resilience_retention.py",
