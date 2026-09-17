@@ -175,6 +175,15 @@ def main() -> None:
     require("jj sitngo late registration reentry ui 2026-09-18" in js, "player late-reg/re-entry UI missing")
     require("data-sng-reentry" in js and "途中参加する" in js, "player entry actions missing")
 
+    # Shared PostgreSQL CI runs the legacy full-game regression immediately
+    # after this test. Leave no synthetic event in the single-running slot.
+    with db.connect() as con:
+        con.execute("UPDATE sitngo_events SET status='finished',updated_at=? WHERE id=?", (db.utcnow(), event["id"]))
+        con.execute(
+            "UPDATE sitngo_registrations SET status='finished' WHERE event_id=? AND status IN ('active','pending_late','pending_reentry')",
+            (event["id"],),
+        )
+
     print("JJ_SITNGO_ENTRY_RULES_OK")
 
 
