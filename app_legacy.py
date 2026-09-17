@@ -1,9 +1,11 @@
-"""Legacy reconstructed production entrypoint retained for rollback and parity.
+"""Isolated v1.24.4 compatibility entrypoint retained for rollback and parity.
 
-This is the pre-v2-cutover production entrypoint. It reconstructs the verified
-v1.24.4 runtime through runtime_builder.py and the historical patch chain.
-Security extensions are intentionally shared with the materialized path so an
-emergency rollback cannot weaken the active authentication boundary.
+This is the pre-v2-cutover integration shape, but its core is now copied from
+the verified immutable ``materialized_v1244`` snapshot instead of replaying the
+historical v15-v55 patch chain. The copied directory keeps an independent import
+path for parity/rollback checks while eliminating historical build fragments as
+runtime dependencies. Security extensions remain shared with the materialized
+path so an emergency rollback cannot weaken the active authentication boundary.
 """
 from __future__ import annotations
 
@@ -34,7 +36,7 @@ DEST = build_runtime()
 admin_copy_patch.apply(ROOT / "admin_static")
 
 # Legacy email/password bootstrap variables are not part of the current PIN
-# authentication model. Neutralize them before importing the reconstructed app.
+# authentication model. Neutralize them before importing the compatibility app.
 os.environ["JJ_ADMIN_PASSWORD"] = secrets.token_urlsafe(32)
 os.environ.pop("JJ_ADMIN_LOGIN_PASSWORD", None)
 os.environ.pop("JJ_ADMIN_LOGIN_EMAIL", None)
@@ -52,7 +54,7 @@ online_results_cleanup.apply(db)
 
 
 def _prioritize_extension_routes(fastapi_app) -> None:
-    """Move extension/API routes ahead of the reconstructed SPA catch-all."""
+    """Move extension/API routes ahead of the compatibility SPA catch-all."""
     routes = list(fastapi_app.router.routes)
 
     def is_extension_route(route) -> bool:
