@@ -18,11 +18,17 @@ def install() -> None:
     source = ui._APP_PATCH
     source = _replace_once(
         source,
+        "    const status=event.status||'scheduled',registered=!!event.is_registered,full=!!event.full,eventLevels=event.structure||levels||[];\n",
+        "    const status=event.status||'scheduled',registered=!!event.is_registered,full=!!event.full,eventLevels=event.structure||levels||[],busted=!!event.tournament?.results?.some(x=>Number(x.user_id)===Number(me?.id));\n",
+        "busted participant state",
+    )
+    source = _replace_once(
+        source,
         "    if(status==='running'||status==='finished')action=event.table_id?`<button type=\"button\" class=\"primary jj-sng-register\" data-sng-open=\"${safe(event.table_id)}\">${status==='finished'?'結果を見る':registered?'大会テーブルへ':'観戦する'}</button>`:'<div class=\"jj-sng-note\">テーブル準備中</div>';\n",
         "    if(status==='running'&&event.entry_pending)action='<button type=\"button\" class=\"soft jj-sng-register\" disabled>次のハンドから参加</button>';\n"
         "    else if(status==='running'&&event.can_reenter)action=`<button type=\"button\" class=\"primary jj-sng-register\" data-sng-reentry=\"${safe(event.id)}\">リエントリーする</button>`;\n"
         "    else if(status==='running'&&event.can_late_register)action=`<button type=\"button\" class=\"primary jj-sng-register\" data-sng-register=\"${safe(event.id)}\">途中参加する</button>`;\n"
-        "    else if(status==='running'||status==='finished')action=event.table_id?`<button type=\"button\" class=\"primary jj-sng-register\" data-sng-open=\"${safe(event.table_id)}\">${status==='finished'?'結果を見る':registered?'大会テーブルへ':'観戦する'}</button>`:'<div class=\"jj-sng-note\">テーブル準備中</div>';\n",
+        "    else if(status==='running'||status==='finished')action=event.table_id?`<button type=\"button\" class=\"primary jj-sng-register\" data-sng-open=\"${safe(event.table_id)}\">${status==='finished'?'結果を見る':busted?'観戦する':registered?'大会テーブルへ':'観戦する'}</button>`:'<div class=\"jj-sng-note\">テーブル準備中</div>';\n",
         "running entry actions",
     )
     source = _replace_once(
@@ -49,6 +55,15 @@ def install() -> None:
       await renderSitNGo();
     }catch(err){toast(err.message);button.disabled=false}
   });
+
+  const jjSngEntryRoom=renderPokerRoom;
+  renderPokerRoom=function(){
+    jjSngEntryRoom();
+    const tournament=tableState?.tournament;if(!tournament)return;
+    const unit=Math.max(100,Number(tableState.chip_unit||tournament.chip_unit||100));
+    const policy=Number(tournament.max_reentries||0)>0?`Re-entry 最大${Number(tournament.max_reentries)}回`:'Freezeout';
+    const meta=$('#roomMeta');if(meta)meta.textContent=`Sit&Go · ${policy} · ${fmt(unit)}点単位`;
+  };
 '''
     ui._APP_PATCH = source
     ui._JJ_ENTRY_BROWSER_PATCHED = True
