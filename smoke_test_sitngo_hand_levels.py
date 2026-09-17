@@ -108,6 +108,14 @@ def main() -> None:
     admin_index = (Path(__file__).resolve().parent / "admin_static" / "index.html").read_text(encoding="utf-8")
     require(sitngo_hand_levels.ADMIN_CACHE_QUERY in admin_index, "admin Sit&Go cache-buster missing")
 
+    # Leave the shared PostgreSQL CI database ready for the next independent
+    # contract test. Production never executes this fixture cleanup.
+    with db.connect() as con:
+        con.execute(
+            "UPDATE sitngo_events SET status='finished',updated_at=? WHERE id=?",
+            (db.utcnow(), event["id"]),
+        )
+
     print("JJ_SITNGO_HAND_LEVELS_OK")
 
 
