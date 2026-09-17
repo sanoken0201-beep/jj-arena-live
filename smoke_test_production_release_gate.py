@@ -33,6 +33,7 @@ def main() -> None:
             "smoke_test_non_sng_safety.py",
             "smoke_test_test_ownership.py",
             "smoke_test_feature_lifecycle.py",
+            "smoke_test_root_core_pruned.py",
             "smoke_test_runtime_performance.py",
             "smoke_test_runtime_observability.py",
             "smoke_test_point_ledger_precision.py",

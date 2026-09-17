@@ -1,17 +1,38 @@
 from __future__ import annotations
 
+import importlib.util
 import os
 from contextlib import contextmanager
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 
 import psycopg
 from psycopg.rows import dict_row
 
-from db import PgConnection
 from ux_telemetry import TelemetryEvent, ensure_schema, prune, record, summary
 
 
 DATABASE_URL = os.environ.get("JJ_TEST_DATABASE_URL", "").strip()
+ROOT = Path(__file__).resolve().parent
+
+
+def _canonical_pg_connection():
+    """Load PgConnection from the committed canonical core explicitly.
+
+    The obsolete root db.py copy was removed after the materialized-core cutover.
+    This focused adapter test needs only the canonical SQL placeholder wrapper,
+    so load that module by path without importing the full production app.
+    """
+    path = ROOT / "materialized_v1244" / "db.py"
+    spec = importlib.util.spec_from_file_location("jj_test_materialized_db", path)
+    if spec is None or spec.loader is None:
+        raise RuntimeError(f"cannot load canonical db module: {path}")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module.PgConnection
+
+
+PgConnection = _canonical_pg_connection()
 
 
 class PostgresDB:
