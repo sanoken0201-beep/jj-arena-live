@@ -46,7 +46,8 @@ def isolated_child_env(db_path: Path) -> dict[str, str]:
     return env
 
 
-def _run_test(group: str, filename: str) -> None:
+def _run_test(filename: str, *, group: str = "adhoc") -> None:
+    """Run one isolated test; keep the historical one-argument helper contract."""
     path = ROOT / filename
     if not path.is_file():
         raise RuntimeError(f"release-gate test is missing: group={group} test={filename}")
@@ -73,7 +74,7 @@ def main() -> None:
     # Render must produce the exact browser assets that app.py will later serve.
     build_assets()
     for group, filename in RELEASE_TESTS:
-        _run_test(group, filename)
+        _run_test(filename, group=group)
     # Tests may rebuild canonical assets in the shared output directory.
     # The deployed output must always include every production post-transform.
     build_assets()
