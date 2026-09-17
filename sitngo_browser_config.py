@@ -5,9 +5,10 @@ compiler remains usable in lightweight CI jobs that do not install FastAPI.
 """
 from __future__ import annotations
 
-CACHE_QUERY = "sngcfg=12-hand-levels-20260918-1"
+CACHE_QUERY = "sngcfg=turn-safety-20260918-1"
 CHIP_UI_MARKER = "jj sitngo chip unit ui 2026-09-18"
 HAND_LEVEL_UI_MARKER = "jj sng 12-hand levels 2026-09-18"
+TURN_UI_MARKER = "jj sng turn safety 2026-09-18"
 
 
 def _replace_once(source: str, old: str, new: str, label: str) -> str:
@@ -168,6 +169,29 @@ def install() -> None:
         ui._GAMEPLAY_PATCH = gameplay
         ui._JJ_HAND_LEVELS_BUILD_PATCHED = True
 
+    if not getattr(ui, "_JJ_TURN_PAYLOAD_PATCHED", False):
+        original_transform_app_js = ui.transform_app_js
+
+        def transform_app_js(source: str) -> str:
+            output = original_transform_app_js(source)
+            if TURN_UI_MARKER in output:
+                return output
+            needle = "const body={action};if(action==='raise')"
+            replacement = (
+                "const body={action};/* " + TURN_UI_MARKER + " */"
+                "if(tableState?.tournament){"
+                "body.action_id=(globalThis.crypto?.randomUUID?.()||`sng-${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`);"
+                "body.hand_id=tableState.hand?.id||null;"
+                "body.turn_id=tableState.turn_id||tableState.hand?.turn_id||null}"
+                "if(action==='raise')"
+            )
+            if output.count(needle) != 1:
+                raise RuntimeError("Sit&Go turn payload drift: action body anchor changed")
+            return output.replace(needle, replacement, 1)
+
+        ui.transform_app_js = transform_app_js
+        ui._JJ_TURN_PAYLOAD_PATCHED = True
+
     if not getattr(ui, "_JJ_SNG_CACHE_PATCHED", False):
         original_transform_index = ui.transform_index
 
@@ -190,4 +214,4 @@ def install() -> None:
         ui._JJ_SNG_CACHE_PATCHED = True
 
 
-__all__ = ["CACHE_QUERY", "CHIP_UI_MARKER", "HAND_LEVEL_UI_MARKER", "install"]
+__all__ = ["CACHE_QUERY", "CHIP_UI_MARKER", "HAND_LEVEL_UI_MARKER", "TURN_UI_MARKER", "install"]

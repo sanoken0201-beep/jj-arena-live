@@ -24,6 +24,7 @@ jobs:
       - run: python smoke_test_sitngo_tournament_rules.py
       - run: python smoke_test_sitngo_elimination_ranking.py
       - run: python smoke_test_sitngo_hand_levels.py
+      - run: python smoke_test_sitngo_action_safety.py
       - run: python smoke_test_sitngo_freezeout_contract.py
       - run: python -c "from production_release_gate import _run_test; _run_test('smoke_test_sitngo_gameplay.py')"
       - run: python smoke_test_sitngo_api.py
@@ -57,12 +58,13 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version-file: .python-version
-      - run: python -m pip install -r requirements.txt
+      - run: python -m pip install -r requirements.txt httpx
       - run: python build_served_assets.py
       - run: python smoke_test_sitngo_phase1.py
       - run: python smoke_test_sitngo_chip_rules.py
       - run: python smoke_test_sitngo_tournament_rules.py
       - run: python smoke_test_sitngo_elimination_ranking.py
       - run: python smoke_test_sitngo_hand_levels.py
+      - run: python smoke_test_sitngo_action_safety.py
       - run: python smoke_test_sitngo_freezeout_contract.py
       - run: python smoke_test_sitngo_gameplay.py

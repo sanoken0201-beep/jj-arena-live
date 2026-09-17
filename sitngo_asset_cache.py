@@ -5,29 +5,30 @@ checks. Sit&Go configuration changes therefore use a dedicated query token
 instead of mutating that global contract.
 
 ``install()`` is also the final root-level Sit&Go bootstrap invoked by app.py
-before ``sitngo.install()`` constructs TournamentRuntime.  Tournament-only
-button/blind rules and fixed 12-hand blind progression are installed here so
-the immutable materialized core remains untouched and browser-only build jobs
-stay dependency-free.
+before ``sitngo.install()`` constructs TournamentRuntime. Tournament-only
+button/blind rules, fixed 12-hand blind progression and turn/timeout safety are
+installed here so the immutable materialized core remains untouched and
+browser-only build jobs stay dependency-free.
 """
 from __future__ import annotations
 
-CACHE_QUERY = "sngcfg=12-hand-levels-20260918-1"
+CACHE_QUERY = "sngcfg=turn-safety-20260918-1"
 
 
 def install() -> None:
     # app.py calls this after sitngo_chip_rules.install() and before the service
-    # constructs its isolated engine.  The tournament wrapper therefore keeps
-    # chip denomination/color-up behavior while replacing only tournament deal,
-    # button/blind movement, cumulative-short-all-in reopen semantics, and the
-    # Sit&Go level scheduler.
+    # constructs its isolated engine. Install order matters: action safety wraps
+    # the final 12-hand scheduler and route contract, while all changes remain
+    # tournament-only.
     import sitngo
+    import sitngo_action_safety
     import sitngo_hand_levels
     import sitngo_runtime
     import sitngo_tournament_rules
 
     sitngo_tournament_rules.install(sitngo_runtime)
     sitngo_hand_levels.install(sitngo, sitngo_runtime)
+    sitngo_action_safety.install(sitngo_runtime)
 
     import sitngo_ui as ui
 
