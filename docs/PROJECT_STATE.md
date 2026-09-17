@@ -1,7 +1,7 @@
 # JJ Arena — Canonical Project State
 
 Updated: 2026-09-17
-Snapshot basis: `main` at `a2469b66e0afe2ffbd75605325ea45041e035158`
+Snapshot basis: `main` at `5d7542589e78c1d0e16717cffad4893a502973b2`
 
 This file is the **human/AI handoff source of truth for the current project state**. It exists so long ChatGPT development chats can be replaced without losing critical context.
 
@@ -65,7 +65,7 @@ Normal product changes belong in root-level extensions, integration shims, brows
 
 `app_materialized.py` loads the materialized core and applies root-level extensions. `app.py` is the stable Render-facing entrypoint.
 
-`app_legacy.py`, `runtime_builder.py`, `release_v14/` and the historical patch chain exist for parity, forensic reference and rollback compatibility. They are not the production startup path and must not be mistaken for the preferred place to add new behavior.
+`app_legacy.py` remains an isolated parity/emergency-rollback oracle rather than a production import path. `runtime_builder.py` now constructs that compatibility runtime by copying only files recorded in `materialized_v1244.manifest.json` and verifying their size/hash. The historical `release_v14/` bundle and v15–v55 patch replay are no longer runtime inputs for compatibility construction; they are historical/forensic artifacts, not the preferred place to add behavior.
 
 Do not mix poker game-rule changes and UI-only changes in one patch unless the coupling is unavoidable and explicitly justified.
 
@@ -126,7 +126,7 @@ Current committed gameplay documentation describes a scheduled 2–6 player free
 
 **Important implementation-status distinction:** the current committed implementation still reports `entry_fee=0` and `prize_points=0`. Point-funded Sit&Go entry/prizes are therefore a **pending product change, not current production truth**.
 
-The current user requirement to preserve for that future change is:
+The current product requirement to preserve for that future change is:
 
 - Admin chooses the JJ-point entry cost when creating/opening a Sit&Go.
 - With 2–5 entrants, the complete entry-point pool goes to 1st place.
@@ -150,6 +150,8 @@ Important regression domains include:
 - PostgreSQL behavior
 
 Historical one-off tests may remain for forensic value but are not automatically active release owners.
+
+The compatibility-runtime snapshot contract is now covered by `smoke_test_runtime_builder_snapshot.py` and the production release gate. A future change must not silently reintroduce runtime patch-chain replay.
 
 ## 12. Current development philosophy
 
