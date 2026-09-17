@@ -6,8 +6,6 @@ import os
 import tempfile
 from pathlib import Path
 
-from browser_runtime_consolidation import CACHE_QUERY
-
 _TEST_DB_DIR = Path(tempfile.mkdtemp(prefix="jj-rake-audit-"))
 os.environ["JJ_DB_PATH"] = str(_TEST_DB_DIR / "jj_arena.db")
 
@@ -237,7 +235,7 @@ def test_production_policy_and_persistence():
     # rather than requiring a particular explanatory sentence to be visible.
     index = app._patched_index()
     js = app._patched_app_js()
-    assert f"/static/app.js?v={app.ASSET_VERSION}&{CACHE_QUERY}" in index
+    assert f"/static/app.js?v={app.ASSET_VERSION}&{app._APP_JS_QUERY}" in index
     assert "rake 10%・5bb cap" not in index
     assert "pot*0.05,Number(tableState.rake_cap||300)" in js
     assert "pot*0.10,Number(tableState.rake_cap||500)" not in js

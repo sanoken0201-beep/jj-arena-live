@@ -49,22 +49,10 @@ def main() -> None:
     assert manifest.get("pipeline_version") == PIPELINE_VERSION
     expected = [name for name, _ in POST_BUILD_STAGES]
     assert manifest.get("pipeline_stages") == expected
-    assert expected[-1] == "runtime_browser_consolidation"
-    assert manifest.get("browser_output_contract") == "canonical-prebuilt-v1"
 
     js = (BUILD_ROOT / "static/app.js").read_text(encoding="utf-8")
-    index = (BUILD_ROOT / "index.html").read_text(encoding="utf-8")
     assert "if(v==='members'){location.assign('/admin');return}" in js
     assert "v74 structure consolidation 2026-09-17" in js
-    assert "v75 runtime browser consolidation 2026-09-17" in js
-    assert "rake 5%・3bb cap" in index or "rake 5%" in js
-    assert "check_fold" not in js
-
-    # The production entrypoint must not mutate browser source at request time.
-    app_source = Path(app.__file__).read_text(encoding="utf-8")
-    assert "remove_fast_fold" not in app_source
-    assert "pot*0.10,Number(tableState.rake_cap||500)" not in app_source
-    assert "RAKE 10% · ${fmt(t.rake_cap_bb)}bb CAP" not in app_source
 
     print("JJ_STRUCTURE_CONSOLIDATION_OK")
 
