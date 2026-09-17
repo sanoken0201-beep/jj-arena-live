@@ -1,4 +1,4 @@
-"""Ensure an earlier busted player keeps re-entry rights until the entry deadline."""
+"""Ensure a terminal HU bust gets a short re-entry decision window."""
 from __future__ import annotations
 
 import asyncio
@@ -16,12 +16,12 @@ def main() -> None:
     db = production_app.db
     with db.connect() as con:
         admin_id = int(con.execute("SELECT id FROM users WHERE role='admin' ORDER BY id LIMIT 1").fetchone()["id"])
-    users = [add_member(950 + i) for i in range(6)]
+    users = [add_member(950 + i) for i in range(2)]
     now = datetime.now(timezone.utc)
     start = now + timedelta(minutes=10)
     event = service.create_event(
         sitngo.SitNGoCreateIn(
-            name="Earlier bust keeps re-entry right",
+            name="Terminal bust re-entry grace",
             starts_at=start.isoformat(),
             late_registration_minutes=10,
             max_reentries=1,
@@ -34,31 +34,25 @@ def main() -> None:
     service.reconcile(start + timedelta(seconds=1))
     fold_to_waiting(runtime, event["id"])
 
-    # Bust player 0 first, then continue reducing the field without using that
-    # player's still-valid re-entry. When one survivor remains, all six unique
-    # seats have been consumed so only the preserved re-entry right can keep the
-    # tournament open.
-    for index, uid in enumerate(users[:5]):
-        fake_bust(runtime, event["id"], uid, f"reentry-deadline-{index}")
+    before = time.time()
+    fake_bust(runtime, event["id"], users[0], "terminal-hu")
     state = runtime.load(event["id"])
     tournament = state["tournament"]
-    require(tournament["entrants"] == 6, "fixture must consume all six unique seats")
-    require(tournament["status"] == "running", "tournament finalized while an earlier re-entry right remained")
-    require(not state["session_active"], "single survivor should wait for a valid re-entry right")
-    require(
-        abs(float(tournament["reentry_grace_until_epoch"]) - float(tournament["entry_window_deadline_epoch"])) < 0.01,
-        "valid re-entry right was not preserved through the configured deadline",
-    )
+    require(tournament["status"] == "running", "HU winner finalized before re-entry decision window")
+    require(not state["session_active"], "terminal HU table should pause during re-entry grace")
+    grace = float(tournament.get("reentry_grace_until_epoch") or 0)
+    require(before < grace <= before + 31, f"terminal re-entry grace is not approximately 30 seconds: {grace-before}")
+    require(grace <= float(tournament["entry_window_deadline_epoch"]), "re-entry grace exceeded configured entry deadline")
 
     with patch.object(sitngo, "_utcnow", return_value=start + timedelta(minutes=2)):
         offer = service._event_payload(service._row(event["id"]), users[0])
-        require(offer["can_reenter"], "earlier busted player lost re-entry offer before deadline")
+        require(offer["can_reenter"], "newly busted HU player did not receive a re-entry offer")
         service.reenter(event["id"], users[0])
     asyncio.run(runtime.tick(event["id"], now=time.time()))
     state = runtime.load(event["id"])
-    require(any(int(p["user_id"]) == users[0] and int(p["stack"]) > 0 for p in state["seats"]), "earlier busted player did not re-enter")
-    require(state["session_active"], "tournament did not resume after preserved re-entry")
-    require(all(int(x["user_id"]) != users[0] for x in state["tournament"]["results"]), "stale earlier elimination survived re-entry")
+    require(any(int(p["user_id"]) == users[0] and int(p["stack"]) > 0 for p in state["seats"]), "HU player did not re-enter")
+    require(state["session_active"], "tournament did not resume after HU re-entry")
+    require(all(int(x["user_id"]) != users[0] for x in state["tournament"]["results"]), "stale HU elimination survived re-entry")
 
     with db.connect() as con:
         con.execute("UPDATE sitngo_events SET status='finished',updated_at=? WHERE id=?", (db.utcnow(), event["id"]))
