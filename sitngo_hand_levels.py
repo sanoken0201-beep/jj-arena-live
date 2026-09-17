@@ -11,11 +11,9 @@ they are not consulted for blind progression in hand-count tournaments.
 from __future__ import annotations
 
 import json
-import re
 import time
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
 
 HANDS_PER_LEVEL = 12
 LEVEL_MODE = "hands"
@@ -76,14 +74,18 @@ def _patch_player_ui() -> None:
         "jjSngStructureHtml(eventLevels)",
     )
     source = source.replace("10分レベル", "12ハンド/レベル")
-
-    old_clock = "    el.innerHTML=`<span>Lv.${Number(t.level)} · ${fmt(tableState.small_blind)}/${fmt(tableState.big_blind)} · BBA ${fmt(t.bb_ante)}</span><span>残り${Number(t.remaining)}/${Number(t.entrants)}人${t.status==='finished'?' · 終了':t.next_level_at?` · 次 ${jjSngCountdown(t.next_level_at)}`:''}</span>`;"
-    new_clock = "    el.innerHTML=`<span>Lv.${Number(t.level)} · ${fmt(tableState.small_blind)}/${fmt(tableState.big_blind)} · BBA ${fmt(t.bb_ante)}</span><span>${t.status==='finished'?'終了':`${Number(t.hand_in_level||0)}/${Number(t.hands_per_level||12)}ハンド`} · 残り${Number(t.remaining)}/${Number(t.entrants)}人</span>`;"
-    if old_clock not in source:
-        raise RuntimeError("Sit&Go 12-hand UI drift: table clock contract changed")
-    source = source.replace(old_clock, new_clock, 1)
     source += f"\n  // {PLAYER_UI_MARKER}\n"
     ui._APP_PATCH = source
+
+    # The in-table tournament clock lives in the separate gameplay fragment,
+    # which transform_app_js appends after the lobby fragment. Patch that exact
+    # source so the displayed contract matches the server's hand-count scheduler.
+    gameplay = ui._GAMEPLAY_PATCH
+    old_clock = "    el.innerHTML=`<span>Lv.${Number(t.level)} · ${fmt(tableState.small_blind)}/${fmt(tableState.big_blind)} · BBA ${fmt(t.bb_ante)}</span><span>残り${Number(t.remaining)}/${Number(t.entrants)}人${t.status==='finished'?' · 終了':t.next_level_at?` · 次 ${jjSngCountdown(t.next_level_at)}`:''}</span>`;"
+    new_clock = "    el.innerHTML=`<span>Lv.${Number(t.level)} · ${fmt(tableState.small_blind)}/${fmt(tableState.big_blind)} · BBA ${fmt(t.bb_ante)}</span><span>${t.status==='finished'?'終了':`${Number(t.hand_in_level||0)}/${Number(t.hands_per_level||12)}ハンド`} · 残り${Number(t.remaining)}/${Number(t.entrants)}人</span>`;"
+    if old_clock not in gameplay:
+        raise RuntimeError("Sit&Go 12-hand UI drift: table clock contract changed")
+    ui._GAMEPLAY_PATCH = gameplay.replace(old_clock, new_clock, 1)
     ui._JJ_HAND_LEVELS_PATCHED = True
 
 
