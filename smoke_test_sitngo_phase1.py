@@ -187,6 +187,14 @@ def main() -> None:
     else:
         raise AssertionError("running event settings were incorrectly editable")
 
+    # Keep shared CI databases reusable for the following full-game regression.
+    # This changes only disposable test rows; production never executes this test.
+    with db.connect() as con:
+        con.execute(
+            "UPDATE sitngo_events SET status='finished',updated_at=? WHERE id=?",
+            (db.utcnow(), editable["id"]),
+        )
+
     index = production_app._patched_index()
     js = production_app._patched_app_js()
     css = production_app._patched_styles()
