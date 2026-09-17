@@ -4,27 +4,23 @@ from __future__ import annotations
 
 Historical transform modules remain as tested implementation units, but their
 production ordering is declared here instead of being spread across the build
-entrypoint or request-serving path. New browser behavior must be compiled into
-`.jj_build` here; `app.py` serves that validated output without mutation.
+entrypoint. New browser changes should either be folded into an existing stage
+or registered here explicitly.
 """
 
 from pathlib import Path
 
-from browser_runtime_consolidation import apply_to_build as apply_runtime_browser_consolidation
 from browser_structure_consolidation import apply_to_build as apply_structure_consolidation
 from non_sng_safety import apply_to_build as apply_non_sng_safety
 from poker_connection_fix import apply_to_build as apply_oop_check_freshness
 from poker_control_safety import apply_to_build as apply_poker_control_safety
 
-PIPELINE_VERSION = 3
+PIPELINE_VERSION = 2
 POST_BUILD_STAGES = (
     ("oop_check_freshness", apply_oop_check_freshness),
     ("poker_control_safety", apply_poker_control_safety),
     ("non_sng_safety", apply_non_sng_safety),
     ("structure_consolidation", apply_structure_consolidation),
-    # Last by design: this absorbs the final deterministic browser mutations
-    # that historically lived in app.py, making `.jj_build` canonical.
-    ("runtime_browser_consolidation", apply_runtime_browser_consolidation),
 )
 
 
@@ -37,7 +33,6 @@ def finalize_build(output_root: Path | str, manifest: dict) -> dict:
 
     manifest["pipeline_version"] = PIPELINE_VERSION
     manifest["pipeline_stages"] = applied
-    manifest["browser_output_contract"] = "canonical-prebuilt-v1"
 
     import json
 
