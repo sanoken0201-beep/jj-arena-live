@@ -24,16 +24,13 @@ from app_materialized import app, db, runtime_poker_engine, runtime_server
 from player_ux_phase2 import leave_after_hand_transition
 import sitngo
 import sitngo_admin_config
+import sitngo_asset_cache
 
 # Configure the root-level Sit&Go extension before browser transforms bind the
 # Sit&Go UI functions and before the service installs its FastAPI routes.
 sitngo_admin_config.install(sitngo)
+sitngo_asset_cache.install()
 
-import served_assets as _served_assets
-
-# The player UI changed; move to a new immutable asset/cache version so clients
-# never retain the fixed 10,000-chip / 10-minute copy from v70.
-_served_assets.ASSET_VERSION = 71
 from served_assets import (
     ASSET_VERSION,
     CLEAR_COPY_MARKER,
