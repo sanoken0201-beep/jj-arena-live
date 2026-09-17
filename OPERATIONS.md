@@ -19,13 +19,13 @@ Browser / mobile
 - ASGI entrypoint: `app:app`
 - Canonical core: `materialized_v1244/`
 - Production integration: `app_materialized.py` + root-level extension modules + `app.py`
-- Legacy parity / rollback reference: `app_legacy.py` + `runtime_builder.py` + historical patch chain
+- Legacy parity / rollback reference: `app_legacy.py` + `runtime_builder.py` + `materialized_v1244.manifest.json`
 - Database: **既存の `jj-arena-db` のみ**
 - Region: Singapore
 
-本番startupでは `release_v14` とhistorical patch chainを毎回再構築しません。`app.py` は `app_materialized.py` を通して、検証済みv1.24.4 Golden Masterをコミット済みソースとして固定した `materialized_v1244/` を読み込みます。
+本番startupでは `release_v14` とhistorical patch chainを再構築しません。`app.py` は `app_materialized.py` を通して、検証済みv1.24.4 Golden Masterをコミット済みソースとして固定した `materialized_v1244/` を読み込みます。
 
-`materialized_v1244/` はcanonical coreとして原則変更禁止です。通常の性能改善、管理機能、セキュリティ、学習、分析、UX統合はroot-level extension / integration shimで実装します。旧patch-chain経路は削除せず、parity oracleと緊急rollback参照として保持します。
+`materialized_v1244/` はcanonical coreとして原則変更禁止です。通常の性能改善、管理機能、セキュリティ、学習、分析、UX統合はroot-level extension / integration shimで実装します。`runtime_builder.py` はparity / emergency rollback用の隔離runtimeを `materialized_v1244.manifest.json` に記録されたsnapshotからコピーし、size/hashを検証して構築します。historical patch chainと `release_v14` はこのruntime構築では再生せず、歴史・forensic参照としてのみ扱います。
 
 ルート直下の古い `server.py` / `db.py` / `poker_engine.py` をproduction coreとして直接起動しないでください。
 
@@ -144,7 +144,7 @@ JJ_ADMIN_PASSWORD
 4. 最後の正常commitへコードを戻す、またはRenderでそのrevisionを再デプロイする。
 5. 起動ログとhealth checkを確認する。
 
-materialized cutover後も `app_legacy.py` とhistorical reconstruction経路はparity / emergency rollback参照として保持します。ただしrollback目的でproduction DBを旧schemaへ戻す操作は行いません。DB migrationが入ったreleaseではmigrationの後方互換性を保ち、破壊的 `DROP` / column renameを通常releaseに含めません。
+materialized cutover後も `app_legacy.py` はparity / emergency rollback参照として保持しますが、その隔離runtimeは `runtime_builder.py` が検証済み `materialized_v1244` snapshotから構築します。historical patch replayをrollback runtimeの前提に戻しません。ただしrollback目的でproduction DBを旧schemaへ戻す操作は行いません。DB migrationが入ったreleaseではmigrationの後方互換性を保ち、破壊的 `DROP` / column renameを通常releaseに含めません。
 
 ## 8. Data integrity rules
 
