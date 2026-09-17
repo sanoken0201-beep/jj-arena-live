@@ -32,6 +32,7 @@ def main():
     assert response.status_code==200,response.text
     state=response.json()['state']
     assert state['tournament']['entry_fee']==0
+    assert state['big_blind']==400 and state['tournament']['bb_ante']==400
     for operation,body in [('seat',{'seat':3}),('join',{}),('rebuy',{}),('presence',{'mode':'rebuy'}),('leave',{}),('leave-after-hand',{'enabled':True}),('start',{})]:
         assert client.post(f'/api/tables/{eid}/{operation}',json=body).status_code==409,operation
     assert client.post('/api/tables/jj-table-a/join',json={}).status_code==400
@@ -54,14 +55,15 @@ def main():
     with client.websocket_connect('/ws/tables/'+eid) as ws:
         frame=ws.receive_json()
         assert frame['type']=='state' and frame['state']['tournament']['event_id']==eid
-    # Level changes only on the following hand.
+    # Level changes only on the following hand and must use the persisted structure.
     state=rt.load(eid)
     state['tournament']['elapsed_seconds']=601
     state['next_hand_at_epoch']=0
     rt.save(state)
     asyncio.run(rt.tick(eid))
     state=rt.load(eid)
-    assert state['tournament']['level']==2 and state['big_blind']==400
+    assert state['tournament']['level']==2 and state['big_blind']==600
+    assert state['tournament']['bb_ante']==600
     assert state['status']=='playing'
     # A disconnected actor keeps their seat and is timed out, never removed.
     actor=next(p for p in state['seats'] if p['seat']==state['hand']['action_seat'])

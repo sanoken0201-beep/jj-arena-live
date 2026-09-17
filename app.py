@@ -23,6 +23,17 @@ import app_materialized as _materialized
 from app_materialized import app, db, runtime_poker_engine, runtime_server
 from player_ux_phase2 import leave_after_hand_transition
 import sitngo
+import sitngo_admin_config
+import sitngo_asset_cache
+import sitngo_chip_rules
+import sitngo_runtime
+
+# Configure the root-level Sit&Go extension before browser transforms bind the
+# Sit&Go UI functions and before the service installs its FastAPI routes.
+sitngo_admin_config.install(sitngo)
+sitngo_chip_rules.install(sitngo_runtime)
+sitngo_asset_cache.install()
+
 from served_assets import (
     ASSET_VERSION,
     CLEAR_COPY_MARKER,
