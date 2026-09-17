@@ -106,3 +106,14 @@ Before implementation is accepted, the following must be decided and tested: reg
 Avoiding long development chats is not a project goal. Complex implementation sessions may naturally become large and may eventually reach ChatGPT limits.
 
 Continuity is achieved by updating the canonical project state and decision log and producing a compact handoff, not by copying the entire conversation into the next chat. This makes old chats optional historical material rather than a runtime dependency for future development.
+
+## D-011 — Compatibility rollback runtime is built from the verified materialized snapshot
+
+**Date:** 2026-09-17  
+**Status:** Accepted
+
+The compatibility/parity runtime must not reconstruct v1.24.4 by unpacking `release_v14` and replaying the historical v15–v55 patch chain.
+
+`runtime_builder.py` copies the files recorded in `materialized_v1244.manifest.json` into an isolated runtime directory and verifies their size/hash before and after copying. This makes the committed `materialized_v1244/` tree the single canonical v1.24.4 source for both production loading and compatibility construction.
+
+Historical release bundles and patch modules may remain for forensic history, but they are not runtime dependencies and must not be silently reintroduced into the compatibility builder. `smoke_test_runtime_builder_snapshot.py` and the production release gate protect this contract.
