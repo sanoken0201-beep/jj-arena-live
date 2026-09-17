@@ -31,14 +31,14 @@ between hands. Re-entry increments total entries but not the six-player unique-f
 limit. Previous elimination data for that player is removed and final places are
 renumbered when the field changes.
 
-If one survivor remains while unused unique-player seats are still available and
-the late-registration window is open, the tournament waits rather than declaring
-a winner. A queued late entrant resumes play immediately; otherwise the result is
-finalized when the configured registration deadline expires. If all unique seats
-have already been used but the last eliminated player is still eligible to re-enter,
-the table provides a short 30-second re-entry grace, bounded by the registration
-deadline. Pending tournament entry also reserves table membership so the same user
-cannot simultaneously join a ring table.
+The configured post-start deadline is authoritative. If one survivor remains while
+an unused unique-player seat or any valid unused re-entry right still exists, the
+tournament waits rather than declaring a winner. A queued entrant resumes play
+immediately; otherwise the result becomes final when the configured entry deadline
+expires. This prevents an advertised registration/re-entry right from disappearing
+merely because the remaining active players finished early. Pending tournament
+entry also reserves table membership so the same user cannot simultaneously join
+a ring table.
 
 ## Tournament chip rules
 
@@ -109,7 +109,7 @@ Existing Phase 1 events marked running without games resume by creating their
 first real hand with the assigned seats.
 
 Validation covers complete 2/4/6-player tournaments; default freezeout behavior;
-late registration; re-entry caps; early one-survivor late-registration waiting;
+late registration; re-entry caps; early one-survivor entry-window waiting;
 entry-clock preservation; final-place renumbering; total-chip conservation; zero
 cash-ledger effects; short BBA; split/odd chips; main/side pots; BBA main-pot
 integration; denomination-aware raises; scheduled and custom color-ups; micro-stack
