@@ -5,7 +5,7 @@ compiler remains usable in lightweight CI jobs that do not install FastAPI.
 """
 from __future__ import annotations
 
-CACHE_QUERY = "sngcfg=admin-structure-20260918-2"
+CACHE_QUERY = "sngcfg=admin-structure-20260918-3"
 CHIP_UI_MARKER = "jj sitngo chip unit ui 2026-09-18"
 
 
@@ -47,15 +47,18 @@ def install() -> None:
             "${jjSngStructureHtml(eventLevels,event.target_minutes)}",
             "event structure call",
         )
-        source = _replace_once(
-            source,
-            "    el.innerHTML=`<span>Lv.${Number(t.level)} · ${fmt(tableState.small_blind)}/${fmt(tableState.big_blind)} · BBA ${fmt(t.bb_ante)}</span><span>残り${Number(t.remaining)}/${Number(t.entrants)}人${t.status==='finished'?' · 終了':t.next_level_at?` · 次 ${jjSngCountdown(t.next_level_at)}`:''}</span>`;\n",
-            "    el.innerHTML=`<span>Lv.${Number(t.level)} · ${fmt(tableState.small_blind)}/${fmt(tableState.big_blind)} · BBA ${fmt(t.bb_ante)} · 最小 ${fmt(t.chip_unit||tableState.chip_unit||100)}</span><span>残り${Number(t.remaining)}/${Number(t.entrants)}人${t.status==='finished'?' · 終了':t.next_level_at?` · 次 ${jjSngCountdown(t.next_level_at)}`:''}</span>`;\n",
-            "table denomination display",
-        )
         source += r'''
 
   // jj sitngo chip unit ui 2026-09-18
+  const jjSngBaseTableClock=jjSngTableClock;
+  jjSngTableClock=function(){
+    jjSngBaseTableClock();
+    if(!tableState?.tournament)return;
+    const el=$('#jjSngTableInfo'),first=el?.querySelector('span');
+    const unit=Math.max(100,Number(tableState.chip_unit||tableState.tournament?.chip_unit||100));
+    if(first&&!first.textContent.includes('最小 '))first.textContent+=` · 最小 ${fmt(unit)}`;
+  };
+
   const jjSngBaseTotalPot=jjTotalPot;
   jjTotalPot=function(){
     const base=jjSngBaseTotalPot();
