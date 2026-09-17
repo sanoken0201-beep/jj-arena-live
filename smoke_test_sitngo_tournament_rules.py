@@ -28,8 +28,13 @@ def waiting_state(engine, stacks_by_seat, *, previous_button=0, previous_sb=1, p
         min_buyin=1,
         max_buyin=100_000,
     )
+    # A busted tournament player remains seated with stack=0.  The generic seat
+    # API correctly refuses a zero-chip initial buy-in, so construct a legal
+    # historical seat first and then restore the intended post-bust stack.
     for seat, stack in sorted(stacks_by_seat.items()):
-        engine.seat_player(state, user_id=seat + 1, name=f"P{seat + 1}", seat=seat, stack=stack)
+        engine.seat_player(state, user_id=seat + 1, name=f"P{seat + 1}", seat=seat, stack=max(1, stack))
+    for player in state["seats"]:
+        player["stack"] = int(stacks_by_seat[player["seat"]])
     state.update(
         status="waiting",
         button_seat=previous_button,
