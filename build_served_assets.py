@@ -4,14 +4,13 @@ from __future__ import annotations
 from browser_asset_pipeline import finalize_build
 import sitngo
 import sitngo_admin_config
+import sitngo_asset_cache
 
 # Build-time transforms must see the same configurable Sit&Go contract as the
 # production ASGI process. materialized_v1244 remains an immutable input.
 sitngo_admin_config.install(sitngo)
+sitngo_asset_cache.install()
 
-import served_assets as _served_assets
-
-_served_assets.ASSET_VERSION = 71
 from served_assets import ASSET_VERSION, BUILD_ROOT, build_all, validate_built_assets
 
 
