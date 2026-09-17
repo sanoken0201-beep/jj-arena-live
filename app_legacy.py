@@ -12,6 +12,7 @@ import secrets
 import sys
 from pathlib import Path
 
+import admin_api_consolidation
 import admin_copy_patch
 import admin_ledger_stabilization
 import admin_pin_verification
@@ -60,6 +61,7 @@ def _prioritize_extension_routes(fastapi_app) -> None:
             path in {"/admin", "/admin/", "/api/learning-content"}
             or path.startswith("/admin-static")
             or path.startswith("/api/admin/console")
+            or path.startswith("/api/admin/members")
             or path.startswith("/api/analysis")
             or path.startswith("/api/quiz/")
             or path.startswith("/api/home/")
@@ -77,6 +79,9 @@ install_account_deletion(app)
 ranking_mapping_guard.install(app, db)
 admin_pin_verification.install(app, admin_console)
 security_hardening.install(app, runtime_server, db)
+# Emergency rollback must retain the same canonical admin-write boundary as
+# production. Do not resurrect legacy PIN reset/user mutation APIs on rollback.
+admin_api_consolidation.install(app, runtime_server)
 learning_content.install(app)
 daily_quiz.install(app, runtime_server, db)
 hand_analytics.install(app, runtime_server, db)
