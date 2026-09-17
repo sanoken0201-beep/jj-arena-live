@@ -62,6 +62,7 @@ def install(runtime_module) -> None:
     original_init = runtime_cls.__init__
     original_install_routes = runtime_cls.install_routes
     original_public = runtime_cls.public
+    legacy_tick = runtime_cls.tick
 
     def init(self, service, ring_engine):
         self._pending_action_arrivals = {}
@@ -160,18 +161,18 @@ def install(runtime_module) -> None:
         """12-hand scheduler plus race-safe tournament timeout settlement."""
         import sitngo_hand_levels
 
-        s = self.server
         now = time.time() if now is None else float(now)
+        probe = self.load(eid)
+        if (probe.get("tournament") or {}).get("level_mode") != sitngo_hand_levels.LEVEL_MODE:
+            return await legacy_tick(self, eid, now=now, recover=recover)
+
+        s = self.server
         protected_timeout = False
         async with s.get_table_lock(eid):
             state = self.load(eid)
             tournament = state["tournament"]
             if tournament["status"] != "running":
                 return None
-
-            # Legacy time-mode tournaments keep their existing scheduler.
-            if tournament.get("level_mode") != sitngo_hand_levels.LEVEL_MODE:
-                return await runtime_module._jj_turn_safety_legacy_tick(self, eid, now=now, recover=recover)
 
             previous = float(tournament.get("clock_at_epoch") or now)
             if recover:
@@ -259,9 +260,6 @@ def install(runtime_module) -> None:
             value["hand"]["turn_id"] = value["turn_id"]
         return value
 
-    # Preserve the scheduler that sitngo_hand_levels installed immediately before
-    # this module. It is used only for already-running legacy time-mode events.
-    runtime_module._jj_turn_safety_legacy_tick = runtime_cls.tick
     runtime_cls.__init__ = init
     runtime_cls.install_routes = install_routes
     runtime_cls._pending_enter = _pending_enter
