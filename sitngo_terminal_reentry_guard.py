@@ -1,7 +1,7 @@
 """Restrict terminal Sit&Go re-entry grace to the newly busted player(s).
 
 The general re-entry window remains available while the tournament is naturally
-continuing.  When a hand would otherwise leave one survivor, however, the runtime
+continuing. When a hand would otherwise leave one survivor, however, the runtime
 briefly reopens the event only so the player(s) eliminated by that terminal hand
 can decide whether to re-enter. Older eliminated players must not use that short
 finish grace, and the API must reject requests after the grace timestamp even if
@@ -10,6 +10,7 @@ the lifecycle tick has not finalized the event yet.
 from __future__ import annotations
 
 import time
+from datetime import datetime, timezone
 
 from fastapi import HTTPException
 
@@ -18,13 +19,10 @@ def install(sitngo_runtime, entry_rules) -> None:
     if getattr(sitngo_runtime, "_JJ_TERMINAL_REENTRY_GUARD_INSTALLED", False):
         return
 
-    runtime_cls = sitngo_runtime.TournamentRuntime
-    service_cls = entry_rules.__import__("sitngo").SitNGoService if False else None
-    # Resolve through the runtime's service class at install time without adding
-    # another import-order dependency to the production entrypoint.
     import sitngo
-    service_cls = sitngo.SitNGoService
 
+    runtime_cls = sitngo_runtime.TournamentRuntime
+    service_cls = sitngo.SitNGoService
     original_finish = runtime_cls.finish
     original_payload = service_cls._event_payload
     original_reenter = service_cls.reenter
@@ -66,7 +64,7 @@ def install(sitngo_runtime, entry_rules) -> None:
             allowed = {int(uid) for uid in tournament.get("terminal_reentry_user_ids") or []}
             payload["can_reenter"] = bool(time.time() < grace and int(user_id) in allowed)
             payload["terminal_reentry_deadline"] = (
-                __import__("datetime").datetime.fromtimestamp(grace, __import__("datetime").timezone.utc).isoformat()
+                datetime.fromtimestamp(grace, timezone.utc).isoformat()
                 if int(user_id) in allowed else None
             )
         return payload
