@@ -11,6 +11,11 @@ This module now copies only the files named by ``materialized_v1244.manifest.jso
 into an isolated directory and verifies SHA-256/size before and after the copy.
 That preserves the independent import path used by ``app_legacy`` and parity
 checks without reconstructing history at runtime.
+
+The canonical source modules can create local SQLite state when imported by
+isolated tests. Those runtime artifacts are deliberately outside the committed
+source manifest, so verification ignores only narrowly defined Python/SQLite
+transients while still rejecting every other unrecorded source file.
 """
 
 import hashlib
@@ -24,6 +29,19 @@ SOURCE_DIR = (ROOT / "materialized_v1244").resolve()
 MANIFEST_PATH = ROOT / "materialized_v1244.manifest.json"
 RUNTIME_VERSION = "1.24.4"
 DEFAULT_DEST = Path("/tmp/jj_arena_v1244_compat_runtime")
+
+_TRANSIENT_SUFFIXES = frozenset({".pyc", ".pyo", ".db", ".sqlite", ".sqlite3", ".wal", ".shm"})
+_SQLITE_SIDECAR_ENDINGS = ("-wal", "-shm", "-journal")
+
+
+def is_runtime_transient(relative: Path) -> bool:
+    """Return True only for generated Python/SQLite runtime artifacts."""
+    if "__pycache__" in relative.parts:
+        return True
+    name = relative.name.lower()
+    if relative.suffix.lower() in _TRANSIENT_SUFFIXES:
+        return True
+    return name.endswith(_SQLITE_SIDECAR_ENDINGS)
 
 
 def _sha256(path: Path) -> str:
@@ -52,13 +70,15 @@ def _recorded_files() -> dict[str, dict[str, Any]]:
 def _verify_tree(root: Path, recorded: dict[str, dict[str, Any]]) -> None:
     root = root.resolve()
     expected = set(recorded)
-    actual = {
-        path.relative_to(root).as_posix()
-        for path in root.rglob("*")
-        if path.is_file()
-        and "__pycache__" not in path.relative_to(root).parts
-        and path.suffix.lower() not in {".pyc", ".pyo"}
-    }
+    actual: set[str] = set()
+    for path in root.rglob("*"):
+        if not path.is_file():
+            continue
+        relative = path.relative_to(root)
+        if is_runtime_transient(relative):
+            continue
+        actual.add(relative.as_posix())
+
     if actual != expected:
         missing = sorted(expected - actual)
         extra = sorted(actual - expected)
@@ -84,7 +104,7 @@ def _verify_tree(root: Path, recorded: dict[str, dict[str, Any]]) -> None:
 
 
 def verify_materialized_source() -> dict[str, dict[str, Any]]:
-    """Validate the immutable source tree against its committed manifest."""
+    """Validate committed source files while tolerating generated DB/cache state."""
     if not SOURCE_DIR.is_dir():
         raise RuntimeError(f"JJ Arena materialized v1.24.4 core is missing: {SOURCE_DIR}")
     recorded = _recorded_files()
