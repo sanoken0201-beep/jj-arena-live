@@ -31,14 +31,15 @@ between hands. Re-entry increments total entries but not the six-player unique-f
 limit. Previous elimination data for that player is removed and final places are
 renumbered when the field changes.
 
-The configured post-start deadline is authoritative. If one survivor remains while
-an unused unique-player seat or any valid unused re-entry right still exists, the
-tournament waits rather than declaring a winner. A queued entrant resumes play
-immediately; otherwise the result becomes final when the configured entry deadline
-expires. This prevents an advertised registration/re-entry right from disappearing
-merely because the remaining active players finished early. Pending tournament
-entry also reserves table membership so the same user cannot simultaneously join
-a ring table.
+Late registration never keeps an otherwise finished Sit&Go alive merely because an
+unused seat remains. A player whose late-registration request was already accepted
+before the terminal hand is still seated between hands and prevents premature
+finalization. If a heads-up bust would otherwise end the tournament while that
+newly busted player is still eligible for re-entry, the table pauses for up to
+30 seconds (never beyond the configured entry deadline) so that player may choose
+to re-enter. Older unused re-entry rights do not indefinitely delay a one-survivor
+finish. Pending tournament entry reserves table membership so the same user cannot
+simultaneously join a ring table.
 
 ## Tournament chip rules
 
@@ -109,10 +110,10 @@ Existing Phase 1 events marked running without games resume by creating their
 first real hand with the assigned seats.
 
 Validation covers complete 2/4/6-player tournaments; default freezeout behavior;
-late registration; re-entry caps; early one-survivor entry-window waiting;
-entry-clock preservation; final-place renumbering; total-chip conservation; zero
-cash-ledger effects; short BBA; split/odd chips; main/side pots; BBA main-pot
-integration; denomination-aware raises; scheduled and custom color-ups; micro-stack
-survival; restart; timeouts; blind changes; authenticated HTTP/WebSocket; stale
-hand and duplicate action handling; cash-only endpoint rejection; chat/history
+late registration; re-entry caps; terminal-HU re-entry grace; accepted pending
+entry activation; entry-clock preservation; final-place renumbering; total-chip
+conservation; zero cash-ledger effects; short BBA; split/odd chips; main/side pots;
+BBA main-pot integration; denomination-aware raises; scheduled and custom color-ups;
+micro-stack survival; restart; timeouts; blind changes; authenticated HTTP/WebSocket;
+stale hand and duplicate action handling; cash-only endpoint rejection; chat/history
 privacy; and phone/desktop ring UI actions.
