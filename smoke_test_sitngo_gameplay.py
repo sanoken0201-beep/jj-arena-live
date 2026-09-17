@@ -30,8 +30,9 @@ def main():
         eid=launch(count)
         state=rt.load(eid)
         assert state['status']=='playing'
-        assert state['_ante_paid']==200
-        assert sum(p['stack']+p['contributed'] for p in state['seats'])+state['_ante_paid']==count*10000
+        assert state['_ante_paid']==400
+        assert state['small_blind']==200 and state['big_blind']==400
+        assert sum(p['stack']+p['contributed'] for p in state['seats'])+state['_ante_paid']==count*30000
         pub=rt.public(state,users[0])
         assert 'deck' not in pub['hand'] and '_revision' not in pub
         assert next(p for p in pub['seats'] if p['user_id']==users[1])['cards']==['??','??']
@@ -45,7 +46,7 @@ def main():
         assert recovered['hand']['id']==state['hand']['id'] and recovered['hand']['deck']==state['hand']['deck']
         assert abs(datetime.fromisoformat(recovered['hand']['action_deadline']).timestamp()-before-70)<.01
         # Complete an actual tournament through the engine and runtime scheduler.
-        for _ in range(1500):
+        for _ in range(2000):
             state=rt.load(eid)
             if state['tournament']['status']=='finished': break
             hand=state['hand']
@@ -61,7 +62,7 @@ def main():
                     asyncio.run(rt.tick(eid,now=clock))
         else: raise AssertionError('tournament did not finish')
         assert len(state['tournament']['results'])==count
-        assert sum(p['stack'] for p in state['seats'])==count*10000
+        assert sum(p['stack'] for p in state['seats'])==count*30000
         assert len([x for x in state['tournament']['results'] if x['place']==1])==1
         assert service._row(eid)['status']=='finished'
         old=list(state['tournament']['results'])
