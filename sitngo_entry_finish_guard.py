@@ -19,6 +19,10 @@ def install(sitngo_runtime, entry_rules) -> None:
     def finish(self, state):
         original_finish(self, state)
         tournament = state.get("tournament") or {}
+        # A zero-minute policy is the legacy freezeout contract. Do not infer an
+        # open window from timestamps alone (tests/recovery may use simulated time).
+        if int(tournament.get("late_registration_minutes") or 0) <= 0:
+            return
         deadline = float(tournament.get("entry_window_deadline_epoch") or 0)
         now = time.time()
         if deadline <= now:
