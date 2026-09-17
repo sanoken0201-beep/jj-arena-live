@@ -1,156 +1,112 @@
 from __future__ import annotations
 
-import base64
-import hashlib
-import io
-import shutil
-import tarfile
-from pathlib import Path
+"""Build an isolated v1.24.4 compatibility runtime from the immutable snapshot.
 
-import mobile_poker_hotfix
-import v15_patch
-import v16_patch
-import v17_patch
-import v18_patch
-import v19_patch
-import v20_patch
-import v21_patch
-import v22_patch
-import v23_patch
-import v24_patch
-import v25_patch
-import v26_patch
-import v27_patch
-import v28_patch
-import v29_patch
-import v30_patch
-import v31_patch
-import v32_patch
-import v33_patch
-import v34_patch
-import v35_patch
-import v36_patch
-import v37_patch
-import v38_patch
-import v39_patch
-import v40_patch
-import v41_patch
-import v42_patch
-import v43_patch
-import v44_patch
-import v45_patch
-import v46_patch
-import v47_patch
-import v48_patch
-import v49_compat_patch
-import v49_patch
-import v49_post_patch
-import v50_patch
-import v51_patch
-import v51_post_patch
-import v51_final_patch
-import v51_engine_compat_patch
-import v51_call_signature_patch
-import v52_patch
-import v52_post_patch
-import v53_patch
-import v54_patch
-import v55_patch
-import v55_post_patch
+Production has used ``materialized_v1244`` directly since the v2 cutover.  The
+former compatibility builder still replayed the entire v15-v55 patch history,
+which made old release fragments and patch modules runtime dependencies even
+though their final output had already been materialized and checksum-recorded.
+
+This module now copies only the files named by ``materialized_v1244.manifest.json``
+into an isolated directory and verifies SHA-256/size before and after the copy.
+That preserves the independent import path used by ``app_legacy`` and parity
+checks without reconstructing history at runtime.
+"""
+
+import hashlib
+import json
+import shutil
+from pathlib import Path
+from typing import Any
 
 ROOT = Path(__file__).resolve().parent
-RELEASE_DIR = ROOT / "release_v14"
-EXPECTED_PARTS = 62
-EXPECTED_SHA256 = "3ccb973f9ab146ce1c0d7da598242b0c1521a8ecc85c091caa10c1f1ebc9ddfd"
+SOURCE_DIR = (ROOT / "materialized_v1244").resolve()
+MANIFEST_PATH = ROOT / "materialized_v1244.manifest.json"
 RUNTIME_VERSION = "1.24.4"
-DEFAULT_DEST = Path("/tmp/jj_arena_v56_runtime")
+DEFAULT_DEST = Path("/tmp/jj_arena_v1244_compat_runtime")
 
 
-def _release_bytes() -> bytes:
-    parts = sorted(RELEASE_DIR.glob("part*.b64"))
-    if len(parts) != EXPECTED_PARTS:
+def _sha256(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as fh:
+        for chunk in iter(lambda: fh.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def _recorded_files() -> dict[str, dict[str, Any]]:
+    if not MANIFEST_PATH.is_file():
+        raise RuntimeError(f"JJ Arena materialized manifest is missing: {MANIFEST_PATH}")
+    payload = json.loads(MANIFEST_PATH.read_text(encoding="utf-8"))
+    if str(payload.get("runtime_version")) != RUNTIME_VERSION:
         raise RuntimeError(
-            f"JJ Arena release bundle incomplete: expected {EXPECTED_PARTS} parts, found {len(parts)}"
+            "JJ Arena materialized manifest version mismatch: "
+            f"expected={RUNTIME_VERSION} actual={payload.get('runtime_version')!r}"
         )
-    encoded = "".join(part.read_text(encoding="utf-8").strip() for part in parts)
-    raw = base64.b64decode(encoded, validate=True)
-    actual = hashlib.sha256(raw).hexdigest()
-    if actual != EXPECTED_SHA256:
-        raise RuntimeError(f"JJ Arena release bundle checksum mismatch: {actual}")
-    return raw
+    files = payload.get("files")
+    if not isinstance(files, dict) or not files:
+        raise RuntimeError("JJ Arena materialized manifest has no files")
+    return files
 
 
-def _safe_extract(raw: bytes, dest: Path) -> None:
-    shutil.rmtree(dest, ignore_errors=True)
-    dest.mkdir(parents=True, exist_ok=True)
-    root = dest.resolve()
-    with tarfile.open(fileobj=io.BytesIO(raw), mode="r:gz") as archive:
-        for member in archive.getmembers():
-            target = (dest / member.name).resolve()
-            if target != root and root not in target.parents:
-                raise RuntimeError("Unsafe path detected in JJ Arena release bundle")
-        archive.extractall(dest)
+def _verify_tree(root: Path, recorded: dict[str, dict[str, Any]]) -> None:
+    root = root.resolve()
+    expected = set(recorded)
+    actual = {
+        path.relative_to(root).as_posix()
+        for path in root.rglob("*")
+        if path.is_file()
+        and "__pycache__" not in path.relative_to(root).parts
+        and path.suffix.lower() not in {".pyc", ".pyo"}
+    }
+    if actual != expected:
+        missing = sorted(expected - actual)
+        extra = sorted(actual - expected)
+        raise RuntimeError(
+            f"JJ Arena materialized runtime file-set mismatch: missing={missing} extra={extra}"
+        )
+
+    for rel, meta in recorded.items():
+        path = root / rel
+        expected_size = int(meta["size"])
+        actual_size = path.stat().st_size
+        if actual_size != expected_size:
+            raise RuntimeError(
+                f"JJ Arena materialized runtime size mismatch: {rel} "
+                f"expected={expected_size} actual={actual_size}"
+            )
+        expected_sha = str(meta["sha256"])
+        actual_sha = _sha256(path)
+        if actual_sha != expected_sha:
+            raise RuntimeError(
+                f"JJ Arena materialized runtime checksum mismatch: {rel} actual={actual_sha}"
+            )
 
 
-def _apply_patches(dest: Path) -> None:
-    v15_patch.apply(dest)
-    v16_patch.apply(dest)
-    v17_patch.apply(dest)
-    v18_patch.apply(dest, ROOT / "v18_assets")
-    for module in (
-        v19_patch,
-        v20_patch,
-        v21_patch,
-        v22_patch,
-        v23_patch,
-        v24_patch,
-        v25_patch,
-        v26_patch,
-        v27_patch,
-        v28_patch,
-        v29_patch,
-        v30_patch,
-        v31_patch,
-        v32_patch,
-        v33_patch,
-        v34_patch,
-        v35_patch,
-        v36_patch,
-        v37_patch,
-        v38_patch,
-        v39_patch,
-        v40_patch,
-        v41_patch,
-        v42_patch,
-        v43_patch,
-        v44_patch,
-        v45_patch,
-        v46_patch,
-        v47_patch,
-        v48_patch,
-        v49_compat_patch,
-        v49_patch,
-        v49_post_patch,
-        v50_patch,
-    ):
-        module.apply(dest)
-    mobile_poker_hotfix.apply(dest)
-    v51_patch.apply(dest)
-    v51_post_patch.apply(dest)
-    v51_final_patch.apply(dest)
-    v51_engine_compat_patch.apply(dest)
-    v51_call_signature_patch.apply(dest)
-    v52_patch.apply(dest)
-    v52_post_patch.apply(dest)
-    v53_patch.apply(dest)
-    v54_patch.apply(dest)
-    v55_patch.apply(dest)
-    v55_post_patch.apply(dest)
+def verify_materialized_source() -> dict[str, dict[str, Any]]:
+    """Validate the immutable source tree against its committed manifest."""
+    if not SOURCE_DIR.is_dir():
+        raise RuntimeError(f"JJ Arena materialized v1.24.4 core is missing: {SOURCE_DIR}")
+    recorded = _recorded_files()
+    _verify_tree(SOURCE_DIR, recorded)
+    return recorded
 
 
 def build_runtime(dest: Path | None = None) -> Path:
-    """Reconstruct the exact production runtime and return its directory."""
-    target = Path(dest) if dest is not None else DEFAULT_DEST
-    _safe_extract(_release_bytes(), target)
-    _apply_patches(target)
+    """Create an isolated exact copy of the verified v1.24.4 runtime."""
+    target = (Path(dest) if dest is not None else DEFAULT_DEST).resolve()
+    if target == SOURCE_DIR or target in SOURCE_DIR.parents or SOURCE_DIR in target.parents:
+        raise RuntimeError(f"unsafe JJ Arena compatibility runtime destination: {target}")
+
+    recorded = verify_materialized_source()
+    shutil.rmtree(target, ignore_errors=True)
+    target.mkdir(parents=True, exist_ok=True)
+
+    for rel in sorted(recorded):
+        source = SOURCE_DIR / rel
+        destination = target / rel
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(source, destination)
+
+    _verify_tree(target, recorded)
     return target
