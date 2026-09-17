@@ -1,8 +1,6 @@
-"""Ensure one survivor does not close an advertised late-registration window."""
+"""Ensure an unused late-registration slot never keeps a finished Sit&Go alive."""
 from __future__ import annotations
 
-import asyncio
-import time
 from datetime import datetime, timedelta, timezone
 from unittest.mock import patch
 
@@ -21,7 +19,7 @@ def main() -> None:
     start = now + timedelta(minutes=10)
     event = service.create_event(
         sitngo.SitNGoCreateIn(
-            name="Late window survives early HU finish",
+            name="Unused late slot does not delay finish",
             starts_at=start.isoformat(),
             late_registration_minutes=10,
             max_reentries=0,
@@ -34,26 +32,23 @@ def main() -> None:
     service.reconcile(start + timedelta(seconds=1))
     fold_to_waiting(runtime, event["id"])
     fake_bust(runtime, event["id"], users[0], "early-finish")
+
     state = runtime.load(event["id"])
     tournament = state["tournament"]
-    require(tournament["status"] == "running", "tournament finalized while late registration was still open")
-    require(not state["session_active"], "one-survivor table must wait for late entrant")
-    require(
-        abs(float(tournament["reentry_grace_until_epoch"]) - float(tournament["entry_window_deadline_epoch"])) < 0.01,
-        "early finish did not wait until the configured late-registration deadline",
-    )
-    with patch.object(sitngo, "_utcnow", return_value=start + timedelta(minutes=2)):
-        pending = service.register(event["id"], users[2])
-    require(pending["entry_pending"], "late entrant could not join the waiting one-survivor tournament")
-    asyncio.run(runtime.tick(event["id"], now=time.time()))
-    state = runtime.load(event["id"])
-    require(any(int(p["user_id"]) == users[2] for p in state["seats"]), "queued late entrant was not activated immediately")
-    require(state["session_active"], "tournament did not resume after late entrant activation")
-    require("reentry_grace_until_epoch" not in state["tournament"], "finish-wait marker survived tournament resume")
+    require(tournament["status"] == "finished", "unused late-registration capacity kept the tournament alive")
+    require(not state["session_active"], "finished one-survivor table remained active")
+    require("reentry_grace_until_epoch" not in tournament, "freezeout finish created an unnecessary grace period")
+    require(sum(1 for x in tournament["results"] if int(x.get("place") or 0) == 1) == 1, "winner was not finalized")
 
-    with db.connect() as con:
-        con.execute("UPDATE sitngo_events SET status='finished',updated_at=? WHERE id=?", (db.utcnow(), event["id"]))
-        con.execute("UPDATE sitngo_registrations SET status='finished' WHERE event_id=? AND status<>'cancelled'", (event["id"],))
+    # Once the tournament is over, a merely unused seat does not permit a new
+    # entrant to revive it, even if the configured wall-clock window remains.
+    with patch.object(sitngo, "_utcnow", return_value=start + timedelta(minutes=2)):
+        try:
+            service.register(event["id"], users[2])
+        except Exception as exc:
+            require("受付" in str(exc) or "終了" in str(exc), "late join after finish returned an unexpected error")
+        else:
+            raise AssertionError("late join revived a finished Sit&Go")
 
     print("JJ_SITNGO_ENTRY_FINISH_OK")
 
