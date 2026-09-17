@@ -117,6 +117,13 @@ def main():
     require(all(p["stack"] >= 5_000 for p in micro["seats"] if p["user_id"] == 1), "micro-stack was raced out")
     require(all(p["stack"] % 5_000 == 0 for p in micro["seats"]), "micro-stack conversion left small chips")
 
+    # Custom structures may legitimately move 10k -> 25k; denominations do not
+    # need to divide the preceding physical denomination as long as total supply
+    # can be converted exactly.
+    non_multiple = tournament_state(engine, [10_000, 40_000], unit=10_000)
+    sitngo_chip_rules.color_up(non_multiple, 25_000)
+    require([p["stack"] for p in non_multiple["seats"]] == [25_000, 25_000], "10k -> 25k color-up failed")
+
     # Normal raises are denomination-locked; all-in/call remain engine-driven.
     action = engine.blank_table_state(
         table_id="action-unit",
@@ -157,11 +164,23 @@ def main():
     require(awards == {1: 5_000, 2: 10_000}, f"odd chip was not awarded left of button: {awards}")
     require(all(p["stack"] % 5_000 == 0 for p in split["seats"]), "split generated sub-5k chips")
 
+    # BBA is part of the main pot. Keeping it as a synthetic independent pot can
+    # create two separate odd-chip decisions and change a three-way tied payout.
+    bba = tournament_state(engine, [10_000, 10_000, 10_000, 10_000], unit=5_000, contributions=[5_000] * 4, ante=10_000, button=0)
+    bba["tournament"].update(starting_stack=10_000, entrants=4, total_chips=40_000, bb_ante=10_000)
+    cards = [["Tc", "3c"], ["Td", "4c"], ["Th", "5c"], ["9c", "8d"]]
+    for player, hole in zip(bba["seats"], cards):
+        player["cards"] = hole
+    bba["hand"]["board"] = ["Ah", "Kd", "Qc", "Js", "2h"]
+    engine._showdown(bba)
+    bba_awards = {w["user_id"]: w["amount"] for w in bba["last_result"]["winners"]}
+    require(bba_awards == {1: 10_000, 2: 10_000, 3: 10_000}, f"BBA was not merged into the main pot: {bba_awards}")
+    require(len(bba["hand"]["showdown"]["pots"]) == 1, "BBA survived as a second logical pot")
+    require(bba["hand"]["showdown"]["pots"][0]["amount"] == 30_000, "merged main-pot amount is wrong")
+
     # Main/side pots are settled separately and every award remains denomination-safe.
     side = tournament_state(engine, [10_000, 10_000, 10_000], unit=5_000, contributions=[10_000, 10_000, 5_000], ante=5_000, button=0)
     side["tournament"].update(starting_stack=20_000, entrants=3, total_chips=55_000, bb_ante=5_000)
-    # The manual fixture represents 55k currently in stacks+pots; settlement itself
-    # is the target here, not the tournament-total invariant used by runtime.save.
     engine._showdown(side)
     require(all(p["stack"] % 5_000 == 0 for p in side["seats"]), "side-pot split generated an obsolete chip")
     require(all(a["amount"] % 5_000 == 0 for pot in side["hand"]["showdown"]["pots"] for a in pot.get("awards", [])), "side-pot award broke denomination")
