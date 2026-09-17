@@ -24,6 +24,7 @@ def main() -> None:
     assert test_owner("smoke_test_single_public_table.py") == "ring_gameplay"
     assert test_owner("smoke_test_prebuilt_assets.py") == "browser_contract"
     assert test_owner("smoke_test_feature_lifecycle.py") == "runtime_release"
+    assert test_owner("smoke_test_runtime_builder_snapshot.py") == "runtime_release"
     assert test_owner("smoke_test_sitngo_gameplay.py") == "sitngo"
 
     # Browser-only coverage belongs to a named suite but may not enter Render's
