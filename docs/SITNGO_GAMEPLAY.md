@@ -1,17 +1,44 @@
 # Single-table Sit&Go
 
-Sit&Go is a scheduled 2–6-player freezeout. New events default to 30,000 tournament
+Sit&Go is a scheduled 2–6-player tournament. New events default to 30,000 tournament
 chips, 10-minute levels, big-blind ante and a 150-minute prepared structure, but the
-administrator owns the event configuration: starting stack, SB, BB, BBA and each
-level duration can be edited before the event starts. Once play begins the saved
-configuration is locked. There is no late registration or re-entry. The last
-prepared level repeats until a winner is determined. 90 minutes is a target, not a
-forced ending. Ring and tournament chips never share settlement.
+administrator owns the event configuration: starting stack, SB, BB, BBA, each
+level duration, post-start registration window and per-player re-entry cap can be
+edited before the event starts. Once play begins the saved configuration is locked.
+The default remains a freezeout: post-start registration is 0 minutes and re-entry
+is 0. The last prepared level repeats until a winner is determined. 90 minutes is
+a target, not a forced ending. Ring and tournament chips never share settlement.
 
 The existing ring table renderer, cards, raise sizing, pre-actions and connection
 recovery are reused. Tournament actions additionally carry the hand ID; delayed
 requests cannot act on the next hand. The lobby provides an explicit table/rejoin
 button and recent results. No production event is created by deploying this code.
+
+## Entry policy
+
+An administrator may configure `late_registration_minutes` from 0 to 60. A value
+of 0 closes registration at the scheduled start. A positive value allows a new
+unique player to take an unused seat until the actual tournament start time plus
+the configured number of minutes. The unique participant count never exceeds six.
+A late-registration request received during a live hand is stored as pending and
+the player is seated only between hands. Joining never restarts the blind clock.
+
+`max_reentries` is 0 to 5 per player and may be positive only when a post-start
+registration window exists. Re-entry is offered only after that player's stack has
+reached zero and the elimination has been committed. The player receives exactly
+the event's configured starting stack, returns to the same seat, and re-enters only
+between hands. Re-entry increments total entries but not the six-player unique-field
+limit. Previous elimination data for that player is removed and final places are
+renumbered when the field changes.
+
+If one survivor remains while unused unique-player seats are still available and
+the late-registration window is open, the tournament waits rather than declaring
+a winner. A queued late entrant resumes play immediately; otherwise the result is
+finalized when the configured registration deadline expires. If all unique seats
+have already been used but the last eliminated player is still eligible to re-enter,
+the table provides a short 30-second re-entry grace, bounded by the registration
+deadline. Pending tournament entry also reserves table membership so the same user
+cannot simultaneously join a ring table.
 
 ## Tournament chip rules
 
@@ -76,12 +103,15 @@ Deploy one application worker, as required by the existing in-process ring locks
 
 Only one new tournament starts while another is running. A due event waits for
 that event to finish; the blind clock starts when its actual table is created.
-Register after leaving a ring seat; a registered/active tournament reserves table
-membership until cancellation/elimination. Existing Phase 1 events marked running
-without games resume by creating their first real hand with the assigned seats.
+Register after leaving a ring seat; registered, active and pending tournament
+entries reserve table membership until cancellation/elimination as applicable.
+Existing Phase 1 events marked running without games resume by creating their
+first real hand with the assigned seats.
 
-Validation covers complete 2/4/6-player tournaments; total-chip conservation;
-zero cash-ledger effects; short BBA; split/odd chips; main/side pots; BBA main-pot
+Validation covers complete 2/4/6-player tournaments; default freezeout behavior;
+late registration; re-entry caps; early one-survivor late-registration waiting;
+entry-clock preservation; final-place renumbering; total-chip conservation; zero
+cash-ledger effects; short BBA; split/odd chips; main/side pots; BBA main-pot
 integration; denomination-aware raises; scheduled and custom color-ups; micro-stack
 survival; restart; timeouts; blind changes; authenticated HTTP/WebSocket; stale
 hand and duplicate action handling; cash-only endpoint rejection; chat/history
