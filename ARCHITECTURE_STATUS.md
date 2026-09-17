@@ -48,6 +48,8 @@ The browser build is two-tiered:
 1. `served_assets.py` compiles the immutable `materialized_v1244/static` input through the historical, regression-tested UX stages.
 2. `browser_asset_pipeline.py` is the single production post-build orchestration point for safety/finalization layers.
 
+The final stage, `browser_runtime_consolidation.py`, absorbs the deterministic browser mutations that previously lived in `app.py` at request time. The validated `.jj_build` directory is therefore the canonical browser output. `app.py` may perform transport work such as ETag/gzip handling, but it must not rewrite HTML, JavaScript or CSS source while serving a request.
+
 `build_served_assets.py` must not manually call individual final transforms. New final browser layers are registered in `browser_asset_pipeline.POST_BUILD_STAGES` so ordering is explicit and testable.
 
 ## Test ownership
