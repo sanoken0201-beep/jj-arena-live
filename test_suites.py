@@ -13,6 +13,7 @@ TEST_SUITES: dict[str, tuple[str, ...]] = {
         "smoke_test_websocket_auth.py",
         "smoke_test_public_proxy_security.py",
         "smoke_test_structure_consolidation.py",
+        "smoke_test_feature_lifecycle.py",
     ),
     "points_integrity": (
         "smoke_test_point_ledger_precision.py",
@@ -30,6 +31,8 @@ TEST_SUITES: dict[str, tuple[str, ...]] = {
     "browser_contract": (
         "smoke_test_prebuilt_assets.py",
         "smoke_test_pwa_update.py",
+        "smoke_test_structure_consolidation.py",
+        "smoke_test_feature_lifecycle.py",
         "audit_ui_labels.py",
     ),
     "runtime_release": (
@@ -52,11 +55,12 @@ PRODUCTION_RELEASE_SELECTION: tuple[tuple[str, tuple[str, ...]], ...] = (
     ("browser_contract", (
         "smoke_test_prebuilt_assets.py",
         "smoke_test_pwa_update.py",
+        "smoke_test_structure_consolidation.py",
+        "smoke_test_feature_lifecycle.py",
         "audit_ui_labels.py",
     )),
     ("auth_security", (
         "smoke_test_public_proxy_security.py",
-        "smoke_test_structure_consolidation.py",
     )),
     ("points_integrity", (
         "smoke_test_admin_reversal_safety.py",
