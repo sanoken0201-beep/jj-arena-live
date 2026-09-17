@@ -22,7 +22,6 @@ from asset_encoding import accepts_gzip, encoded_asset, matches_etag
 import app_materialized as _materialized
 from app_materialized import app, db, runtime_poker_engine, runtime_server
 from player_ux_phase2 import leave_after_hand_transition
-from poker_client_cleanup import remove_fast_fold
 import sitngo
 from served_assets import (
     ASSET_VERSION,
@@ -40,9 +39,6 @@ from served_assets import (
 
 
 _BUILT_ASSETS = ensure_runtime_assets()
-# Deliberately changes whenever production browser behavior must bypass an old
-# service-worker/browser cache entry without mutating the immutable core.
-_APP_JS_QUERY = "r=sitngo-playable-20260916-2"
 
 
 @lru_cache(maxsize=4)
@@ -51,33 +47,15 @@ def _built_asset(relative: str) -> str:
 
 
 # Compatibility names retained for existing regression tests and diagnostics.
-# All UX transforms, including Sit&Go, are applied by build_served_assets.py;
-# runtime only reads validated precompiled output.
+# Every browser mutation, including historical rake-copy cleanup, cache query
+# selection and obsolete poker-control removal, is compiled into `.jj_build`.
+# Runtime only reads validated canonical output.
 def _patched_index() -> str:
-    value = _built_asset("index.html")
-    value = value.replace(
-        f"/static/app.js?v={ASSET_VERSION}",
-        f"/static/app.js?v={ASSET_VERSION}&{_APP_JS_QUERY}",
-    )
-    value = value.replace(
-        f"/static/styles.css?v={ASSET_VERSION}",
-        f"/static/styles.css?v={ASSET_VERSION}&{_APP_JS_QUERY}",
-    )
-    return value.replace("rake 10%・5bb cap", "rake 5%・3bb cap")
+    return _built_asset("index.html")
 
 
 def _patched_app_js() -> str:
-    value = _built_asset("static/app.js")
-    value = value.replace(
-        "RAKE 10% · ${fmt(t.rake_cap_bb)}bb CAP",
-        "RAKE 5% · ${fmt(t.rake_cap_bb)}bb CAP",
-    )
-    value = value.replace("rake 10% / 5bb cap", "rake 5% / 3bb cap")
-    value = value.replace(
-        "pot*0.10,Number(tableState.rake_cap||500)",
-        "pot*0.05,Number(tableState.rake_cap||300)",
-    )
-    return remove_fast_fold(value)
+    return _built_asset("static/app.js")
 
 
 def _patched_styles() -> str:
@@ -90,12 +68,11 @@ def _patched_service_worker() -> str:
 
 @app.middleware("http")
 async def _v2_asset_hotfix(request: Request, call_next):
-    """Serve build-time compiled UX assets without mutating the canonical core.
+    """Serve canonical build-time compiled UX assets.
 
     `materialized_v1244` remains immutable for parity/reproducibility. The
-    historical UX transforms run in `build_served_assets.py`; production only
-    reads their validated output. Versioned asset URLs and the service-worker
-    namespace prevent stale clients from mixing incompatible poker controls.
+    historical UX transforms run only in `build_served_assets.py`; production
+    reads validated output and performs only transport concerns (ETag/gzip).
     """
     if request.method in {"GET", "HEAD"}:
         path = request.url.path

@@ -15,8 +15,9 @@ def main() -> None:
 
     import app
     from browser_asset_pipeline import PIPELINE_VERSION, POST_BUILD_STAGES
+    from browser_runtime_consolidation import CACHE_QUERY, MARKER
     from build_served_assets import main as build_assets
-    from served_assets import BUILD_ROOT, validate_built_assets
+    from served_assets import ASSET_VERSION, BUILD_ROOT, validate_built_assets
 
     # Every legacy member-admin route is now an authenticated tombstone.
     # Canonical reads and writes live only under /api/admin/console.
@@ -46,13 +47,43 @@ def main() -> None:
 
     build_assets()
     manifest = validate_built_assets(BUILD_ROOT)
-    assert manifest.get("pipeline_version") == PIPELINE_VERSION
+    assert manifest.get("pipeline_version") == PIPELINE_VERSION == 3
     expected = [name for name, _ in POST_BUILD_STAGES]
     assert manifest.get("pipeline_stages") == expected
+    assert expected[-1] == "runtime_browser_consolidation"
+    assert manifest.get("browser_output_contract") == "canonical-prebuilt-v1"
 
     js = (BUILD_ROOT / "static/app.js").read_text(encoding="utf-8")
+    index = (BUILD_ROOT / "index.html").read_text(encoding="utf-8")
+    styles = (BUILD_ROOT / "static/styles.css").read_text(encoding="utf-8")
+    worker = (BUILD_ROOT / "static/sw.js").read_text(encoding="utf-8")
+
     assert "if(v==='members'){location.assign('/admin');return}" in js
     assert "v74 structure consolidation 2026-09-17" in js
+    assert MARKER in js
+    assert "rake 10%・5bb cap" not in index
+    assert "rake 10% / 5bb cap" not in js
+    assert "pot*0.10,Number(tableState.rake_cap||500)" not in js
+    assert "check_fold" not in js
+
+    # Preserve the exact cache-busting URLs that the former request-time patch
+    # produced, including both JavaScript and CSS.
+    assert f"/static/app.js?v={ASSET_VERSION}&{CACHE_QUERY}" in index
+    assert f"/static/styles.css?v={ASSET_VERSION}&{CACHE_QUERY}" in index
+
+    # app.py must now serve the validated build byte-for-byte. Compatibility
+    # helper names remain, but they are read-only accessors rather than patches.
+    assert app._patched_index() == index
+    assert app._patched_app_js() == js
+    assert app._patched_styles() == styles
+    assert app._patched_service_worker() == worker
+
+    app_source = Path(app.__file__).read_text(encoding="utf-8")
+    assert "remove_fast_fold" not in app_source
+    assert "_APP_JS_QUERY" not in app_source
+    assert "pot*0.10,Number(tableState.rake_cap||500)" not in app_source
+    assert "RAKE 10% · ${fmt(t.rake_cap_bb)}bb CAP" not in app_source
+    assert ".replace(\"rake 10%・5bb cap\"" not in app_source
 
     print("JJ_STRUCTURE_CONSOLIDATION_OK")
 

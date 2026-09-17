@@ -61,6 +61,7 @@ def main() -> None:
         from unittest.mock import patch
         import build_served_assets as compiler
         import served_assets
+        from browser_runtime_consolidation import MARKER as runtime_browser_marker
         from browser_structure_consolidation import MARKER as structure_marker
         from non_sng_safety import MARKER as non_sng_marker
         from poker_connection_fix import MARKER as connection_marker
@@ -77,14 +78,17 @@ def main() -> None:
             assert controls_marker in js
             assert non_sng_marker in js
             assert structure_marker in js
+            assert runtime_browser_marker in js
             manifest = served_assets.validate_built_assets(root)
-            assert manifest.get("pipeline_version") == 2
+            assert manifest.get("pipeline_version") == 3
             assert manifest.get("pipeline_stages") == [
                 "oop_check_freshness",
                 "poker_control_safety",
                 "non_sng_safety",
                 "structure_consolidation",
+                "runtime_browser_consolidation",
             ]
+            assert manifest.get("browser_output_contract") == "canonical-prebuilt-v1"
         print("JJ_PRODUCTION_RELEASE_GATE_CONTRACT_OK")
     finally:
         if original_database_url is None:
