@@ -2,14 +2,11 @@
 from __future__ import annotations
 
 from browser_asset_pipeline import finalize_build
-import sitngo
-import sitngo_admin_config
-import sitngo_asset_cache
+import sitngo_browser_config
 
-# Build-time transforms must see the same configurable Sit&Go contract as the
-# production ASGI process. materialized_v1244 remains an immutable input.
-sitngo_admin_config.install(sitngo)
-sitngo_asset_cache.install()
+# Browser transforms deliberately remain dependency-free: several release jobs
+# compile assets without installing the FastAPI production dependency set.
+sitngo_browser_config.install()
 
 from served_assets import ASSET_VERSION, BUILD_ROOT, build_all, validate_built_assets
 
