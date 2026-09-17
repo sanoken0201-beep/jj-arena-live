@@ -23,21 +23,21 @@ def main() -> None:
 
     with tempfile.TemporaryDirectory(prefix="jj-v2-prep-") as td:
         base = Path(td)
-        legacy_a = build_runtime(base / "legacy-a")
-        legacy_b = build_runtime(base / "legacy-b")
+        compat_a = build_runtime(base / "compat-a")
+        compat_b = build_runtime(base / "compat-b")
 
-        manifest_a = collect_manifest(legacy_a)
-        manifest_b = collect_manifest(legacy_b)
+        manifest_a = collect_manifest(compat_a)
+        manifest_b = collect_manifest(compat_b)
 
-        assert manifest_a, "reconstructed runtime manifest is empty"
-        assert manifest_a == manifest_b, "runtime reconstruction is not content-deterministic"
+        assert manifest_a, "compatibility runtime manifest is empty"
+        assert manifest_a == manifest_b, "compatibility runtime copy is not content-deterministic"
 
         missing = sorted(REQUIRED_RUNTIME_FILES - set(manifest_a))
-        assert not missing, f"required reconstructed runtime files missing: {missing}"
+        assert not missing, f"required compatibility runtime files missing: {missing}"
 
         candidate, candidate_manifest = materialize_candidate(base / "candidate")
         assert candidate.exists()
-        assert candidate_manifest == manifest_a, "source-only materialization changed reconstructed runtime content"
+        assert candidate_manifest == manifest_a, "source-only materialization changed compatibility runtime content"
 
         for rel in candidate_manifest:
             lower = rel.lower()
