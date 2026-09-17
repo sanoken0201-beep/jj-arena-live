@@ -5,7 +5,8 @@ compiler remains usable in lightweight CI jobs that do not install FastAPI.
 """
 from __future__ import annotations
 
-CACHE_QUERY = "sngcfg=admin-structure-20260917-1"
+CACHE_QUERY = "sngcfg=admin-structure-20260918-2"
+CHIP_UI_MARKER = "jj sitngo chip unit ui 2026-09-18"
 
 
 def _replace_once(source: str, old: str, new: str, label: str) -> str:
@@ -46,6 +47,66 @@ def install() -> None:
             "${jjSngStructureHtml(eventLevels,event.target_minutes)}",
             "event structure call",
         )
+        source = _replace_once(
+            source,
+            "    el.innerHTML=`<span>Lv.${Number(t.level)} · ${fmt(tableState.small_blind)}/${fmt(tableState.big_blind)} · BBA ${fmt(t.bb_ante)}</span><span>残り${Number(t.remaining)}/${Number(t.entrants)}人${t.status==='finished'?' · 終了':t.next_level_at?` · 次 ${jjSngCountdown(t.next_level_at)}`:''}</span>`;\n",
+            "    el.innerHTML=`<span>Lv.${Number(t.level)} · ${fmt(tableState.small_blind)}/${fmt(tableState.big_blind)} · BBA ${fmt(t.bb_ante)} · 最小 ${fmt(t.chip_unit||tableState.chip_unit||100)}</span><span>残り${Number(t.remaining)}/${Number(t.entrants)}人${t.status==='finished'?' · 終了':t.next_level_at?` · 次 ${jjSngCountdown(t.next_level_at)}`:''}</span>`;\n",
+            "table denomination display",
+        )
+        source += r'''
+
+  // jj sitngo chip unit ui 2026-09-18
+  const jjSngBaseTotalPot=jjTotalPot;
+  jjTotalPot=function(){
+    const base=jjSngBaseTotalPot();
+    return base+(tableState?.tournament?Number(tableState.tournament.ante_paid||0):0);
+  };
+  totalPot=jjTotalPot;
+
+  function jjSngSnapRaiseBb(value){
+    if(!tableState?.tournament)return Number(value||0);
+    const big=Math.max(1,Number(tableState.big_blind||100));
+    const unit=Math.max(100,Number(tableState.chip_unit||tableState.tournament?.chip_unit||100));
+    const legal=tableState.legal||{};
+    const min=Number(legal.min_raise_to||0),max=Number(legal.max_raise_to||0);
+    let chips=Math.round((Number(value||0)*big)/unit)*unit;
+    if(min)chips=Math.max(min,chips);
+    if(max)chips=Math.min(max,chips);
+    return chips/big;
+  }
+
+  const jjSngBaseSetRaiseBb=jjSetRaiseBb;
+  jjSetRaiseBb=function(value){return jjSngBaseSetRaiseBb(tableState?.tournament?jjSngSnapRaiseBb(value):value)};
+
+  const jjSngBaseDoAction=doAction;
+  doAction=async function(action){
+    if(action==='raise'&&tableState?.tournament){
+      const input=$('#raiseTo');
+      if(input)input.value=jjSngSnapRaiseBb(input.value);
+    }
+    return jjSngBaseDoAction(action);
+  };
+
+  const jjSngBaseActionBar=renderActionBar;
+  renderActionBar=function(){
+    jjSngBaseActionBar();
+    if(!tableState?.tournament)return;
+    const big=Math.max(1,Number(tableState.big_blind||100));
+    const unit=Math.max(100,Number(tableState.chip_unit||tableState.tournament?.chip_unit||100));
+    const step=unit/big;
+    const input=$('#raiseTo'),slider=$('#raiseSlider');
+    if(input){input.step=String(step);input.value=String(jjSngSnapRaiseBb(input.value))}
+    if(slider){slider.step=String(step);slider.value=String(jjSngSnapRaiseBb(slider.value))}
+  };
+
+  const jjSngChipRoom=renderPokerRoom;
+  renderPokerRoom=function(){
+    jjSngChipRoom();
+    if(!tableState?.tournament)return;
+    const unit=Math.max(100,Number(tableState.chip_unit||tableState.tournament?.chip_unit||100));
+    const meta=$('#roomMeta');if(meta)meta.textContent=`Sit&Go · Freezeout · ${fmt(unit)}点単位`;
+  };
+'''
         ui._APP_PATCH = source
         ui._JJ_ADMIN_STRUCTURE_PATCHED = True
 
@@ -71,4 +132,4 @@ def install() -> None:
         ui._JJ_SNG_CACHE_PATCHED = True
 
 
-__all__ = ["CACHE_QUERY", "install"]
+__all__ = ["CACHE_QUERY", "CHIP_UI_MARKER", "install"]
