@@ -61,7 +61,7 @@ def main() -> None:
 
     levels = sitngo.BLIND_STRUCTURE
     require(len(levels) == 15, "prepared default Sit&Go structure must contain 150 minutes")
-    require(all(int(x["minutes"]) == 10 for x in levels), "default Sit&Go levels must be 10 minutes")
+    require(all(int(x["minutes"]) == 10 for x in levels), "legacy timing metadata must remain 10 minutes per default level")
     require(all(int(x["big_blind"]) == int(x["bb_ante"]) for x in levels), "default BB ante must equal BB")
     require(
         all(int(x[k]) % 100 == 0 for x in levels for k in ("small_blind", "big_blind", "bb_ante")),
@@ -84,7 +84,7 @@ def main() -> None:
     require(event["max_players"] == 6 and event["min_players"] == 2, "6-max/minimum-player contract drift")
     require(event["starting_stack"] == 30_000, "new default starting stack must be 30,000")
     require(event["structure"][0]["small_blind"] == 200 and event["structure"][0]["big_blind"] == 400, "event default structure not persisted")
-    require(event["prepared_minutes"] == 150 and event["target_minutes"] == 90, "default timing metadata drift")
+    require(event["prepared_minutes"] == 150 and event["target_minutes"] == 90, "legacy timing metadata drift")
     open_at = datetime.fromisoformat(event["registration_opens_at"])
     require(open_at < starts, "registration must open before the event")
 
@@ -154,8 +154,8 @@ def main() -> None:
         admin_id,
     )
     require(editable["starting_stack"] == 45_000, "custom starting stack was not persisted")
-    require([x["minutes"] for x in editable["structure"]] == [8, 12, 15], "custom level durations were not persisted")
-    require(editable["prepared_minutes"] == 35 and editable["target_minutes"] == 35, "custom timing metadata must derive from structure")
+    require([x["minutes"] for x in editable["structure"]] == [8, 12, 15], "legacy custom level-duration metadata was not persisted")
+    require(editable["prepared_minutes"] == 35 and editable["target_minutes"] == 35, "legacy custom timing metadata must derive from structure")
     moved = editable_start + timedelta(minutes=20)
     edited_structure = [
         {"small_blind": 400, "big_blind": 800, "bb_ante": 800, "minutes": 7},
@@ -201,7 +201,7 @@ def main() -> None:
     require('id="sitngoPanel"' in index and 'data-play-mode="sitngo"' in index, "player Sit&Go panel missing")
     require(sitngo_ui_marker() in js, "player Sit&Go JavaScript marker missing")
     require(sitngo_ui_marker() in css, "player Sit&Go CSS marker missing")
-    require("10,000点" not in js and "ADMIN STRUCTURE" in index, "player Sit&Go fixed-structure copy survived")
+    require("10,000点" not in js and "12 HAND LEVELS" in index and "12ハンド/レベル" in js, "player Sit&Go 12-hand structure copy missing")
 
     print("JJ_SITNGO_PHASE1_OK")
 
