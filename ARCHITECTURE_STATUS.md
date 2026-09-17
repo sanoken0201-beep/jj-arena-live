@@ -63,7 +63,7 @@ The final stage, `browser_runtime_consolidation.py`, absorbs the deterministic b
 
 ## Test ownership
 
-Tests are grouped by operational concern in `test_suites.py`:
+Stage 5 makes `test_suites.py` the enforceable source of truth for active regression ownership. Tests are grouped by operational concern:
 
 - `auth_security`
 - `points_integrity`
@@ -72,6 +72,8 @@ Tests are grouped by operational concern in `test_suites.py`:
 - `runtime_release`
 - `sitngo`
 
-The Stage 4 lifecycle regression is owned by `runtime_release` so the release gate rejects accidental feature resurrection without introducing a new test-suite taxonomy before the separate test-ownership cleanup stage.
+Every test listed in an active suite has exactly one owner. Every test selected by the production release gate must be owned by the same suite that selects it, may appear only once in the release selection, and must be compatible with the Render production dependency set. Browser/Playwright-only tests are explicitly marked and rejected if they are accidentally added to the Render release gate.
 
-The production release gate selects deterministic production-dependency tests from those groups. Browser/Playwright tests remain in GitHub Actions and are not required inside the Render build image.
+`smoke_test_test_ownership.py` validates those contracts and is itself part of `runtime_release`, so ownership drift fails before deployment. `production_release_gate.py` continues to consume `production_release_tests()` instead of maintaining a second executable list.
+
+Historical one-off regression files may remain in the repository for forensic or compatibility purposes, but they are not considered active suite members until deliberately assigned in `test_suites.py`.
