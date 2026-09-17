@@ -3,7 +3,8 @@ from __future__ import annotations
 from fastapi import Depends, HTTPException
 
 
-LEGACY_MUTATIONS = (
+LEGACY_ADMIN_ROUTES = (
+    ("GET", "/api/admin/members"),
     ("PATCH", "/api/admin/members/{user_id}"),
     ("POST", "/api/admin/members/{user_id}/reset-pin"),
 )
@@ -22,19 +23,25 @@ def _remove_route(app, method: str, path: str) -> None:
 
 
 def install(app, server) -> None:
-    """Retire duplicate legacy admin write APIs.
+    """Retire the duplicate legacy member-admin API surface.
 
-    Read-only ``GET /api/admin/members`` remains temporarily for old cached
-    clients. All account mutations are canonical under ``/api/admin/console``.
-    Keeping a single write surface prevents future authorization and audit
-    behavior from drifting between old and new endpoints.
+    The canonical administration surface is now exclusively ``/admin`` backed
+    by ``/api/admin/console/...``. Old cached clients receive an authenticated
+    410 response instead of silently using a second authorization/audit path.
+    This keeps account reads and writes under one contract and prevents future
+    security fixes from drifting between two admin implementations.
     """
     if getattr(app.state, "jj_admin_api_consolidated", False):
         return
     app.state.jj_admin_api_consolidated = True
 
-    for method, path in LEGACY_MUTATIONS:
+    for method, path in LEGACY_ADMIN_ROUTES:
         _remove_route(app, method, path)
+
+    def retired(detail: str):
+        async def endpoint(user=Depends(server.admin_user)):
+            raise HTTPException(410, detail)
+        return endpoint
 
     async def retired_member_patch(user_id: int, user=Depends(server.admin_user)):
         raise HTTPException(
@@ -48,6 +55,13 @@ def install(app, server) -> None:
             "旧PINリセットAPIは廃止されました。管理コンソール /admin を利用してください",
         )
 
+    app.add_api_route(
+        "/api/admin/members",
+        retired("旧ユーザー一覧APIは廃止されました。管理コンソール /admin を利用してください"),
+        methods=["GET"],
+        name="retired_legacy_member_list",
+        include_in_schema=False,
+    )
     app.add_api_route(
         "/api/admin/members/{user_id}",
         retired_member_patch,
@@ -64,4 +78,4 @@ def install(app, server) -> None:
     )
 
 
-__all__ = ["LEGACY_MUTATIONS", "install"]
+__all__ = ["LEGACY_ADMIN_ROUTES", "install"]
