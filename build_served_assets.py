@@ -3,10 +3,12 @@ from __future__ import annotations
 
 from browser_asset_pipeline import finalize_build
 import sitngo_browser_config
+import sitngo_entry_browser
 
 # Browser transforms deliberately remain dependency-free: several release jobs
 # compile assets without installing the FastAPI production dependency set.
 sitngo_browser_config.install()
+sitngo_entry_browser.install()
 
 from served_assets import ASSET_VERSION, BUILD_ROOT, build_all, validate_built_assets
 
