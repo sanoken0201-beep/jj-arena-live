@@ -32,8 +32,10 @@ def main():
         assert state['status']=='playing'
         assert state['_ante_paid']==400
         assert state['small_blind']==200 and state['big_blind']==400
+        assert state['chip_unit']==100
         assert sum(p['stack']+p['contributed'] for p in state['seats'])+state['_ante_paid']==count*30000
         pub=rt.public(state,users[0])
+        assert pub['chip_unit']==100 and pub['tournament']['chip_unit']==100
         assert 'deck' not in pub['hand'] and '_revision' not in pub
         assert next(p for p in pub['seats'] if p['user_id']==users[1])['cards']==['??','??']
         snapshot=json.dumps(state,sort_keys=True)
@@ -63,6 +65,7 @@ def main():
         else: raise AssertionError('tournament did not finish')
         assert len(state['tournament']['results'])==count
         assert sum(p['stack'] for p in state['seats'])==count*30000
+        assert all(p['stack'] % state['chip_unit'] == 0 for p in state['seats'])
         assert len([x for x in state['tournament']['results'] if x['place']==1])==1
         assert service._row(eid)['status']=='finished'
         old=list(state['tournament']['results'])
@@ -78,15 +81,15 @@ def main():
         assert con.execute('SELECT COUNT(*) n FROM online_hand_results').fetchone()['n']==0
         assert con.execute('SELECT COUNT(*) n FROM point_ledger').fetchone()['n']==0
         assert con.execute('SELECT COUNT(*) n FROM sitngo_hands').fetchone()['n']>0
-    # Dead-ante short BB: blind first, only the remaining chips fund ante.
+    # Dead-ante short BB: blind first, then the remaining legal 100-point chip funds ante.
     e=rt.engine
     state=e.blank_table_state(table_id='test',name='short',max_seats=2,small_blind=100,big_blind=200,min_buyin=1,max_buyin=10000)
     e.seat_player(state,user_id=1,name='A',seat=0,stack=10000)
-    e.seat_player(state,user_id=2,name='B',seat=1,stack=250)
+    e.seat_player(state,user_id=2,name='B',seat=1,stack=300)
     state['tournament']={'bb_ante':200}
     e.start_hand(state)
     bb=next(p for p in state['seats'] if p['seat']==state['hand']['big_blind_seat'])
-    assert bb['round_bet']==200 and bb['stack']==0 and state['_ante_paid']==50
+    assert bb['round_bet']==200 and bb['stack']==0 and state['_ante_paid']==100
     assert e.legal_actions(state,1)['call_amount']==100
     print('JJ_SITNGO_GAMEPLAY_OK')
 
