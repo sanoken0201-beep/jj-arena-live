@@ -5,8 +5,9 @@ verified materialized v1.24.4 implementation and serves browser assets compiled
 during the build step. Production therefore rebuilds neither the historical
 patch chain nor the UX asset-transform chain at process startup.
 
-The former reconstructed startup path remains in ``app_legacy.py`` as the
-parity oracle and rollback reference.
+The compatibility path remains in ``app_legacy.py`` as a parity/rollback
+reference. Its core is an isolated checksum-verified copy of the immutable
+materialized v1.24.4 snapshot rather than a replay of historical patches.
 """
 from __future__ import annotations
 
