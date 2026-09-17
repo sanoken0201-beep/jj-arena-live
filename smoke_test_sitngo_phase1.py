@@ -55,14 +55,14 @@ def main() -> None:
     require(("/api/admin/sitngo", ("POST",)) in route_contract, "admin Sit&Go create route missing")
 
     levels = sitngo.BLIND_STRUCTURE
-    require(len(levels) == 15, "prepared Sit&Go structure must contain 150 minutes")
-    require(all(int(x["minutes"]) == 10 for x in levels), "all Sit&Go levels must be 10 minutes")
-    require(all(int(x["big_blind"]) == int(x["bb_ante"]) for x in levels), "BB ante must equal BB")
+    require(len(levels) == 15, "prepared default Sit&Go structure must contain 150 minutes")
+    require(all(int(x["minutes"]) == 10 for x in levels), "default Sit&Go levels must be 10 minutes")
+    require(all(int(x["big_blind"]) == int(x["bb_ante"]) for x in levels), "default BB ante must equal BB")
     require(
         all(int(x[k]) % 100 == 0 for x in levels for k in ("small_blind", "big_blind", "bb_ante")),
         "Sit&Go chips/blinds must remain in 100-point units",
     )
-    require(levels[8]["level"] == 9, "90-minute target must align with level 9")
+    require(levels[0]["big_blind"] == 400 and levels[8]["big_blind"] == 10_000, "30k default structure drift")
 
     with db.connect() as con:
         admin = con.execute("SELECT id FROM users WHERE role='admin' ORDER BY id LIMIT 1").fetchone()
@@ -77,7 +77,9 @@ def main() -> None:
         admin_id,
     )
     require(event["max_players"] == 6 and event["min_players"] == 2, "6-max/minimum-player contract drift")
-    require(event["starting_stack"] == 10_000, "starting stack must be 10,000")
+    require(event["starting_stack"] == 30_000, "new default starting stack must be 30,000")
+    require(event["structure"][0]["small_blind"] == 200 and event["structure"][0]["big_blind"] == 400, "event default structure not persisted")
+    require(event["prepared_minutes"] == 150 and event["target_minutes"] == 90, "default timing metadata drift")
     require(datetime.fromisoformat(event["registration_opens_at"]) <= now, "30-minute-away event should already be open")
 
     for order, uid in enumerate(members[:6], start=1):
@@ -105,6 +107,10 @@ def main() -> None:
     seats = [int(p["seat"]) for p in active]
     require(len(active) == 6, "all registered entrants must become active at start")
     require(len(set(seats)) == 6 and all(0 <= seat <= 5 for seat in seats), "random seats must be unique 6-max seats")
+    table_state = service.runtime.load(event["id"])
+    require(table_state["small_blind"] == 200 and table_state["big_blind"] == 400, "level 1 custom/default blinds must apply to the first hand")
+    require(table_state["tournament"]["bb_ante"] == 400, "level 1 BBA must apply to the first hand")
+    require(sum(p["stack"] + p["contributed"] for p in table_state["seats"]) + table_state.get("_ante_paid", 0) == 6 * 30_000, "30k chip conservation failed at launch")
 
     short_start = now + timedelta(minutes=40)
     short = service.create_event(
@@ -118,20 +124,44 @@ def main() -> None:
     require(short_row["cancel_reason"] == "minimum_players_not_met", "auto-cancel reason drift")
 
     editable_start = now + timedelta(hours=2)
+    custom_structure = [
+        {"small_blind": 300, "big_blind": 600, "bb_ante": 600, "minutes": 8},
+        {"small_blind": 500, "big_blind": 1_000, "bb_ante": 1_000, "minutes": 12},
+        {"small_blind": 1_000, "big_blind": 2_000, "bb_ante": 2_000, "minutes": 15},
+    ]
     editable = service.create_event(
-        sitngo.SitNGoCreateIn(name="Editable", starts_at=editable_start.isoformat()),
+        sitngo.SitNGoCreateIn(name="Editable", starts_at=editable_start.isoformat(), starting_stack=45_000, structure=custom_structure),
         admin_id,
     )
+    require(editable["starting_stack"] == 45_000, "custom starting stack was not persisted")
+    require([x["minutes"] for x in editable["structure"]] == [8, 12, 15], "custom level durations were not persisted")
+    require(editable["prepared_minutes"] == 35 and editable["target_minutes"] == 35, "custom timing metadata must derive from structure")
     moved = editable_start + timedelta(minutes=20)
+    edited_structure = [
+        {"small_blind": 400, "big_blind": 800, "bb_ante": 800, "minutes": 7},
+        {"small_blind": 800, "big_blind": 1_600, "bb_ante": 1_600, "minutes": 9},
+    ]
     edited = service.update_event(
         editable["id"],
-        sitngo.SitNGoUpdateIn(name="Edited Sit&Go", starts_at=moved.isoformat()),
+        sitngo.SitNGoUpdateIn(name="Edited Sit&Go", starts_at=moved.isoformat(), starting_stack=50_000, structure=edited_structure),
         admin_id,
     )
     require(edited["name"] == "Edited Sit&Go", "admin rename failed")
     require(abs((datetime.fromisoformat(edited["starts_at"]) - moved).total_seconds()) < 1, "admin reschedule failed")
-    stopped = service.cancel_event(editable["id"], "test cancellation", admin_id)
-    require(stopped["status"] == "cancelled", "admin cancellation failed")
+    require(edited["starting_stack"] == 50_000 and edited["structure"][0]["big_blind"] == 800, "admin tournament settings update failed")
+    require(edited["config_editable"], "pre-start event must report editable configuration")
+
+    service.register(editable["id"], members[0])
+    service.register(editable["id"], members[1])
+    service.reconcile(moved + timedelta(seconds=1))
+    locked = service._event_payload(service._row(editable["id"]), admin_id, admin=True)
+    require(not locked["config_editable"], "running event must report locked configuration")
+    try:
+        service.update_event(editable["id"], sitngo.SitNGoUpdateIn(starting_stack=60_000), admin_id)
+    except HTTPException as exc:
+        require(exc.status_code == 400, "running event settings must be rejected")
+    else:
+        raise AssertionError("running event settings were incorrectly editable")
 
     index = production_app._patched_index()
     js = production_app._patched_app_js()
@@ -139,6 +169,7 @@ def main() -> None:
     require('id="sitngoPanel"' in index and 'data-play-mode="sitngo"' in index, "player Sit&Go panel missing")
     require(sitngo_ui_marker() in js, "player Sit&Go JavaScript marker missing")
     require(sitngo_ui_marker() in css, "player Sit&Go CSS marker missing")
+    require("10,000点" not in js and "ADMIN STRUCTURE" in index, "player Sit&Go fixed-structure copy survived")
 
     print("JJ_SITNGO_PHASE1_OK")
 
