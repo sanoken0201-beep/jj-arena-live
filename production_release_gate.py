@@ -5,9 +5,9 @@ Every subprocess launched here deliberately removes that variable and receives
 a fresh temporary SQLite database, so release validation can never migrate or
 write the production PostgreSQL database.
 
-The full GitHub Actions suite remains a superset: disposable PostgreSQL 18 and
-real-browser tests stay there. This gate contains the critical checks that are
-safe and useful to run in both environments using only production dependencies.
+Test ownership is defined in ``test_suites.py``. The full GitHub Actions suite
+remains a superset; this gate runs only deterministic production-dependency
+checks that are safe inside the Render build image.
 """
 from __future__ import annotations
 
@@ -18,30 +18,10 @@ import tempfile
 from pathlib import Path
 
 from build_served_assets import main as build_assets
+from test_suites import production_release_tests
 
 ROOT = Path(__file__).resolve().parent
-
-# Keep this list deliberately small, deterministic and production-dependency-only.
-RELEASE_TESTS = (
-    "smoke_test_prebuilt_assets.py",
-    "smoke_test_pwa_update.py",
-    "smoke_test_public_proxy_security.py",
-    "smoke_test_admin_reversal_safety.py",
-    "smoke_test_admin_export_safety.py",
-    "smoke_test_non_sng_safety.py",
-    "smoke_test_runtime_performance.py",
-    "smoke_test_runtime_observability.py",
-    "smoke_test_point_ledger_precision.py",
-    "smoke_test_v1244.py",
-    "smoke_test_resilience_retention.py",
-    "smoke_test_materialized_import_scope.py",
-    "smoke_test_production_entrypoint_isolated.py",
-    "smoke_test_v2_production_cutover.py",
-    "smoke_test_single_public_table.py",
-    "smoke_test_sitngo_phase1.py",
-    "smoke_test_sitngo_gameplay.py",
-    "audit_ui_labels.py",
-)
+RELEASE_TESTS = production_release_tests()
 
 _SECRET_ENV_KEYS = (
     "JJ_ADMIN_PIN",
@@ -66,10 +46,10 @@ def isolated_child_env(db_path: Path) -> dict[str, str]:
     return env
 
 
-def _run_test(filename: str) -> None:
+def _run_test(group: str, filename: str) -> None:
     path = ROOT / filename
     if not path.is_file():
-        raise RuntimeError(f"release-gate test is missing: {filename}")
+        raise RuntimeError(f"release-gate test is missing: group={group} test={filename}")
 
     with tempfile.TemporaryDirectory(prefix="jj-release-gate-") as directory:
         db_path = Path(directory) / "release.sqlite3"
@@ -79,25 +59,29 @@ def _run_test(filename: str) -> None:
         if Path(env["JJ_DB_PATH"]).parent != Path(directory).resolve():
             raise RuntimeError("release gate isolation failure: SQLite path escaped temp directory")
 
-        print(f"JJ_RELEASE_GATE_START test={filename}", flush=True)
+        print(f"JJ_RELEASE_GATE_START group={group} test={filename}", flush=True)
         subprocess.run(
             [sys.executable, str(path)],
             cwd=str(ROOT),
             env=env,
             check=True,
         )
-        print(f"JJ_RELEASE_GATE_PASS test={filename}", flush=True)
+        print(f"JJ_RELEASE_GATE_PASS group={group} test={filename}", flush=True)
 
 
 def main() -> None:
     # Render must produce the exact browser assets that app.py will later serve.
     build_assets()
-    for filename in RELEASE_TESTS:
-        _run_test(filename)
+    for group, filename in RELEASE_TESTS:
+        _run_test(group, filename)
     # Tests may rebuild canonical assets in the shared output directory.
     # The deployed output must always include every production post-transform.
     build_assets()
-    print(f"JJ_PRODUCTION_RELEASE_GATE_OK tests={len(RELEASE_TESTS)}", flush=True)
+    groups = len({group for group, _ in RELEASE_TESTS})
+    print(
+        f"JJ_PRODUCTION_RELEASE_GATE_OK groups={groups} tests={len(RELEASE_TESTS)}",
+        flush=True,
+    )
 
 
 if __name__ == "__main__":
