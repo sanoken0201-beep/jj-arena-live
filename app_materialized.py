@@ -15,6 +15,7 @@ import secrets
 import sys
 from pathlib import Path
 
+import admin_api_consolidation
 import admin_copy_patch
 import admin_ledger_stabilization
 import admin_pin_verification
@@ -154,6 +155,9 @@ ranking_mapping_guard.install(app, db)
 # longer verifies user PIN candidates; see admin_pin_verification.py.
 admin_pin_verification.install(app, admin_console)
 security_hardening.install(app, runtime_server, db)
+# From this point onward all user/account mutations are canonical under
+# /api/admin/console. Legacy /api/admin/members remains read-only compatibility.
+admin_api_consolidation.install(app, runtime_server)
 learning_content.install(app)
 daily_quiz.install(app, runtime_server, db)
 hand_analytics.install(app, runtime_server, db)
