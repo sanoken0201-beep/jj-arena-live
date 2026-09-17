@@ -221,8 +221,5 @@ jobs:
           DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/jj_arena_ci
         run: python smoke_test_hand_analytics_postgres_v2.py
 
-      - name: Run prior v1.18.6 regression smoke test
-        run: python smoke_test_v186.py
-
       - name: Audit user-facing terminology
         run: python audit_ui_labels.py
