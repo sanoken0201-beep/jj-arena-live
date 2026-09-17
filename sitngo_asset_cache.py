@@ -1,15 +1,23 @@
-"""Cache-bust only the Sit&Go player JavaScript contract.
+"""Bootstrap Sit&Go entry rules and cache-bust its player JavaScript contract.
 
 The repository-wide ``served_assets.ASSET_VERSION`` is shared by many release
-checks. Sit&Go configuration changes therefore use a dedicated query token
-instead of mutating that global contract.
+checks. Sit&Go feature changes therefore use a dedicated query token instead of
+mutating that global contract.
 """
 from __future__ import annotations
 
-CACHE_QUERY = "sngcfg=admin-structure-20260917-1"
+CACHE_QUERY = "sngcfg=late-reg-reentry-20260918-1"
 
 
 def install() -> None:
+    # app.py calls this before sitngo.install(); install the server-side entry
+    # contract here so all later FastAPI routes bind the extended request models.
+    import sitngo
+    import sitngo_entry_rules
+    import sitngo_runtime
+
+    sitngo_entry_rules.install(sitngo, sitngo_runtime)
+
     import sitngo_ui as ui
 
     if getattr(ui, "_JJ_SNG_CACHE_PATCHED", False):
