@@ -6,19 +6,17 @@ mutating that global contract.
 """
 from __future__ import annotations
 
-CACHE_QUERY = "sngcfg=late-reg-reentry-20260918-1"
+CACHE_QUERY = "sngcfg=late-reg-reentry-20260918-2"
 
 
 def install() -> None:
     # app.py calls this before sitngo.install(); install the server-side entry
     # contract here so all later FastAPI routes bind the extended request models.
     import sitngo
-    import sitngo_entry_finish_guard
     import sitngo_entry_rules
     import sitngo_runtime
 
     sitngo_entry_rules.install(sitngo, sitngo_runtime)
-    sitngo_entry_finish_guard.install(sitngo_runtime, sitngo_entry_rules)
 
     import sitngo_ui as ui
 
