@@ -1,14 +1,15 @@
 """Late-registration and re-entry rules for root-level Sit&Go tournaments.
 
-The existing tournament remains freezeout by default.  An administrator may
-open a post-start entry window and optionally allow a bounded number of
-re-entries per player.  Late entries/re-entries are queued while a hand is in
-progress and are activated only between hands; the blind clock never resets.
+The existing tournament remains freezeout by default. An administrator may open
+a post-start entry window and optionally allow a bounded number of re-entries per
+player. Late entries/re-entries are queued during live hands and are activated
+only between hands; the blind clock never resets.
 """
 from __future__ import annotations
 
 import json
 import time
+from collections import defaultdict
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
@@ -26,20 +27,12 @@ PENDING_STATUSES = {"pending_late", "pending_reentry"}
 
 
 class EntryConfiguredSitNGoCreateIn(sitngo_admin_config.ConfiguredSitNGoCreateIn):
-    late_registration_minutes: int = Field(
-        default=DEFAULT_LATE_REGISTRATION_MINUTES,
-        ge=0,
-        le=MAX_LATE_REGISTRATION_MINUTES,
-    )
+    late_registration_minutes: int = Field(default=DEFAULT_LATE_REGISTRATION_MINUTES, ge=0, le=MAX_LATE_REGISTRATION_MINUTES)
     max_reentries: int = Field(default=DEFAULT_MAX_REENTRIES, ge=0, le=MAX_REENTRIES)
 
 
 class EntryConfiguredSitNGoUpdateIn(sitngo_admin_config.ConfiguredSitNGoUpdateIn):
-    late_registration_minutes: int | None = Field(
-        default=None,
-        ge=0,
-        le=MAX_LATE_REGISTRATION_MINUTES,
-    )
+    late_registration_minutes: int | None = Field(default=None, ge=0, le=MAX_LATE_REGISTRATION_MINUTES)
     max_reentries: int | None = Field(default=None, ge=0, le=MAX_REENTRIES)
 
 
@@ -132,8 +125,34 @@ def _registration_row(runtime, event_id: str, user_id: int) -> dict[str, Any] | 
     return dict(row) if row else None
 
 
+def _renumber_results(state: dict[str, Any]) -> None:
+    """Recompute places after late registration or re-entry changes the field."""
+    tournament = state.get("tournament") or {}
+    total_unique = int(tournament.get("entrants") or 0)
+    results = list(tournament.get("results") or [])
+    if total_unique <= 0 or not results:
+        return
+    winner = [x for x in results if int(x.get("place") or 0) == 1]
+    eliminated = [x for x in results if int(x.get("place") or 0) != 1]
+    groups: dict[int, list[dict[str, Any]]] = defaultdict(list)
+    for result in eliminated:
+        groups[int(result.get("hand_no") or 0)].append(result)
+    already_out = 0
+    for hand_no in sorted(groups):
+        group = groups[hand_no]
+        count = len(group)
+        best_place = total_unique - already_out - count + 1
+        for result in group:
+            stack = int(result.get("starting_stack") or 0)
+            better_in_group = sum(int(other.get("starting_stack") or 0) > stack for other in group)
+            result["place"] = best_place + better_in_group
+        already_out += count
+    for result in winner:
+        result["place"] = 1
+    tournament["results"] = eliminated + winner
+
+
 def _activate_pending(runtime, state: dict[str, Any]) -> bool:
-    """Seat queued entrants between hands and preserve the tournament clock."""
     if state.get("status") == "playing":
         return False
     event_id = str(state["id"])
@@ -159,9 +178,7 @@ def _activate_pending(runtime, state: dict[str, Any]) -> bool:
                 tournament["results"] = [x for x in tournament.get("results", []) if int(x["user_id"]) != uid]
                 tournament["total_chips"] = int(tournament["total_chips"]) + stack
                 tournament["total_entries"] = int(tournament.get("total_entries") or tournament.get("entrants") or 0) + 1
-                tournament.setdefault("entry_history", []).append(
-                    {"user_id": uid, "kind": "reentry", "hand_no": int(state.get("hand_no") or 0) + 1, "stack": stack}
-                )
+                tournament.setdefault("entry_history", []).append({"user_id": uid, "kind": "reentry", "hand_no": int(state.get("hand_no") or 0) + 1, "stack": stack})
                 con.execute(
                     "UPDATE sitngo_registrations SET status='active',seat=?,reentry_count=reentry_count+1,cancelled_at=NULL "
                     "WHERE event_id=? AND user_id=? AND status='pending_reentry'",
@@ -177,9 +194,7 @@ def _activate_pending(runtime, state: dict[str, Any]) -> bool:
                 tournament["entrants"] = int(tournament.get("entrants") or 0) + 1
                 tournament["total_entries"] = int(tournament.get("total_entries") or tournament["entrants"] - 1) + 1
                 tournament["total_chips"] = int(tournament["total_chips"]) + stack
-                tournament.setdefault("entry_history", []).append(
-                    {"user_id": uid, "kind": "late", "hand_no": int(state.get("hand_no") or 0) + 1, "stack": stack}
-                )
+                tournament.setdefault("entry_history", []).append({"user_id": uid, "kind": "late", "hand_no": int(state.get("hand_no") or 0) + 1, "stack": stack})
                 con.execute(
                     "UPDATE sitngo_registrations SET status='active',seat=?,cancelled_at=NULL "
                     "WHERE event_id=? AND user_id=? AND status='pending_late'",
@@ -187,6 +202,7 @@ def _activate_pending(runtime, state: dict[str, Any]) -> bool:
                 )
                 changed = True
     if changed:
+        _renumber_results(state)
         tournament.pop("reentry_grace_until_epoch", None)
         tournament.pop("finish_grace_hand_id", None)
         state["session_active"] = True
@@ -198,8 +214,6 @@ def install(sitngo_module, sitngo_runtime) -> None:
     if getattr(sitngo_module, "_JJ_ENTRY_RULES_INSTALLED", False):
         return
 
-    # The admin-structure layer is installed first, so extending its Pydantic
-    # models preserves stack/structure fields while adding entry policy fields.
     sitngo_module.SitNGoCreateIn = EntryConfiguredSitNGoCreateIn
     sitngo_module.SitNGoUpdateIn = EntryConfiguredSitNGoUpdateIn
 
@@ -208,6 +222,7 @@ def install(sitngo_module, sitngo_runtime) -> None:
     original_ensure = service_cls._ensure_schema
     original_regs = service_cls._registrations
     original_payload = service_cls._event_payload
+    original_admin_events = service_cls.admin_events
     original_create = service_cls.create_event
     original_update = service_cls.update_event
     original_register = service_cls.register
@@ -225,10 +240,7 @@ def install(sitngo_module, sitngo_runtime) -> None:
     def registrations(self, event_id: str, *, include_cancelled: bool = False):
         values = original_regs(self, event_id, include_cancelled=include_cancelled)
         with self.db.connect() as con:
-            rows = con.execute(
-                "SELECT user_id,reentry_count FROM sitngo_registrations WHERE event_id=?",
-                (event_id,),
-            ).fetchall()
+            rows = con.execute("SELECT user_id,reentry_count FROM sitngo_registrations WHERE event_id=?", (event_id,)).fetchall()
         counts = {int(row["user_id"]): int(row["reentry_count"] or 0) for row in rows}
         for value in values:
             value["reentry_count"] = counts.get(int(value["user_id"]), 0)
@@ -246,13 +258,7 @@ def install(sitngo_module, sitngo_runtime) -> None:
         unique_entries = sum(1 for r in regs if r["status"] != "cancelled")
         open_now = _entry_window_open(row, now)
         can_late = bool(open_now and unique_entries < int(row.get("max_players") or sitngo_module.MAX_PLAYERS) and (mine is None or mine["status"] == "cancelled"))
-        can_reenter = bool(
-            open_now
-            and reentries > 0
-            and mine is not None
-            and mine["status"] == "finished"
-            and int(mine.get("reentry_count") or 0) < reentries
-        )
+        can_reenter = bool(open_now and reentries > 0 and mine is not None and mine["status"] == "finished" and int(mine.get("reentry_count") or 0) < reentries)
         payload.update(
             late_registration_minutes=late,
             max_reentries=reentries,
@@ -266,14 +272,16 @@ def install(sitngo_module, sitngo_runtime) -> None:
         )
         return payload
 
+    def admin_events(self, actor_id: int):
+        result = original_admin_events(self, actor_id)
+        result.setdefault("defaults", {}).update(late_registration_minutes=DEFAULT_LATE_REGISTRATION_MINUTES, max_reentries=DEFAULT_MAX_REENTRIES)
+        return result
+
     def create_event(self, payload: EntryConfiguredSitNGoCreateIn, actor_id: int):
         late, reentries = _validate_entry_config(payload.late_registration_minutes, payload.max_reentries)
         result = original_create(self, payload, actor_id)
         with self.db.connect() as con:
-            con.execute(
-                "UPDATE sitngo_events SET late_registration_minutes=?,max_reentries=?,updated_at=? WHERE id=?",
-                (late, reentries, self.db.utcnow(), result["id"]),
-            )
+            con.execute("UPDATE sitngo_events SET late_registration_minutes=?,max_reentries=?,updated_at=? WHERE id=?", (late, reentries, self.db.utcnow(), result["id"]))
         self._audit(actor_id, "sitngo.entry_config", event_id=result["id"], late_registration_minutes=late, max_reentries=reentries)
         return self._event_payload(self._row(result["id"]), actor_id, admin=True)
 
@@ -282,13 +290,10 @@ def install(sitngo_module, sitngo_runtime) -> None:
         late = int(current.get("late_registration_minutes") or 0) if payload.late_registration_minutes is None else payload.late_registration_minutes
         reentries = int(current.get("max_reentries") or 0) if payload.max_reentries is None else payload.max_reentries
         late, reentries = _validate_entry_config(late, reentries)
-        result = original_update(self, event_id, payload, actor_id)
+        original_update(self, event_id, payload, actor_id)
         if payload.late_registration_minutes is not None or payload.max_reentries is not None:
             with self.db.connect() as con:
-                con.execute(
-                    "UPDATE sitngo_events SET late_registration_minutes=?,max_reentries=?,updated_at=? WHERE id=?",
-                    (late, reentries, self.db.utcnow(), event_id),
-                )
+                con.execute("UPDATE sitngo_events SET late_registration_minutes=?,max_reentries=?,updated_at=? WHERE id=?", (late, reentries, self.db.utcnow(), event_id))
             self._audit(actor_id, "sitngo.entry_config", event_id=event_id, late_registration_minutes=late, max_reentries=reentries)
         return self._event_payload(self._row(event_id), actor_id, admin=True)
 
@@ -303,31 +308,19 @@ def install(sitngo_module, sitngo_runtime) -> None:
         if not _entry_window_open(event, now):
             raise HTTPException(400, "途中参加の受付は終了しています")
         with self._lock, self.db.connect() as con:
-            existing = con.execute(
-                "SELECT status FROM sitngo_registrations WHERE event_id=? AND user_id=?",
-                (event_id, user_id),
-            ).fetchone()
+            existing = con.execute("SELECT status FROM sitngo_registrations WHERE event_id=? AND user_id=?", (event_id, user_id)).fetchone()
             if existing and existing["status"] != "cancelled":
                 if existing["status"] == "finished":
                     raise HTTPException(409, "このプレイヤーは途中参加ではなくリエントリーを使用してください")
                 raise HTTPException(409, "すでにこの大会に参加しています")
-            unique_count = con.execute(
-                "SELECT COUNT(*) n FROM sitngo_registrations WHERE event_id=? AND status<>'cancelled'",
-                (event_id,),
-            ).fetchone()
+            unique_count = con.execute("SELECT COUNT(*) n FROM sitngo_registrations WHERE event_id=? AND status<>'cancelled'", (event_id,)).fetchone()
             if int(unique_count["n"] or 0) >= int(event.get("max_players") or sitngo_module.MAX_PLAYERS):
                 raise HTTPException(409, "6人の参加枠がすでに使用されています")
             stamp = sitngo_module._iso(now)
             if existing:
-                con.execute(
-                    "UPDATE sitngo_registrations SET status='pending_late',registered_at=?,cancelled_at=NULL,seat=NULL,reentry_count=0 WHERE event_id=? AND user_id=?",
-                    (stamp, event_id, user_id),
-                )
+                con.execute("UPDATE sitngo_registrations SET status='pending_late',registered_at=?,cancelled_at=NULL,seat=NULL,reentry_count=0 WHERE event_id=? AND user_id=?", (stamp, event_id, user_id))
             else:
-                con.execute(
-                    "INSERT INTO sitngo_registrations(event_id,user_id,status,registered_at,cancelled_at,seat,reentry_count) VALUES (?,?, 'pending_late', ?, NULL, NULL, 0)",
-                    (event_id, user_id, stamp),
-                )
+                con.execute("INSERT INTO sitngo_registrations(event_id,user_id,status,registered_at,cancelled_at,seat,reentry_count) VALUES (?,?, 'pending_late', ?, NULL, NULL, 0)", (event_id, user_id, stamp))
         self.runtime.signal()
         return self._event_payload(self._row(event_id), user_id)
 
@@ -341,10 +334,7 @@ def install(sitngo_module, sitngo_runtime) -> None:
         if maximum <= 0:
             raise HTTPException(400, "この大会はリエントリー不可です")
         with self._lock, self.db.connect() as con:
-            reg = con.execute(
-                "SELECT status,reentry_count FROM sitngo_registrations WHERE event_id=? AND user_id=?",
-                (event_id, user_id),
-            ).fetchone()
+            reg = con.execute("SELECT status,reentry_count FROM sitngo_registrations WHERE event_id=? AND user_id=?", (event_id, user_id)).fetchone()
             if not reg:
                 raise HTTPException(400, "リエントリーには一度参加している必要があります")
             if reg["status"] != "finished":
@@ -357,10 +347,7 @@ def install(sitngo_module, sitngo_runtime) -> None:
             player = next((p for p in state["seats"] if int(p["user_id"]) == int(user_id)), None)
             if player is None or int(player.get("stack") or 0) != 0:
                 raise HTTPException(409, "敗退状態を確認できません")
-            con.execute(
-                "UPDATE sitngo_registrations SET status='pending_reentry',registered_at=?,cancelled_at=NULL WHERE event_id=? AND user_id=?",
-                (sitngo_module._iso(now), event_id, user_id),
-            )
+            con.execute("UPDATE sitngo_registrations SET status='pending_reentry',registered_at=?,cancelled_at=NULL WHERE event_id=? AND user_id=?", (sitngo_module._iso(now), event_id, user_id))
         self.runtime.signal()
         return self._event_payload(self._row(event_id), user_id)
 
@@ -370,9 +357,9 @@ def install(sitngo_module, sitngo_runtime) -> None:
         if not row:
             return
         state = json.loads(row["state_json"])
-        t = state["tournament"]
+        tournament = state["tournament"]
         late = int(event.get("late_registration_minutes") or 0)
-        t.update(
+        tournament.update(
             starting_stack=int(event["starting_stack"]),
             late_registration_minutes=late,
             max_reentries=int(event.get("max_reentries") or 0),
@@ -380,28 +367,26 @@ def install(sitngo_module, sitngo_runtime) -> None:
             total_entries=len(participants),
             entry_history=[{"user_id": int(uid), "kind": "initial", "hand_no": 1, "stack": int(event["starting_stack"])} for uid, _ in participants],
         )
-        con.execute(
-            "UPDATE sitngo_games SET state_json=?,updated_at=? WHERE event_id=?",
-            (json.dumps(state, ensure_ascii=False), self.db.utcnow(), event["id"]),
-        )
+        con.execute("UPDATE sitngo_games SET state_json=?,updated_at=? WHERE event_id=?", (json.dumps(state, ensure_ascii=False), self.db.utcnow(), event["id"]))
 
     def finish(self, state):
         before_results = {int(x["user_id"]) for x in state.get("tournament", {}).get("results", [])}
         original_finish(self, state)
-        t = state.get("tournament") or {}
-        if not t or t.get("status") != "finished":
+        _renumber_results(state)
+        tournament = state.get("tournament") or {}
+        if not tournament or tournament.get("status") != "finished":
             return
         now = time.time()
-        deadline = float(t.get("entry_window_deadline_epoch") or 0)
+        deadline = float(tournament.get("entry_window_deadline_epoch") or 0)
         if now >= deadline:
             return
         current_hand = (state.get("hand") or {}).get("id")
-        if t.get("finish_grace_hand_id") == current_hand:
+        if tournament.get("finish_grace_hand_id") == current_hand:
             return
         pending = _pending_rows(self, str(state["id"]))
-        newly_busted = [x for x in t.get("results", []) if int(x["user_id"]) not in before_results and int(x.get("place") or 0) > 1]
+        newly_busted = [x for x in tournament.get("results", []) if int(x["user_id"]) not in before_results and int(x.get("place") or 0) > 1]
         eligible = False
-        maximum = int(t.get("max_reentries") or 0)
+        maximum = int(tournament.get("max_reentries") or 0)
         if maximum > 0:
             for result in newly_busted:
                 reg = _registration_row(self, str(state["id"]), int(result["user_id"]))
@@ -410,35 +395,37 @@ def install(sitngo_module, sitngo_runtime) -> None:
                     break
         if not pending and not eligible:
             return
-        t["results"] = [x for x in t.get("results", []) if int(x.get("place") or 0) != 1]
-        t["status"] = "running"
-        t.pop("finished_at", None)
-        t["finish_grace_hand_id"] = current_hand
+        tournament["results"] = [x for x in tournament.get("results", []) if int(x.get("place") or 0) != 1]
+        tournament["status"] = "running"
+        tournament.pop("finished_at", None)
+        tournament["finish_grace_hand_id"] = current_hand
         grace = min(deadline, now + REENTRY_FINISH_GRACE_SECONDS) if eligible and not pending else now
-        t["reentry_grace_until_epoch"] = grace
+        tournament["reentry_grace_until_epoch"] = grace
         state["session_active"] = False
         state["next_hand_at_epoch"] = grace
 
     async def tick(self, eid, *, now=None, recover=False):
         now = time.time() if now is None else now
         state = self.load(eid)
-        t = state.get("tournament") or {}
-        if t.get("status") == "running" and state.get("status") == "waiting":
+        tournament = state.get("tournament") or {}
+        if tournament.get("status") == "running" and state.get("status") == "waiting":
             pending = _pending_rows(self, eid)
             if pending:
                 async with self.server.get_table_lock(eid):
                     state = self.load(eid)
-                    if _activate_pending(self, state):
+                    activated = _activate_pending(self, state)
+                    if activated:
                         self.save(state, notify=False)
-                await self.server.hub.broadcast(eid)
-                return min(float(state.get("next_hand_at_epoch") or now + 0.2), now + 0.2)
-            grace = float(t.get("reentry_grace_until_epoch") or 0)
+                if activated:
+                    await self.server.hub.broadcast(eid)
+                    return min(float(state.get("next_hand_at_epoch") or now + 0.2), now + 0.2)
+            grace = float(tournament.get("reentry_grace_until_epoch") or 0)
             if grace:
                 if now < grace:
                     return grace
                 async with self.server.get_table_lock(eid):
                     state = self.load(eid)
-                    t = state["tournament"]
+                    tournament = state["tournament"]
                     if _pending_rows(self, eid):
                         if _activate_pending(self, state):
                             self.save(state, notify=False)
@@ -447,23 +434,17 @@ def install(sitngo_module, sitngo_runtime) -> None:
                     alive = [p for p in state["seats"] if int(p.get("stack") or 0) > 0]
                     if len(alive) == 1:
                         winner = alive[0]
-                        if not any(int(x.get("place") or 0) == 1 for x in t.get("results", [])):
-                            t["results"].append({
-                                "user_id": winner["user_id"],
-                                "name": winner["name"],
-                                "place": 1,
-                                "hand_no": state.get("hand_no", 0),
-                                "starting_stack": winner["stack"],
-                                "prize_points": 0,
-                            })
-                        t["status"] = "finished"
-                        t["finished_at"] = self.db.utcnow()
-                        t.pop("reentry_grace_until_epoch", None)
+                        if not any(int(x.get("place") or 0) == 1 for x in tournament.get("results", [])):
+                            tournament["results"].append({"user_id": winner["user_id"], "name": winner["name"], "place": 1, "hand_no": state.get("hand_no", 0), "starting_stack": winner["stack"], "prize_points": 0})
+                        _renumber_results(state)
+                        tournament["status"] = "finished"
+                        tournament["finished_at"] = self.db.utcnow()
+                        tournament.pop("reentry_grace_until_epoch", None)
                         state["session_active"] = False
                         state["next_hand_at_epoch"] = None
                         self.save(state, notify=False)
                     else:
-                        t.pop("reentry_grace_until_epoch", None)
+                        tournament.pop("reentry_grace_until_epoch", None)
                         state["session_active"] = True
                         state["next_hand_at_epoch"] = now + 0.2
                         self.save(state, notify=False)
@@ -473,10 +454,10 @@ def install(sitngo_module, sitngo_runtime) -> None:
 
     def public(self, state, viewer=None):
         value = original_public(self, state, viewer)
-        t = value.get("tournament") or {}
-        deadline = float(t.get("entry_window_deadline_epoch") or 0)
-        t["late_registration_open"] = bool(t.get("status") == "running" and deadline > time.time())
-        t["entry_window_deadline"] = datetime.fromtimestamp(deadline, timezone.utc).isoformat() if deadline else None
+        tournament = value.get("tournament") or {}
+        deadline = float(tournament.get("entry_window_deadline_epoch") or 0)
+        tournament["late_registration_open"] = bool(tournament.get("status") == "running" and deadline > time.time())
+        tournament["entry_window_deadline"] = datetime.fromtimestamp(deadline, timezone.utc).isoformat() if deadline else None
         return value
 
     def install_dispatch(self, ring):
@@ -510,6 +491,7 @@ def install(sitngo_module, sitngo_runtime) -> None:
     service_cls._ensure_schema = ensure_schema
     service_cls._registrations = registrations
     service_cls._event_payload = event_payload
+    service_cls.admin_events = admin_events
     service_cls.create_event = create_event
     service_cls.update_event = update_event
     service_cls.register = register
