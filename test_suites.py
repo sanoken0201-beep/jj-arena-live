@@ -55,6 +55,7 @@ PRODUCTION_RELEASE_SELECTION: tuple[tuple[str, tuple[str, ...]], ...] = (
         "audit_ui_labels.py",
     )),
     ("auth_security", (
+        "smoke_test_public_proxy_security.py",
         "smoke_test_structure_consolidation.py",
     )),
     ("points_integrity", (
