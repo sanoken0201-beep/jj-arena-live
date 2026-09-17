@@ -1,12 +1,14 @@
 """Canonical JJ Arena production implementation backed by the materialized v1.24.4 core.
 
 The core runtime is loaded from committed source under ``materialized_v1244``
-instead of being reconstructed from the historical patch chain on every
-startup. Root-level extension modules remain installed in the same effective
-order proven by the Phase 1 legacy/materialized parity gates.
+instead of reconstructing historical patches on every startup. Root-level
+extension modules remain installed in the same effective order proven by the
+legacy/materialized parity gates.
 
 ``app.py`` is the stable Render-facing shim. ``app_legacy.py`` retains the
-former reconstructed startup path for parity checks and emergency rollback.
+pre-v2 integration shape for parity checks and emergency rollback, but its core
+is now an isolated verified copy of the same immutable v1.24.4 snapshot rather
+than a replay of the historical patch chain.
 """
 from __future__ import annotations
 
