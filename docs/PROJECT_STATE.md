@@ -1,0 +1,196 @@
+# JJ Arena — Canonical Project State
+
+Updated: 2026-09-17
+Snapshot basis: `main` at `5d7542589e78c1d0e16717cffad4893a502973b2`
+
+This file is the **human/AI handoff source of truth for the current project state**. It exists so long ChatGPT development chats can be replaced without losing critical context.
+
+The commit above is only the snapshot used to write this document. At the start of every new work session, inspect the current `main` branch first and treat newer repository state as authoritative.
+
+## 1. Source-of-truth order
+
+When sources conflict, use this order:
+
+1. Current `main` code, tests, schema and deployment configuration.
+2. Current production state verified from Render/PostgreSQL where the task depends on production.
+3. This `PROJECT_STATE.md` plus `ARCHITECTURE_STATUS.md` and `OPERATIONS.md`.
+4. `DECISION_LOG.md` for the reason behind durable design choices.
+5. The latest chat handoff.
+6. Old ChatGPT conversations, old audit reports and historical changelogs.
+
+A ChatGPT conversation is a **work session, not durable project storage**. If a chat contains a decision or requirement that must survive deletion of that chat, promote it into the repository documentation or the implementation before ending the session.
+
+If this file conflicts with current code or verified production, do not preserve the conflict for compatibility with a chat. Verify the current behavior and update this file in the same change when practical.
+
+## 2. Repository and release path
+
+Repository: `sanoken0201-beep/jj-arena-live`
+
+Production branch: `main`.
+
+`main` is protected. The required checks currently include:
+
+- `production release gate`
+- `phase4b`
+- `auth-security`
+- `point-ledger-precision`
+
+Normal release order is:
+
+`branch -> PR -> required CI -> main -> Render checksPass deploy -> production verification`
+
+Do not intentionally bypass this order for normal product work.
+
+## 3. Production architecture
+
+Primary Render web service: `jj-arena-live`, Singapore region, 0.5 CPU / 512 MB according to `render.yaml`.
+
+Production ASGI entrypoint:
+
+```bash
+python -m uvicorn app:app --host 0.0.0.0 --port $PORT
+```
+
+Health check: `/api/health`.
+
+Production database: the existing Render PostgreSQL database `jj-arena-db`. Do not create a replacement database during ordinary releases and do not perform destructive migration casually.
+
+`jj-arena-club` is a legacy proxy/compatibility path rather than the target for new implementation work. New product behavior should target `jj-arena-live` unless an explicit architecture decision changes that.
+
+## 4. Immutable core and extension model
+
+`materialized_v1244/` is the canonical v1.24.4 Golden Master and is **immutable for ordinary improvements**.
+
+Normal product changes belong in root-level extensions, integration shims, browser transforms or dedicated modules. Do not edit `materialized_v1244/` merely because it is convenient.
+
+`app_materialized.py` loads the materialized core and applies root-level extensions. `app.py` is the stable Render-facing entrypoint.
+
+`app_legacy.py` remains an isolated parity/emergency-rollback oracle rather than a production import path. `runtime_builder.py` now constructs that compatibility runtime by copying only files recorded in `materialized_v1244.manifest.json` and verifying their size/hash. The historical `release_v14/` bundle and v15–v55 patch replay are no longer runtime inputs for compatibility construction; they are historical/forensic artifacts, not the preferred place to add behavior.
+
+Do not mix poker game-rule changes and UI-only changes in one patch unless the coupling is unavoidable and explicitly justified.
+
+## 5. Browser asset ownership
+
+`materialized_v1244/static` is immutable input.
+
+`served_assets.py` and the production browser pipeline compile the final browser output into `.jj_build/` during build. `browser_asset_pipeline.py` owns final post-build ordering, and `browser_runtime_consolidation.py` keeps deterministic browser mutation out of request-time serving.
+
+Production should serve validated prebuilt assets rather than execute the historical UX transform chain on each request. Missing production build artifacts should fail closed rather than silently create a different runtime.
+
+## 6. Product lifecycle
+
+`feature_lifecycle.py` is the machine-readable lifecycle classification. `ARCHITECTURE_STATUS.md` is the readable architecture summary.
+
+Current active surfaces include authentication, the canonical admin console, official points/ranking integration, the public Ring experience, Poker Lab/hand review, announcements and Sit&Go integration.
+
+Compatibility-only or retired surfaces must not become targets for new product behavior unless their lifecycle classification is deliberately changed in the same reviewed release.
+
+The current public Ring surface is **one table, `jj-table-a`**. Historical table B is compatibility-only and must not be re-exposed by accident.
+
+## 7. Authentication and security invariants
+
+Current member authentication is display name + 6-digit PIN.
+
+Security characteristics include PBKDF2-SHA256 PIN hashing, Admin/Member roles, HttpOnly sessions, production `__Host-` session cookie behavior, rate limiting, same-origin / Fetch Metadata CSRF protection, WebSocket authentication and card-privacy checks.
+
+Legacy Email + Password authentication is retired.
+
+Never place admin PINs, credentials, secrets or production session material in GitHub, ChatGPT handoff documents, logs or commit messages.
+
+## 8. Official points and ranking invariants
+
+Official JJ points are an auditable ledger-backed system. Do not directly overwrite point history as a shortcut.
+
+Point-ledger precision and ranking mapping are regression-protected. Changes to point earning, spending, reversal or settlement must preserve auditability and be tested against PostgreSQL behavior.
+
+Poker practice chips and official JJ points are separate accounting domains unless a feature explicitly defines a ledger transaction between them.
+
+## 9. Ring poker invariants
+
+The Ring game uses server-authoritative state and supports standard NLH actions including minimum raise, short all-in, side pots and split pots.
+
+Operational timing that must not be casually changed:
+
+- 45-second player action deadline.
+- At least 1.6-second next-hand/showdown transition behavior where required by the canonical flow.
+- Event-driven timeout, forced runout and next-hand progression.
+- WebSocket-first synchronization with HTTP fallback/recovery.
+
+Performance work must not trade away action correctness, timing correctness, card privacy, ranking precision or user-visible immediacy.
+
+## 10. Sit&Go current implementation
+
+Sit&Go is a dedicated root-level subsystem (`sitngo.py`, `sitngo_runtime.py`, `sitngo_ui.py`) with its own persistence and tests.
+
+Current committed gameplay documentation describes a scheduled 2–6 player freezeout using 10,000 tournament chips, 10-minute blind levels and big-blind ante. Tournament chips are isolated from Ring settlement.
+
+**Important implementation-status distinction:** the current committed implementation still reports `entry_fee=0` and `prize_points=0`. Point-funded Sit&Go entry/prizes are therefore a **pending product change, not current production truth**.
+
+The current product requirement to preserve for that future change is:
+
+- Admin chooses the JJ-point entry cost when creating/opening a Sit&Go.
+- With 2–5 entrants, the complete entry-point pool goes to 1st place.
+- With 6 entrants, 70% goes to 1st and 30% to 2nd.
+- Entry/prize settlement must use the official point ledger rather than ad-hoc balance mutation.
+
+Before implementing this pending requirement, verify cancellation/refund, rounding, insufficient-balance, duplicate-settlement and partial-start semantics and add them to the decision log.
+
+## 11. Test ownership and release safety
+
+`test_suites.py` owns active regression suites by concern. `production_release_gate.py` consumes the release selection rather than maintaining an independent list.
+
+Important regression domains include:
+
+- auth/security
+- points integrity
+- Ring gameplay
+- browser contract and user journey
+- runtime/release behavior
+- Sit&Go
+- PostgreSQL behavior
+
+Historical one-off tests may remain for forensic value but are not automatically active release owners.
+
+The compatibility-runtime snapshot contract is now covered by `smoke_test_runtime_builder_snapshot.py` and the production release gate. A future change must not silently reintroduce runtime patch-chain replay.
+
+## 12. Current development philosophy
+
+JJ Arena has accumulated features over many iterations. New work should use subtractive design where possible:
+
+- prefer one canonical route/API/UI over parallel overlapping paths;
+- retire superseded product surfaces deliberately;
+- retain compatibility code only when it still protects stale clients, historical data, rollback or deterministic builds;
+- do not delete compatibility machinery merely because it looks old without tracing its current dependency;
+- add a new feature only when its product value justifies the added operational and UI complexity.
+
+Sit&Go is an example of a feature judged important enough to add while other redundant surfaces are being reduced.
+
+## 13. ChatGPT development workflow
+
+Every new JJ Arena development chat should begin by reading, in this order:
+
+1. `docs/PROJECT_STATE.md`
+2. `ARCHITECTURE_STATUS.md`
+3. `docs/DECISION_LOG.md`
+4. the domain document relevant to the task (for example `docs/SITNGO_GAMEPLAY.md`)
+5. `OPERATIONS.md` for production/deployment work
+6. the latest handoff, if one exists
+
+Then inspect current `main` and production when required. Do not assume the handoff's commit is still current.
+
+When a chat becomes long or approaches its limit, do not try to preserve the whole transcript. Produce a handoff using `docs/CHAT_HANDOFF_TEMPLATE.md`. Promote durable decisions to `DECISION_LOG.md` and update this file if the canonical current state changed.
+
+Once the durable state is captured in GitHub and the next chat has been validated against it, old ChatGPT development chats can be archived or deleted without making them part of the project's dependency chain.
+
+## 14. Documents with distinct roles
+
+- `README.md` — public/high-level project overview and basic setup.
+- `docs/PROJECT_STATE.md` — canonical current project handoff state.
+- `ARCHITECTURE_STATUS.md` — active / compatibility-only / retired architecture classification.
+- `docs/DECISION_LOG.md` — durable reasons and policy decisions.
+- `OPERATIONS.md` — deployment and production operations.
+- `OPERATIONS_RECOVERY.md` / `ops/production_safety.md` — recovery and safety procedures.
+- `docs/SITNGO_GAMEPLAY.md` — Sit&Go gameplay/technical contract.
+- `docs/CHAT_HANDOFF_TEMPLATE.md` — compact transfer format between long ChatGPT sessions.
+
+Do not turn `PROJECT_STATE.md` into a chronological changelog. Replace stale current-state statements instead. Historical reasoning belongs in the decision log; implementation history belongs in Git/GitHub.
