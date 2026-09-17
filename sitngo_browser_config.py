@@ -126,7 +126,12 @@ def install() -> None:
 
     # The production browser bundle is compiled before the FastAPI runtime is
     # imported, so the 12-hand labels must be applied in this dependency-free
-    # build path rather than only in the runtime integration module.
+    # build path rather than only in the runtime integration module. The source
+    # strings themselves are the durable idempotency signal because build/test
+    # code may reload this installer while retaining the already-patched UI module.
+    if HAND_LEVEL_UI_MARKER in ui._APP_PATCH and "hand_in_level" in ui._GAMEPLAY_PATCH:
+        ui._JJ_HAND_LEVELS_BUILD_PATCHED = True
+
     if not getattr(ui, "_JJ_HAND_LEVELS_BUILD_PATCHED", False):
         ui._SITNGO_PANEL = ui._SITNGO_PANEL.replace(
             "6-MAX · ADMIN STRUCTURE · BB ANTE",
