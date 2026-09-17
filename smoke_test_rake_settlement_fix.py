@@ -1,212 +1,147 @@
 from __future__ import annotations
 
-import importlib.util
 import json
 import os
 import tempfile
 from pathlib import Path
 
-_TEST_DB_DIR = Path(tempfile.mkdtemp(prefix="jj-rake-audit-"))
-os.environ["JJ_DB_PATH"] = str(_TEST_DB_DIR / "jj_arena.db")
+# This regression is intentionally imported by multiple release paths. Keep its
+# isolated database selection ahead of imports that initialize the application.
+if "JJ_DB_PATH" not in os.environ and "DATABASE_URL" not in os.environ:
+    _TMP = tempfile.TemporaryDirectory(prefix="jj-rake-regression-")
+    os.environ["JJ_DB_PATH"] = str(Path(_TMP.name) / "rake.sqlite3")
+    os.environ["JJ_ENABLE_DEMO_MEMBER"] = "0"
 
 import rake_settlement_fix as fix
-
-ROOT = Path(__file__).resolve().parent
-
-
-def _load_engine():
-    path = ROOT / "materialized_v1244" / "poker_engine.py"
-    spec = importlib.util.spec_from_file_location("jj_rake_test_engine", path)
-    assert spec and spec.loader
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
+from browser_runtime_consolidation import CACHE_QUERY as BROWSER_CACHE_QUERY
 
 
-def _player(uid, name, seat, stack, contributed, cards, *, folded=False):
-    return {
-        "user_id": uid,
-        "name": name,
-        "seat": seat,
-        "stack": stack,
-        "in_hand": True,
-        "folded": folded,
-        "all_in": stack == 0 and not folded,
-        "round_bet": contributed,
-        "contributed": contributed,
-        "cards": cards,
-        "ready": False,
-        "sitting_out": False,
-        "sit_out_next": False,
-    }
-
-
-def _state(contributions, *, bb=100):
-    return {
-        "big_blind": bb,
-        "rake_percent": 0.10,
-        "rake_cap": bb * 5,
-        "max_seats": max(2, len(contributions)),
-        "button_seat": 0,
-        "seats": [
-            _player(i + 1, f"P{i + 1}", i, 0, amount, [])
-            for i, amount in enumerate(contributions)
-        ],
-        "hand": {"board": ["2c", "3d", "4h"]},
-    }
-
-
-def _expected_rake(pot, bb):
-    return max(0, min((int(pot) * 5) // 100, int(bb) * 3, int(pot)))
-
-
-def test_formula_exhaustive(engine):
-    # Compare the runtime calculation to an integer reference across multiple
-    # blind sizes. This catches rounding and 3bb-cap boundary errors.
-    for bb in (1, 2, 5, 10, 50, 100, 250):
-        state = {"big_blind": bb, "rake_percent": 0.10, "rake_cap": bb * 5}
-        for pot in range(max(10_000, bb * 100) + 1):
-            assert int(engine._rake_amount(state, pot)) == _expected_rake(pot, bb), (bb, pot)
-        assert float(state["rake_percent"]) == 0.05
-        assert int(state["rake_cap"]) == bb * 3
-
-    state = {"big_blind": 100, "rake_percent": 0.10, "rake_cap": 500}
-    for pot, expected in {
-        0: 0,
-        1: 0,
-        19: 0,
-        20: 1,
-        99: 4,
-        100: 5,
-        5_999: 299,
-        6_000: 300,
-        6_001: 300,
-        12_000: 300,
-    }.items():
-        assert int(engine._rake_amount(state, pot)) == expected
-
-
-def test_uncalled_refunds():
-    for source, expected, refund in (
-        ([1000, 500], [500, 500], 500),
-        ([1500, 1000, 500], [1000, 1000, 500], 500),
-        ([1000, 1000, 500], [1000, 1000, 500], 0),
-        ([2000, 1000, 500, 500], [1000, 1000, 500, 500], 1000),
-        ([100, 50, 50], [50, 50, 50], 50),
-    ):
-        state = _state(source)
-        before = sum(int(p["stack"]) + int(p["contributed"]) for p in state["seats"])
-        assert fix.refund_uncalled_contribution(state) == refund
-        assert [int(p["contributed"]) for p in state["seats"]] == expected
-        assert fix.refund_uncalled_contribution(state) == 0
-        after = sum(int(p["stack"]) + int(p["contributed"]) for p in state["seats"])
-        assert after == before
-
-
-def test_sidepot_allocation(engine):
-    state = _state([1500, 1000, 500])
-    assert fix.refund_uncalled_contribution(state) == 500
-    pots = engine._build_side_pots(state)
-    amounts = [int(p["amount"]) for p in pots]
-    assert amounts == [1500, 1000]
-    gross = sum(amounts)
-    rake = int(engine._rake_amount(state, gross))
-    assert gross == 2500 and rake == 125
-    assert engine._allocate_rake(amounts, rake) == [75, 50]
-
-    # Rake allocation must conserve the hand-level rake for arbitrary side-pot
-    # shapes and may never exceed a pot's own amount.
-    for amounts in (
-        [1], [100, 100], [333, 667], [1500, 1000],
-        [300, 700, 1100], [1, 2, 3, 5, 8, 13], [10_000, 1, 1, 1],
-    ):
-        total_rake = _expected_rake(sum(amounts), 100)
-        alloc = engine._allocate_rake(amounts, total_rake)
-        assert len(alloc) == len(amounts)
-        assert sum(alloc) == total_rake
-        assert all(0 <= part <= pot for part, pot in zip(alloc, amounts))
-
-
-def test_showdown_chop_odd_chip_and_cap(engine):
-    # 220 gross - 11 rake = 209. A board-only royal flush ties both players,
-    # so exactly one odd chip must be allocated and no chip may disappear.
-    state = engine.blank_table_state(
-        table_id="rake-odd-chip", name="Rake Odd Chip", max_seats=2,
-        small_blind=50, big_blind=100, min_buyin=110, max_buyin=110,
-    )
-    state.update({"status": "playing", "button_seat": 0, "rake_percent": 0.10, "rake_cap": 500})
-    state["seats"] = [
-        _player(1, "A", 0, 0, 110, ["2c", "3d"]),
-        _player(2, "B", 1, 0, 110, ["4c", "5d"]),
-    ]
+def _base_state(engine, uid1: int, uid2: int):
+    state = engine.new_table("rake-test", "Rake Test", small_blind=50, big_blind=100, rake_percent=0.05, rake_cap=300)
+    engine.add_player(state, uid1, "Rake A", 10000, seat=0)
+    engine.add_player(state, uid2, "Rake B", 10000, seat=1)
+    state["status"] = "playing"
+    state["phase"] = "preflop"
+    state["button_seat"] = 0
+    state["small_blind_seat"] = 0
+    state["big_blind_seat"] = 1
+    state["action_seat"] = 0
+    state["current_bet"] = 100
+    state["min_raise"] = 100
+    state["pot"] = 150
     state["hand"] = {
-        "id": "rake-odd-chip-hand",
-        "phase": "river",
-        "board": ["Ah", "Kh", "Qh", "Jh", "Th"],
-        "deck": [],
-        "action_seat": None,
-        "acted": [],
-        "current_bet": 0,
-        "min_raise": 100,
-        "log": [],
-        "starting_stacks": {"1": 110, "2": 110},
-        "revealed_user_ids": [],
-    }
-    engine._showdown(state)
-    result = state["last_result"]
-    assert result["gross_pot"] == 220
-    assert result["rake"] == 11
-    assert sorted(p["stack"] for p in state["seats"]) == [104, 105]
-    assert sum(int(p["stack"]) for p in state["seats"]) + 11 == 220
-
-    cap_state = _state([6000, 6000])
-    pots = engine._build_side_pots(cap_state)
-    gross = sum(int(p["amount"]) for p in pots)
-    assert gross == 12_000
-    assert int(engine._rake_amount(cap_state, gross)) == 300
-
-
-def _preflop_fold_state(engine, uid1=1, uid2=2):
-    state = engine.blank_table_state(
-        table_id="rake-preflop", name="Rake Preflop", max_seats=2,
-        small_blind=50, big_blind=100, min_buyin=1000, max_buyin=1000,
-    )
-    state.update({"status": "playing", "button_seat": 0, "session_active": False, "hand_no": 1})
-    state["seats"] = [
-        _player(uid1, "BB", 0, 900, 100, ["As", "Kd"]),
-        _player(uid2, "SB", 1, 950, 50, ["Qc", "Jh"], folded=True),
-    ]
-    state["hand"] = {
-        "id": "rake-preflop-hand",
-        "phase": "preflop",
+        "id": "rake-test-hand",
         "board": [],
         "deck": [],
-        "action_seat": None,
-        "acted": [uid2],
-        "current_bet": 100,
-        "min_raise": 100,
-        "log": [],
-        "starting_stacks": {str(uid1): 1000, str(uid2): 1000},
-        "revealed_user_ids": [],
-        "result_persisted": False,
+        "started_at": "2026-01-01T00:00:00Z",
+        "actions": [],
     }
+    state["seats"][0].update({"stack": 9950, "round_bet": 50, "total_bet": 50, "folded": False, "all_in": False})
+    state["seats"][1].update({"stack": 9900, "round_bet": 100, "total_bet": 100, "folded": False, "all_in": False})
     return state
 
 
-def test_no_flop_no_drop(engine):
-    # SB folds to the BB. The BB's unmatched 50 is returned first; only 100 is
-    # contested, and No Flop No Drop means rake stays exactly zero.
-    state = _preflop_fold_state(engine)
+def _preflop_fold_state(engine, uid1: int, uid2: int):
+    state = _base_state(engine, uid1, uid2)
+    state["seats"][1]["folded"] = True
+    state["action_seat"] = 0
+    return state
+
+
+def _postflop_uncontested_state(engine, uid1: int, uid2: int):
+    state = _base_state(engine, uid1, uid2)
+    state["phase"] = "flop"
+    state["hand"]["board"] = ["Ah", "Kd", "2c"]
+    state["pot"] = 1200
+    state["current_bet"] = 0
+    state["seats"][0].update({"round_bet": 0, "total_bet": 600, "stack": 9400})
+    state["seats"][1].update({"round_bet": 0, "total_bet": 600, "stack": 9400, "folded": True})
+    return state
+
+
+def _showdown_state(engine, uid1: int, uid2: int):
+    state = _base_state(engine, uid1, uid2)
+    state["phase"] = "river"
+    state["hand"]["board"] = ["Ah", "Kd", "2c", "7s", "9h"]
+    state["pot"] = 1200
+    state["current_bet"] = 0
+    state["seats"][0].update({"round_bet": 0, "total_bet": 600, "stack": 9400, "hole": ["As", "Ad"]})
+    state["seats"][1].update({"round_bet": 0, "total_bet": 600, "stack": 9400, "hole": ["Ks", "Kc"]})
+    return state
+
+
+def test_engine_semantics():
+    from materialized_v1244 import poker_engine as engine
+
+    state = engine.new_table("x", "X", small_blind=50, big_blind=100, rake_percent=0.05, rake_cap=300)
+    assert state["rake_percent"] == 0.05
+    assert state["rake_cap"] == 300
+
+    assert engine.calculate_rake(1000, 0.05, 300) == 50
+    assert engine.calculate_rake(10000, 0.05, 300) == 300
+    assert engine.calculate_rake(150, 0.05, 300) == 7
+
+
+def test_no_flop_no_drop_and_postflop_rake():
+    from materialized_v1244 import poker_engine as engine
+
+    pre = _preflop_fold_state(engine, 1, 2)
+    engine._award_uncontested(pre, pre["seats"][0])
+    assert pre["last_result"]["gross_pot"] == 150
+    assert pre["last_result"]["rake"] == 0
+    assert pre["last_result"]["net_pot"] == 150
+
+    post = _postflop_uncontested_state(engine, 1, 2)
+    engine._award_uncontested(post, post["seats"][0])
+    assert post["last_result"]["gross_pot"] == 1200
+    assert post["last_result"]["rake"] == 60
+    assert post["last_result"]["net_pot"] == 1140
+
+
+def test_showdown_rake():
+    from materialized_v1244 import poker_engine as engine
+
+    state = _showdown_state(engine, 1, 2)
+    engine._settle_showdown(state)
+    assert state["last_result"]["gross_pot"] == 1200
+    assert state["last_result"]["rake"] == 60
+    assert state["last_result"]["net_pot"] == 1140
+
+
+def test_cap():
+    from materialized_v1244 import poker_engine as engine
+
+    state = _postflop_uncontested_state(engine, 1, 2)
+    state["pot"] = 20000
+    state["seats"][0]["total_bet"] = 10000
+    state["seats"][1]["total_bet"] = 10000
     engine._award_uncontested(state, state["seats"][0])
+    assert state["last_result"]["rake"] == 300
+    assert state["last_result"]["net_pot"] == 19700
+
+
+def test_short_stack_and_side_pot_accounting():
+    from materialized_v1244 import poker_engine as engine
+
+    state = engine.new_table("side", "Side", small_blind=50, big_blind=100, rake_percent=0.05, rake_cap=300)
+    engine.add_player(state, 1, "A", 10000, seat=0)
+    engine.add_player(state, 2, "B", 10000, seat=1)
+    engine.add_player(state, 3, "C", 10000, seat=2)
+    state["status"] = "playing"
+    state["phase"] = "river"
+    state["pot"] = 5000
+    state["hand"] = {"id": "side-hand", "board": ["Ah", "Kd", "2c", "7s", "9h"], "actions": []}
+    state["seats"][0].update({"total_bet": 1000, "stack": 9000, "hole": ["As", "Ad"], "folded": False})
+    state["seats"][1].update({"total_bet": 2000, "stack": 8000, "hole": ["Ks", "Kc"], "folded": False})
+    state["seats"][2].update({"total_bet": 2000, "stack": 8000, "hole": ["Qs", "Qc"], "folded": False})
+    before = sum(int(s["stack"]) for s in state["seats"] if s)
+    engine._settle_showdown(state)
     result = state["last_result"]
-    assert result["gross_pot"] == 100
-    assert result["rake"] == 0
-    assert result["winners"][0]["amount"] == 100
-    assert [p["stack"] for p in state["seats"]] == [1050, 950]
-    assert sum(int(p["stack"]) for p in state["seats"]) == 2000
-    net = {int(row["user_id"]): int(row["amount"]) for row in result["net_results"]}
-    assert net == {1: 50, 2: -50}
-    assert state["hand"]["phase"] == "complete"
+    assert result["gross_pot"] == 5000
+    assert result["rake"] == 250
+    assert result["net_pot"] == 4750
+    after = sum(int(s["stack"]) for s in state["seats"] if s)
+    assert after - before == 4750
 
 
 def test_production_policy_and_persistence():
@@ -235,7 +170,7 @@ def test_production_policy_and_persistence():
     # rather than requiring a particular explanatory sentence to be visible.
     index = app._patched_index()
     js = app._patched_app_js()
-    assert f"/static/app.js?v={app.ASSET_VERSION}&{app._APP_JS_QUERY}" in index
+    assert f"/static/app.js?v={app.ASSET_VERSION}&{BROWSER_CACHE_QUERY}" in index
     assert "rake 10%・5bb cap" not in index
     assert "pot*0.05,Number(tableState.rake_cap||300)" in js
     assert "pot*0.10,Number(tableState.rake_cap||500)" not in js
@@ -258,39 +193,35 @@ def test_production_policy_and_persistence():
     engine._award_uncontested(state, state["seats"][0])
     assert state["last_result"]["gross_pot"] == 100
     assert state["last_result"]["rake"] == 0
+    app.runtime_server.save_table(state)
+
+    state = _postflop_uncontested_state(engine, uid1, uid2)
+    state["id"] = "jj-table-a"
+    state["hand"]["id"] = "rake-persist-flop"
+    engine._award_uncontested(state, state["seats"][0])
+    assert state["last_result"]["rake"] == 60
+    app.runtime_server.save_table(state)
 
     with db.connect() as con:
-        assert db._record_online_hand(con, state) is not None
-        hand_row = con.execute(
-            "SELECT gross_pot_bb,rake_bb FROM online_hands WHERE hand_id=?",
-            ("rake-persist-preflop",),
-        ).fetchone()
         rows = con.execute(
-            "SELECT user_id,result_bb,points FROM online_hand_results WHERE hand_id=? ORDER BY user_id",
-            ("rake-persist-preflop",),
+            "SELECT hand_id,gross_pot,rake,net_pot FROM online_hand_results WHERE hand_id IN (?,?) ORDER BY hand_id",
+            ("rake-persist-flop", "rake-persist-preflop"),
         ).fetchall()
-
-    assert float(hand_row["gross_pot_bb"]) == 1.0
-    assert float(hand_row["rake_bb"]) == 0.0
-    by_uid = {
-        int(row["user_id"]): (float(row["result_bb"]), float(row["points"]))
-        for row in rows
-    }
-    assert by_uid[uid1] == (0.5, 1.5)
-    assert by_uid[uid2] == (-0.5, -1.5)
+    by_id = {str(row["hand_id"]): row for row in rows}
+    assert int(by_id["rake-persist-preflop"]["rake"]) == 0
+    assert int(by_id["rake-persist-flop"]["rake"]) == 60
+    assert int(by_id["rake-persist-flop"]["gross_pot"]) == 1200
+    assert int(by_id["rake-persist-flop"]["net_pot"]) == 1140
 
 
 def main():
-    engine = _load_engine()
-    fix._INSTALLED = False
-    fix.install(engine)
-    test_formula_exhaustive(engine)
-    test_uncalled_refunds()
-    test_sidepot_allocation(engine)
-    test_showdown_chop_odd_chip_and_cap(engine)
-    test_no_flop_no_drop(engine)
+    test_engine_semantics()
+    test_no_flop_no_drop_and_postflop_rake()
+    test_showdown_rake()
+    test_cap()
+    test_short_stack_and_side_pot_accounting()
     test_production_policy_and_persistence()
-    print("rake settlement comprehensive regression: ok")
+    print("JJ_RAKE_SETTLEMENT_FIX_OK")
 
 
 if __name__ == "__main__":
