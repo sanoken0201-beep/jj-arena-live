@@ -7,8 +7,9 @@ one-off regression files may remain in the repository, but any test selected by
 an active suite or the production release gate has exactly one owner here.
 
 The goal is not to reduce coverage. It is to make failures understandable,
-keep release-gate selection explicit, and prevent browser-only tests from being
-accidentally pulled into Render's production build image.
+keep release-gate selection explicit, prevent browser-only tests from being
+accidentally pulled into Render's production build image, and prevent tests that
+were deliberately retired after supersession from silently returning.
 """
 from pathlib import Path
 
@@ -52,6 +53,18 @@ TEST_SUITES: dict[str, tuple[str, ...]] = {
         "smoke_test_sitngo_gameplay.py",
     ),
 }
+
+# Historical regressions that were deliberately removed because newer active
+# suites cover the live contract. Keeping the filenames here makes accidental
+# reintroduction visible in the ownership gate.
+RETIRED_TEST_FILES = frozenset(
+    {
+        "smoke_test_v186.py",
+        "smoke_test_mobile_poker_ux.py",
+        "smoke_test_portrait_table.py",
+        "smoke_test_clear_poker_copy.py",
+    }
+)
 
 # Tests that require a real browser / optional browser dependencies and therefore
 # must never be selected by the Render production release gate.
@@ -140,6 +153,15 @@ def validate_test_ownership(root: Path | None = None) -> None:
             if root is not None and not (root / filename).is_file():
                 raise RuntimeError(f"owned test file is missing: group={group} test={filename}")
 
+    if RETIRED_TEST_FILES & set(seen):
+        raise RuntimeError(
+            f"retired test assigned to active suite: {sorted(RETIRED_TEST_FILES & set(seen))}"
+        )
+    if root is not None:
+        restored = sorted(filename for filename in RETIRED_TEST_FILES if (root / filename).exists())
+        if restored:
+            raise RuntimeError(f"retired test file has returned: {restored}")
+
     release_seen: set[str] = set()
     for group, filenames in PRODUCTION_RELEASE_SELECTION:
         if group not in TEST_SUITES:
@@ -162,6 +184,7 @@ validate_test_ownership()
 __all__ = [
     "BROWSER_ONLY_TESTS",
     "PRODUCTION_RELEASE_SELECTION",
+    "RETIRED_TEST_FILES",
     "TEST_SUITES",
     "production_release_tests",
     "test_owner",
