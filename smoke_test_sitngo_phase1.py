@@ -122,6 +122,15 @@ def main() -> None:
     require(table_state["tournament"]["bb_ante"] == 400, "level 1 BBA must apply to the first hand")
     require(sum(p["stack"] + p["contributed"] for p in table_state["seats"]) + table_state.get("_ante_paid", 0) == 6 * 30_000, "30k chip conservation failed at launch")
 
+    # This test intentionally launches several events in one isolated database.
+    # Advance the first tournament past the single-running-Sit&Go guard before
+    # verifying the next event's start/lock lifecycle.
+    with db.connect() as con:
+        con.execute(
+            "UPDATE sitngo_events SET status='finished',updated_at=? WHERE id=?",
+            (db.utcnow(), event["id"]),
+        )
+
     short_start = now + timedelta(minutes=40)
     short = service.create_event(
         sitngo.SitNGoCreateIn(name="Minimum players check", starts_at=short_start.isoformat()),
@@ -168,6 +177,9 @@ def main() -> None:
     service.reconcile(moved + timedelta(seconds=1))
     locked = service._event_payload(service._row(editable["id"]), admin_id, admin=True)
     require(not locked["config_editable"], "running event must report locked configuration")
+    custom_state = service.runtime.load(editable["id"])
+    require(custom_state["small_blind"] == 400 and custom_state["big_blind"] == 800, "edited level-1 blinds were not applied to the first hand")
+    require(custom_state["tournament"]["bb_ante"] == 800, "edited level-1 BBA was not applied to the first hand")
     try:
         service.update_event(editable["id"], sitngo.SitNGoUpdateIn(starting_stack=60_000), admin_id)
     except HTTPException as exc:
