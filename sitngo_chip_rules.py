@@ -4,10 +4,10 @@ The immutable materialized poker engine remains untouched. Sit&Go receives an
 isolated engine instance, so these rules apply only to tournament tables:
 
 * 100 is the absolute minimum denomination;
-* scheduled color-ups happen only between hands;
-* color-ups preserve the tournament chip total and never bust a live player;
-* normal raises must use the current denomination;
-* split pots never create sub-denomination chips;
+* online stacks remain exact in the permanent 100-point accounting unit;
+* no physical-chip color-up may redistribute value between players;
+* normal raises use 100-point increments;
+* split pots never create sub-100-point chips;
 * odd chips are awarded from the first seat left of the button;
 * the big-blind ante is dead money in the main pot, not a second logical pot.
 """
@@ -57,30 +57,14 @@ def _starting_stack(state: dict[str, Any]) -> int:
 
 
 def chip_unit_for_level(state: dict[str, Any], level_index: int | None = None) -> int:
-    """Return the largest conventional denomination safe for all remaining levels.
+    """Return the permanent online accounting unit.
 
-    Including the starting stack in the GCD guarantees that the whole tournament
-    chip supply is divisible by every selected denomination for any entrant count.
-    Remaining forced bets are included so a future SB/BB/BBA can always be posted
-    exactly after lower chips have been removed.
+    Live poker color-ups exist to remove physical low-denomination chips. JJ
+    Arena has no physical chip inventory, so changing denominations must never
+    round, race, or redistribute a player's exact tournament stack. Every
+    configured blind and ante is already constrained to 100-point increments.
     """
-    tournament = state.get("tournament") or {}
-    levels = list(tournament.get("structure") or [])
-    if not levels:
-        return MIN_CHIP
-    if level_index is None:
-        level_index = max(0, _int(tournament.get("level"), 1) - 1)
-    level_index = max(0, min(int(level_index), len(levels) - 1))
-
-    common = abs(_starting_stack(state))
-    for level in levels[level_index:]:
-        for key in ("small_blind", "big_blind", "bb_ante"):
-            amount = abs(_int(level.get(key)))
-            if amount:
-                common = gcd(common, amount)
-
-    candidates = [d for d in STANDARD_DENOMINATIONS if d <= common and common % d == 0]
-    return max(candidates or [MIN_CHIP])
+    return MIN_CHIP
 
 
 def _left_of_button_order(state: dict[str, Any], players: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -90,100 +74,37 @@ def _left_of_button_order(state: dict[str, Any], players: list[dict[str, Any]]) 
 
 
 def color_up(state: dict[str, Any], new_unit: int | None = None) -> list[dict[str, int]]:
-    """Convert every live stack to ``new_unit`` exactly between hands.
+    """Retained compatibility hook for legacy states without changing stacks.
 
-    This online color-up uses deterministic bounded apportionment rather than
-    inventing fractional chips. The total chip supply is unchanged, and every
-    player who had chips before the color-up keeps at least one chip afterward.
+    Online tournament chips are exact ledger values, not physical chips. A
+    requested higher denomination is therefore ignored and the state is moved
+    to the permanent 100-point accounting unit only between hands.
     """
     if state.get("status") == "playing":
-        raise RuntimeError("Sit&Go color-up attempted during an active hand")
+        raise RuntimeError("Sit&Go accounting-unit change attempted during an active hand")
     if any(_int(p.get("contributed")) or _int(p.get("round_bet")) for p in state.get("seats", [])):
-        raise RuntimeError("Sit&Go color-up attempted with chips still in the pot")
+        raise RuntimeError("Sit&Go accounting-unit change attempted with chips still in the pot")
     if _int(state.get("_ante_paid")):
-        raise RuntimeError("Sit&Go color-up attempted with an ante still in the pot")
+        raise RuntimeError("Sit&Go accounting-unit change attempted with an ante still in the pot")
 
-    target = max(MIN_CHIP, _int(new_unit, chip_unit_for_level(state)))
-    old_unit = max(MIN_CHIP, _int(state.get("chip_unit"), MIN_CHIP))
-    if target < old_unit:
-        raise RuntimeError("Sit&Go denomination progression is invalid")
-    if target == old_unit:
-        state["chip_unit"] = target
-        return []
+    before = max(MIN_CHIP, _int(state.get("chip_unit"), MIN_CHIP))
+    if any(_int(p.get("stack")) % MIN_CHIP for p in state.get("seats", [])):
+        raise RuntimeError("Sit&Go stack is not representable in the 100-point accounting unit")
 
-    seats = list(state.get("seats") or [])
-    original = {_int(p.get("user_id")): _int(p.get("stack")) for p in seats}
-    total = sum(original.values())
-    if total % target:
-        raise RuntimeError("Sit&Go chip supply cannot be colored up exactly")
-
-    live = [p for p in seats if _int(p.get("stack")) > 0]
-    total_units = total // target
-    if total_units < len(live):
-        raise RuntimeError("Sit&Go color-up would eliminate a live player")
-
-    ordered = _left_of_button_order(state, live)
-    tie_rank = {_int(p.get("user_id")): index for index, p in enumerate(ordered)}
-    quota = {_int(p.get("user_id")): original[_int(p.get("user_id"))] / target for p in live}
-    allocation = {
-        _int(p.get("user_id")): max(1, original[_int(p.get("user_id"))] // target)
-        for p in live
-    }
-
-    used = sum(allocation.values())
-    while used > total_units:
-        candidates = [p for p in live if allocation[_int(p.get("user_id"))] > 1]
-        if not candidates:
-            raise RuntimeError("Sit&Go color-up cannot preserve all live players")
-        chosen = min(
-            candidates,
-            key=lambda p: (
-                quota[_int(p.get("user_id"))] - allocation[_int(p.get("user_id"))],
-                tie_rank[_int(p.get("user_id"))],
-            ),
-        )
-        allocation[_int(chosen.get("user_id"))] -= 1
-        used -= 1
-
-    while used < total_units:
-        chosen = max(
-            live,
-            key=lambda p: (
-                quota[_int(p.get("user_id"))] - allocation[_int(p.get("user_id"))],
-                -tie_rank[_int(p.get("user_id"))],
-            ),
-        )
-        allocation[_int(chosen.get("user_id"))] += 1
-        used += 1
-
-    adjustments: list[dict[str, int]] = []
-    for player in seats:
-        uid = _int(player.get("user_id"))
-        before = original[uid]
-        after = allocation.get(uid, 0) * target
-        player["stack"] = after
-        if before != after:
-            adjustments.append({"user_id": uid, "before": before, "after": after, "delta": after - before})
-
-    if sum(_int(p.get("stack")) for p in seats) != total:
-        raise RuntimeError("Sit&Go color-up changed the tournament chip total")
-    if any(0 < original[_int(p.get("user_id"))] and _int(p.get("stack")) <= 0 for p in seats):
-        raise RuntimeError("Sit&Go color-up eliminated a live player")
-    if any(_int(p.get("stack")) % target for p in seats):
-        raise RuntimeError("Sit&Go color-up left an obsolete denomination")
-
-    state["chip_unit"] = target
+    state["chip_unit"] = MIN_CHIP
     tournament = state.get("tournament") or {}
-    tournament.setdefault("chip_up_history", []).append(
-        {
-            "level": _int(tournament.get("level"), 1),
-            "from_unit": old_unit,
-            "to_unit": target,
-            "hand_no": _int(state.get("hand_no")),
-            "adjustments": adjustments,
-        }
-    )
-    return adjustments
+    if before != MIN_CHIP:
+        tournament.setdefault("chip_up_history", []).append(
+            {
+                "level": _int(tournament.get("level"), 1),
+                "from_unit": before,
+                "to_unit": MIN_CHIP,
+                "hand_no": _int(state.get("hand_no")),
+                "adjustments": [],
+                "mode": "online_exact_accounting",
+            }
+        )
+    return []
 
 
 def _merge_dead_ante_into_main_pot(engine, state: dict[str, Any], base_builder) -> list[dict[str, Any]]:
