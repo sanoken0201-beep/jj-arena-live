@@ -5,10 +5,11 @@ compiler remains usable in lightweight CI jobs that do not install FastAPI.
 """
 from __future__ import annotations
 
-CACHE_QUERY = "sngcfg=turn-safety-20260918-1"
+CACHE_QUERY = "sngcfg=points-20260920-1"
 CHIP_UI_MARKER = "jj sitngo chip unit ui 2026-09-18"
 HAND_LEVEL_UI_MARKER = "jj sng 12-hand levels 2026-09-18"
 TURN_UI_MARKER = "jj sng turn safety 2026-09-18"
+POINT_UI_MARKER = "jj sng point settlement ui 2026-09-20"
 
 
 def _replace_once(source: str, old: str, new: str, label: str) -> str:
@@ -169,6 +170,44 @@ def install() -> None:
         ui._GAMEPLAY_PATCH = gameplay
         ui._JJ_HAND_LEVELS_BUILD_PATCHED = True
 
+    if POINT_UI_MARKER not in ui._APP_PATCH:
+        source = ui._APP_PATCH
+        source = source.replace(
+            "<span>無料 · 賞品なし</span>",
+            "<span>${Number(event.entry_fee_points||0)>0?`参加 ${fmt(event.entry_fee_points)}pt`:'参加無料'}</span><span>${Number(event.entry_fee_points||0)>0?'5人以下1位総取り · 6人時1位70%/2位残余':'賞金ポイントなし'}</span>",
+            1,
+        )
+        source = source.replace(
+            "else if(registered&&event.can_cancel_registration)action=`<div class=\"jj-sng-reg\"><span>参加登録済み · 受付順 #${event.registration_order||'—'}</span>",
+            "else if(registered&&event.can_cancel_registration)action=`<div class=\"jj-sng-reg\"><span>参加登録済み · 受付順 #${event.registration_order||'—'}${Number(event.entry_fee_points||0)>0?` · 支払済 ${fmt(event.entry_fee_points)}pt`:''}</span>",
+            1,
+        )
+        source = source.replace(
+            "else if(event.can_register)action=`<button type=\"button\" class=\"primary jj-sng-register\" data-sng-register=\"${safe(event.id)}\">参加する</button>`;",
+            "else if(event.registration_block_reason==='insufficient_points')action=`<button type=\"button\" class=\"soft jj-sng-register\" disabled>ポイント不足 · 残高 ${fmt(event.point_balance||0)}pt</button>`;else if(event.registration_block_reason==='point_identity')action='<button type=\"button\" class=\"soft jj-sng-register\" disabled>ポイント紐付けを確認してください</button>';else if(event.can_register)action=`<button type=\"button\" class=\"primary jj-sng-register\" data-sng-register=\"${safe(event.id)}\">参加する${Number(event.entry_fee_points||0)>0?` · ${fmt(event.entry_fee_points)}pt`:''}</button>`;",
+            1,
+        )
+        source = source.replace(
+            "席は抽選で決定します。通信切断中もブラインドは発生します。",
+            "席は抽選で決定します。参加ポイントは登録時に徴収し、開始前の取消・大会中止は自動返金します。通信切断中もブラインドは発生します。",
+            1,
+        )
+        source += f"\n  // {POINT_UI_MARKER}\n"
+        ui._APP_PATCH = source
+
+        gameplay = ui._GAMEPLAY_PATCH
+        gameplay = gameplay.replace(
+            ":'無料大会 · 再参加なし'}</span>`;",
+            ":`参加 ${fmt(t.entry_fee||0)}pt · 賞金 ${fmt(t.prize_points||0)}pt · 再参加なし`}</span>`;",
+            1,
+        )
+        gameplay = gameplay.replace(
+            "${t.results.map(x=>`<span>${x.place}位 · ${safe(x.name)}</span>`).join('')}<small>無料大会 · ポイントの増減なし</small>",
+            "${t.results.map(x=>`<span>${x.place}位 · ${safe(x.name)}${Number(x.prize_points||0)>0?` · +${fmt(x.prize_points)}pt`:''}</span>`).join('')}<small>賞金プール ${fmt(t.prize_points||0)}pt</small>",
+            1,
+        )
+        ui._GAMEPLAY_PATCH = gameplay
+
     if not getattr(ui, "_JJ_TURN_PAYLOAD_PATCHED", False):
         original_transform_app_js = ui.transform_app_js
 
@@ -214,4 +253,4 @@ def install() -> None:
         ui._JJ_SNG_CACHE_PATCHED = True
 
 
-__all__ = ["CACHE_QUERY", "CHIP_UI_MARKER", "HAND_LEVEL_UI_MARKER", "TURN_UI_MARKER", "install"]
+__all__ = ["CACHE_QUERY", "CHIP_UI_MARKER", "HAND_LEVEL_UI_MARKER", "TURN_UI_MARKER", "POINT_UI_MARKER", "install"]

@@ -102,6 +102,7 @@ class SitNGoService:
                     max_players INTEGER NOT NULL DEFAULT 6,
                     min_players INTEGER NOT NULL DEFAULT 2,
                     starting_stack INTEGER NOT NULL DEFAULT 10000,
+                    entry_fee_points INTEGER NOT NULL DEFAULT 0,
                     level_minutes INTEGER NOT NULL DEFAULT 10,
                     target_minutes INTEGER NOT NULL DEFAULT 90,
                     prepared_minutes INTEGER NOT NULL DEFAULT 150,

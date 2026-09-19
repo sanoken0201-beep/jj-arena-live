@@ -15,6 +15,7 @@ def main():
     rt=service.runtime
     with db.connect() as con:
         admin=con.execute("SELECT id FROM users WHERE role='admin' LIMIT 1").fetchone()['id']
+        ledger_before=int(con.execute("SELECT COUNT(*) n FROM point_ledger").fetchone()['n'] or 0)
     users=[add_member(i+100) for i in range(6)]
     clock=time.time()
     def launch(count):
@@ -79,7 +80,7 @@ def main():
     with db.connect() as con:
         assert con.execute('SELECT COUNT(*) n FROM online_hands').fetchone()['n']==0
         assert con.execute('SELECT COUNT(*) n FROM online_hand_results').fetchone()['n']==0
-        assert con.execute('SELECT COUNT(*) n FROM point_ledger').fetchone()['n']==0
+        assert int(con.execute('SELECT COUNT(*) n FROM point_ledger').fetchone()['n'] or 0)==ledger_before
         assert con.execute('SELECT COUNT(*) n FROM sitngo_hands').fetchone()['n']>0
     # Dead-ante short BB: blind first, then the remaining legal 100-point chip funds ante.
     e=rt.engine
