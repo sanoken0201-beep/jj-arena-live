@@ -50,6 +50,7 @@ class ConfiguredSitNGoCreateIn(BaseModel):
     name: str = Field(default="JJ Sit&Go", min_length=1, max_length=80)
     starts_at: str = Field(min_length=10, max_length=50)
     starting_stack: int = Field(default=DEFAULT_STARTING_STACK, ge=1_000, le=10_000_000)
+    entry_fee_points: int = Field(default=0, ge=0, le=1_000_000)
     structure: list[BlindLevelIn] | None = None
 
 
@@ -57,6 +58,7 @@ class ConfiguredSitNGoUpdateIn(BaseModel):
     name: str | None = Field(default=None, min_length=1, max_length=80)
     starts_at: str | None = Field(default=None, min_length=10, max_length=50)
     starting_stack: int | None = Field(default=None, ge=1_000, le=10_000_000)
+    entry_fee_points: int | None = Field(default=None, ge=0, le=1_000_000)
     structure: list[BlindLevelIn] | None = None
 
 
@@ -248,9 +250,9 @@ def install(sitngo_module) -> None:
             con.execute(
                 """INSERT INTO sitngo_events(
                     id,name,starts_at,registration_opens_at,status,max_players,min_players,
-                    starting_stack,level_minutes,target_minutes,prepared_minutes,structure_json,
+                    starting_stack,entry_fee_points,level_minutes,target_minutes,prepared_minutes,structure_json,
                     created_by,created_at,updated_at
-                ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
                 (
                     event_id,
                     payload.name.strip() or "JJ Sit&Go",
@@ -260,6 +262,7 @@ def install(sitngo_module) -> None:
                     sitngo_module.MAX_PLAYERS,
                     sitngo_module.MIN_PLAYERS,
                     stack,
+                    int(payload.entry_fee_points),
                     level_minutes,
                     target_minutes,
                     prepared_minutes,
@@ -276,6 +279,7 @@ def install(sitngo_module) -> None:
             starts_at=sitngo_module._iso(starts),
             name=payload.name.strip(),
             starting_stack=stack,
+            entry_fee_points=int(payload.entry_fee_points),
             structure=levels,
         )
         return self._event_payload(self._row(event_id), actor_id, admin=True)
@@ -308,6 +312,16 @@ def install(sitngo_module) -> None:
                 sets.extend(["starts_at=?", "registration_opens_at=?", "status=?"])
                 args.extend([sitngo_module._iso(starts), sitngo_module._iso(opens), status])
                 changed["starts_at"] = sitngo_module._iso(starts)
+            if payload.entry_fee_points is not None:
+                history = con.execute(
+                    "SELECT COUNT(*) n FROM sitngo_registrations WHERE event_id=?",
+                    (event_id,),
+                ).fetchone()
+                if int(history["n"] or 0) > 0 and int(payload.entry_fee_points) != int(event.get("entry_fee_points") or 0):
+                    raise HTTPException(409, "参加履歴がある大会の参加ポイントは変更できません")
+                sets.append("entry_fee_points=?")
+                args.append(int(payload.entry_fee_points))
+                changed["entry_fee_points"] = int(payload.entry_fee_points)
             if payload.starting_stack is not None or payload.structure is not None:
                 stack = _validate_stack(payload.starting_stack if payload.starting_stack is not None else event["starting_stack"])
                 raw_levels = payload.structure if payload.structure is not None else json.loads(event["structure_json"])
@@ -376,8 +390,8 @@ def install(sitngo_module) -> None:
             tournament={
                 "event_id": eid,
                 "status": "running",
-                "entry_fee": 0,
-                "prize_points": 0,
+                "entry_fee": int(event.get("entry_fee_points") or 0),
+                "prize_points": int(event.get("entry_fee_points") or 0) * len(participants),
                 "started_at_epoch": now.timestamp(),
                 "clock_at_epoch": now.timestamp(),
                 "elapsed_seconds": 0,
