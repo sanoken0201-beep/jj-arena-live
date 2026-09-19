@@ -1,16 +1,17 @@
 # Single-table Sit&Go
 
 Sit&Go is a scheduled 2–6-player freezeout. New events default to 30,000 tournament
-chips, 10-minute levels, big-blind ante and a 150-minute prepared structure, but the
-administrator owns the event configuration: starting stack, SB, BB, BBA and each
-level duration can be edited before the event starts. Once play begins the saved
+chips and big-blind ante. The administrator owns the event configuration: starting
+stack, SB, BB and BBA can be edited before the event starts. New tournaments advance
+one blind level after every 12 completed hands; the persisted minute fields are
+legacy/rollback metadata and do not select blinds. Once play begins the saved
 configuration is locked. There is no late registration or re-entry. The last
 prepared level repeats until a winner is determined. 90 minutes is a target, not a
 forced ending. Ring and tournament chips never share settlement.
 
 The existing ring table renderer, cards, raise sizing, pre-actions and connection
-recovery are reused. Tournament actions additionally carry the hand ID; delayed
-requests cannot act on the next hand. The lobby provides an explicit table/rejoin
+recovery are reused. Tournament actions additionally carry action, hand and turn
+identifiers; delayed or duplicated requests cannot act on a later turn or hand. The lobby provides an explicit table/rejoin
 button and recent results. No production event is created by deploying this code.
 
 ## Tournament chip rules
@@ -49,8 +50,8 @@ step.
 
 ## Tournament conventions
 
-Random seats; advancing button; button is small blind heads-up; simultaneous
-eliminations are ordered by starting stack and equal stacks tie; disconnected
+Random seats; dead-button movement; button is small blind heads-up; simultaneous
+eliminations use the TDA 2026 BBA post-ante comparison stack and equal stacks tie; disconnected
 entrants continue paying blinds, and time out to check/fold. JJ's ante policy posts
 the big blind first, then as much of the ante as the remaining stack allows; BBA
 remains in heads-up. Ante is dead money available to all live hands, never call
@@ -67,17 +68,20 @@ privacy as ring tables. Results and final status commit atomically with game
 state. Optimistic revisions reject stale writers.
 
 The scheduler preserves 45-second action deadlines, staged runouts and at least
-1.6 seconds between hands (including the canonical showdown hold). Blind levels
-change only when dealing a new hand. Checkpoints are written at every action and
-at most five seconds apart during play. Restart resumes the saved hand and moves
+1.6 seconds between hands (including the canonical showdown hold). New tournaments
+change blind levels only between hands, after each block of 12 completed hands.
+Checkpoints are written at every action and at most five seconds apart during play.
+Restart resumes the saved hand and moves
 deadlines by the time since the last checkpoint; up to five seconds of recent
 play can be treated as downtime. It does not redeal or restore spent chips.
 Deploy one application worker, as required by the existing in-process ring locks.
 
-Only one new tournament starts while another is running. A due event waits for
-that event to finish; the blind clock starts when its actual table is created.
-Register after leaving a ring seat; a registered/active tournament reserves table
-membership until cancellation/elimination. Existing Phase 1 events marked running
+Only one new tournament starts while another is running. A due event moves to the
+explicit `starting` wait state and starts after the running event finishes; its
+tournament clock starts when its actual table is created. While one event is running,
+the player lobby also exposes the next scheduled/registration event so its受付 window
+is not hidden. Register after leaving a ring seat; a registered/active tournament
+reserves table membership until cancellation/elimination. Existing Phase 1 events marked running
 without games resume by creating their first real hand with the assigned seats.
 
 Validation covers complete 2/4/6-player tournaments; total-chip conservation;
