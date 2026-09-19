@@ -422,6 +422,13 @@ def _settle_pending_finished(service) -> None:
             """SELECT e.id FROM sitngo_events e
                LEFT JOIN sitngo_point_settlements s ON s.event_id=e.id
                WHERE e.status='finished' AND s.event_id IS NULL
+                 AND (
+                   COALESCE(e.entry_fee_points,0)>0
+                   OR EXISTS(
+                     SELECT 1 FROM sitngo_point_entries pe
+                     WHERE pe.event_id=e.id
+                   )
+                 )
                ORDER BY e.updated_at,e.id LIMIT 20"""
         ).fetchall()
     for row in rows:
