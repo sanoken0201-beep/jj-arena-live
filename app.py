@@ -26,6 +26,7 @@ import sitngo
 import sitngo_admin_config
 import sitngo_asset_cache
 import sitngo_chip_rules
+import sitngo_points
 import sitngo_runtime
 import sitngo_tournament_rules
 
@@ -37,6 +38,7 @@ sitngo_admin_config.install(sitngo)
 sitngo_tournament_rules.install(sitngo_runtime)
 sitngo_chip_rules.install(sitngo_runtime)
 sitngo_asset_cache.install()
+sitngo_points.install(sitngo, sitngo_runtime)
 
 from served_assets import (
     ASSET_VERSION,
