@@ -81,16 +81,34 @@ def main():
         assert con.execute('SELECT COUNT(*) n FROM online_hand_results').fetchone()['n']==0
         assert con.execute('SELECT COUNT(*) n FROM point_ledger').fetchone()['n']==0
         assert con.execute('SELECT COUNT(*) n FROM sitngo_hands').fetchone()['n']>0
-    # Dead-ante short BB: blind first, then the remaining legal 100-point chip funds ante.
+    # BB-first BBA boundary cases. A short BB contributes to the blind before
+    # any ante, while the full table still plays to the configured 200 BB.
     e=rt.engine
-    state=e.blank_table_state(table_id='test',name='short',max_seats=2,small_blind=100,big_blind=200,min_buyin=1,max_buyin=10000)
-    e.seat_player(state,user_id=1,name='A',seat=0,stack=10000)
-    e.seat_player(state,user_id=2,name='B',seat=1,stack=300)
-    state['tournament']={'bb_ante':200}
-    e.start_hand(state)
-    bb=next(p for p in state['seats'] if p['seat']==state['hand']['big_blind_seat'])
-    assert bb['round_bet']==200 and bb['stack']==0 and state['_ante_paid']==100
-    assert e.legal_actions(state,1)['call_amount']==100
+    for bb_stack,expected_blind,expected_ante in ((100,100,0),(200,200,0),(300,200,100)):
+        state=e.blank_table_state(table_id=f'test-{bb_stack}',name='short',max_seats=2,small_blind=100,big_blind=200,min_buyin=1,max_buyin=10000)
+        e.seat_player(state,user_id=1,name='A',seat=0,stack=10000)
+        e.seat_player(state,user_id=2,name='B',seat=1,stack=bb_stack)
+        state['tournament']={'bb_ante':200}
+        e.start_hand(state)
+        bb=next(p for p in state['seats'] if p['seat']==state['hand']['big_blind_seat'])
+        assert bb['round_bet']==expected_blind and bb['stack']==0 and state['_ante_paid']==expected_ante
+        assert state['hand']['current_bet']==200
+        assert e.legal_actions(state,1)['call_amount']==100
+
+    # Heads-up action order: BTN/SB acts first preflop, BB acts first postflop.
+    hu=e.blank_table_state(table_id='hu-order',name='hu',max_seats=2,small_blind=100,big_blind=200,min_buyin=1,max_buyin=10000)
+    e.seat_player(hu,user_id=11,name='HU-A',seat=0,stack=10000)
+    e.seat_player(hu,user_id=12,name='HU-B',seat=1,stack=10000)
+    hu['tournament']={'bb_ante':200}
+    e.start_hand(hu)
+    btn=hu['button_seat']; bb_seat=hu['hand']['big_blind_seat']
+    assert hu['hand']['small_blind_seat']==btn and hu['hand']['action_seat']==btn
+    btn_player=next(p for p in hu['seats'] if p['seat']==btn)
+    bb_player=next(p for p in hu['seats'] if p['seat']==bb_seat)
+    e.apply_action(hu,btn_player['user_id'],'call')
+    assert hu['hand']['action_seat']==bb_seat
+    e.apply_action(hu,bb_player['user_id'],'check')
+    assert hu['hand']['phase']=='flop' and hu['hand']['action_seat']==bb_seat
     print('JJ_SITNGO_GAMEPLAY_OK')
 
 
