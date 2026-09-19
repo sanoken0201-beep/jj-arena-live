@@ -64,6 +64,10 @@ RETIRED_TEST_FILES = frozenset(
         "smoke_test_mobile_poker_ux.py",
         "smoke_test_portrait_table.py",
         "smoke_test_clear_poker_copy.py",
+        # These two rebuilt obsolete pre-materialization runtimes and were
+        # superseded by current admin/UX suites against the canonical snapshot.
+        "smoke_test_admin.py",
+        "smoke_test_ui_copy.py",
     }
 )
 
