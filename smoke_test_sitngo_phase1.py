@@ -70,9 +70,7 @@ def main() -> None:
     admin_id = int(admin["id"])
     members = [add_member(i) for i in range(1, 8)]
 
-    now = datetime.now(timezone.utc)
-    starts = now + timedelta(minutes=30)
-    event = service.create_event(
+    # Use a fixed daytime UTC instant so this registration-window regression is\n    # deterministic and cannot cross the JST midnight floor used by\n    # _registration_open_for(). Product behavior is unchanged; only the test\n    # clock is pinned away from the date-boundary edge case.\n    now = datetime(2026, 9, 15, 3, 0, tzinfo=timezone.utc)  # 12:00 JST\n    sitngo._utcnow = lambda: now\n    starts = now + timedelta(minutes=30)\n    event = service.create_event(
         sitngo.SitNGoCreateIn(name="JJ Sit&Go Phase 1", starts_at=starts.isoformat()),
         admin_id,
     )
