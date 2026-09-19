@@ -86,43 +86,38 @@ def main():
         },
         "seats": [],
     }
-    expected = {1: 100, 5: 500, 7: 1_000, 11: 5_000, 14: 10_000, 15: 10_000}
-    for level, unit in expected.items():
+    # Online Sit&Go keeps exact 100-point accounting at every level. Physical
+    # chip color-ups must never round or redistribute tournament value.
+    for level in range(1, len(levels) + 1):
         require(
-            sitngo_chip_rules.chip_unit_for_level(schedule_state, level - 1) == unit,
-            f"unexpected denomination at level {level}",
+            sitngo_chip_rules.chip_unit_for_level(schedule_state, level - 1) == 100,
+            f"online accounting unit drift at level {level}",
         )
 
-    # Exact online color-up: no obsolete chips, no chip creation/loss.
-    color = tournament_state(engine, [23_100, 29_900, 37_000], unit=100)
-    color["tournament"].update(
+    exact = tournament_state(engine, [23_100, 29_900, 37_000], unit=100)
+    exact["tournament"].update(
         level=11,
         structure=levels,
         starting_stack=30_000,
         entrants=3,
         total_chips=90_000,
     )
-    adjustments = sitngo_chip_rules.color_up(color, 5_000)
-    require(adjustments, "color-up should record changed stacks")
-    require(sum(p["stack"] for p in color["seats"]) == 90_000, "color-up changed total chips")
-    require(all(p["stack"] % 5_000 == 0 for p in color["seats"]), "obsolete denomination survived color-up")
-    require(all(p["stack"] > 0 for p in color["seats"]), "color-up busted a live player")
-    require(color["tournament"]["chip_up_history"][-1]["to_unit"] == 5_000, "color-up audit history missing")
+    before_exact = [p["stack"] for p in exact["seats"]]
+    adjustments = sitngo_chip_rules.color_up(exact, 5_000)
+    require(adjustments == [], "online compatibility color-up must not redistribute stacks")
+    require([p["stack"] for p in exact["seats"]] == before_exact, "online color-up changed player value")
+    require(exact["chip_unit"] == 100, "online accounting unit must remain 100")
 
-    # A micro-stack must survive the conversion without violating conservation.
-    micro = tournament_state(engine, [1_000, 19_000, 40_000], unit=100)
-    micro["tournament"].update(level=11, structure=levels, starting_stack=30_000, entrants=2, total_chips=60_000)
-    sitngo_chip_rules.color_up(micro, 5_000)
-    require(sum(p["stack"] for p in micro["seats"]) == 60_000, "micro-stack color-up changed total")
-    require(all(p["stack"] >= 5_000 for p in micro["seats"] if p["user_id"] == 1), "micro-stack was raced out")
-    require(all(p["stack"] % 5_000 == 0 for p in micro["seats"]), "micro-stack conversion left small chips")
-
-    # Custom structures may legitimately move 10k -> 25k; denominations do not
-    # need to divide the preceding physical denomination as long as total supply
-    # can be converted exactly.
-    non_multiple = tournament_state(engine, [10_000, 40_000], unit=10_000)
+    # Regression for the former unfair conversion: 10k/40k must never become
+    # 25k/25k simply because a physical 25k denomination was requested.
+    non_multiple = tournament_state(engine, [10_000, 40_000], unit=100)
+    before_non_multiple = [p["stack"] for p in non_multiple["seats"]]
     sitngo_chip_rules.color_up(non_multiple, 25_000)
-    require([p["stack"] for p in non_multiple["seats"]] == [25_000, 25_000], "10k -> 25k color-up failed")
+    require(
+        [p["stack"] for p in non_multiple["seats"]] == before_non_multiple,
+        "online denomination request redistributed tournament chips",
+    )
+
 
     # Normal raises are denomination-locked; all-in/call remain engine-driven.
     action = engine.blank_table_state(
@@ -147,14 +142,14 @@ def main():
         "status": "running",
     }
     engine.start_hand(action)
-    require(action["chip_unit"] == 500, "custom structure did not derive 500 chip unit")
+    require(action["chip_unit"] == 100, "custom structure must keep exact 100-point accounting")
     actor = next(p for p in action["seats"] if p["seat"] == action["hand"]["action_seat"])
     try:
         engine.apply_action(action, actor["user_id"], "raise", 2_250)
     except ValueError as exc:
-        require("500" in str(exc), "invalid-unit raise returned the wrong error")
+        require("100" in str(exc), "invalid-unit raise returned the wrong error")
     else:
-        raise AssertionError("sub-denomination raise was accepted")
+        raise AssertionError("sub-100-point raise was accepted")
 
     # Two-way tied pot with a 5k odd chip: never create 2,500/50/1-point chips.
     split = tournament_state(engine, [10_000, 5_000], unit=5_000, contributions=[5_000, 5_000], ante=5_000, button=0)

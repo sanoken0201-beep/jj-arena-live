@@ -195,6 +195,13 @@ class SitNGoService:
                             if hasattr(self, 'runtime'):
                                 busy = con.execute("SELECT id FROM sitngo_events WHERE status='running' AND id<>? LIMIT 1", (event_id,)).fetchone()
                                 if busy:
+                                    if status != "starting":
+                                        stamp = _iso(now)
+                                        con.execute(
+                                            "UPDATE sitngo_events SET status='starting',updated_at=? WHERE id=?",
+                                            (stamp, event_id),
+                                        )
+                                        changed.append(event_id)
                                     continue
                                 self.runtime.create(con, event, list(zip(participants, seats)), now)
                             for user_id, seat in zip(participants, seats):
@@ -289,9 +296,18 @@ class SitNGoService:
         now = _iso(_utcnow())
         with self.db.connect() as con:
             row = con.execute(
-                """SELECT * FROM sitngo_events
-                   WHERE status IN ('scheduled','registration_open','starting','running')
-                   ORDER BY CASE WHEN status='running' THEN 0 ELSE 1 END,starts_at ASC,id ASC LIMIT 1"""
+                """SELECT e.* FROM sitngo_events e
+                   LEFT JOIN sitngo_registrations r
+                     ON r.event_id=e.id AND r.user_id=? AND r.status<>'cancelled'
+                   WHERE e.status IN ('scheduled','registration_open','starting','running')
+                   ORDER BY CASE
+                     WHEN r.user_id IS NOT NULL AND e.status='running' THEN 0
+                     WHEN r.user_id IS NOT NULL AND e.status='starting' THEN 1
+                     WHEN e.status='running' THEN 2
+                     WHEN r.user_id IS NOT NULL THEN 3
+                     ELSE 4
+                   END,e.starts_at ASC,e.id ASC LIMIT 1""",
+                (user_id,),
             ).fetchone()
             if not row:
                 row = con.execute(

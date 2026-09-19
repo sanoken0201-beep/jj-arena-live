@@ -73,7 +73,7 @@ def main() -> None:
         admin = con.execute("SELECT id FROM users WHERE role='admin' ORDER BY id LIMIT 1").fetchone()
     require(admin is not None, "isolated test admin was not created")
     admin_id = int(admin["id"])
-    members = [add_member(i) for i in range(1, 8)]
+    members = [add_member(i) for i in range(1, 9)]
 
     now = datetime.now(timezone.utc)
     starts = now + timedelta(minutes=30)
@@ -122,6 +122,29 @@ def main() -> None:
     require(table_state["tournament"]["bb_ante"] == 400, "level 1 BBA must apply to the first hand")
     require(sum(p["stack"] + p["contributed"] for p in table_state["seats"]) + table_state.get("_ante_paid", 0) == 6 * 30_000, "30k chip conservation failed at launch")
 
+    # A second event reaching its scheduled time while the single Sit&Go table
+    # is occupied must freeze its roster, report "starting", and remain visible
+    # to a registered player who is not in the currently running event.
+    queued_start = starts + timedelta(minutes=5)
+    queued = service.create_event(
+        sitngo.SitNGoCreateIn(name="Queued behind running Sit&Go", starts_at=queued_start.isoformat()),
+        admin_id,
+    )
+    with patch.object(sitngo, "_utcnow", return_value=registration_moment(queued)):
+        service.register(queued["id"], members[2])
+        service.register(queued["id"], members[7])
+    service.reconcile(queued_start + timedelta(seconds=1))
+    queued_row = service._row(queued["id"])
+    require(queued_row["status"] == "starting", "busy Sit&Go must move due event to starting")
+    require(
+        service.next_event(members[2])["event"]["id"] == queued["id"],
+        "registered queued player must keep seeing the due Sit&Go",
+    )
+    require(
+        service.next_event(members[2])["event"]["status"] == "starting",
+        "queued Sit&Go visibility lost starting status",
+    )
+
     # This test intentionally launches several events in one isolated database.
     # Advance the first tournament past the single-running-Sit&Go guard before
     # verifying the next event's start/lock lifecycle.
@@ -129,6 +152,13 @@ def main() -> None:
         con.execute(
             "UPDATE sitngo_events SET status='finished',updated_at=? WHERE id=?",
             (db.utcnow(), event["id"]),
+        )
+    service.reconcile(queued_start + timedelta(seconds=2))
+    require(service._row(queued["id"])["status"] == "running", "queued Sit&Go did not start after table became free")
+    with db.connect() as con:
+        con.execute(
+            "UPDATE sitngo_events SET status='finished',updated_at=? WHERE id=?",
+            (db.utcnow(), queued["id"]),
         )
 
     short_start = now + timedelta(minutes=40)

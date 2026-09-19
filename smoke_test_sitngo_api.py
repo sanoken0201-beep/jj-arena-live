@@ -39,6 +39,8 @@ def main():
     assert client.post('/api/tables/jj-table-a/join',json={}).status_code==400
     assert client.post(f'/api/tables/{eid}/chat',json={'body':'大会チャット'}).status_code==200
     assert client.get('/api/tables/'+eid).json()['messages'][0]['body']=='大会チャット'
+    login(users[2])
+    assert client.post(f'/api/tables/{eid}/chat',json={'body':'観戦者書き込み'}).status_code==403
     actor=next(p for p in state['seats'] if p['seat']==state['hand']['action_seat'])['user_id']
     login(actor)
     body={'action':'fold','action_id':'sng-api-idempotent-1','hand_id':state['hand']['id'],'turn_id':state['turn_id']}

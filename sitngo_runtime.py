@@ -264,6 +264,12 @@ class TournamentRuntime:
             body=payload.body.strip()
             if not body: raise HTTPException(400,'メッセージを入力してください')
             with self.db.connect() as con:
+                participant=con.execute(
+                    "SELECT status FROM sitngo_registrations WHERE event_id=? AND user_id=? AND status IN ('active','finished')",
+                    (table_id,user['id']),
+                ).fetchone()
+                if not participant and str(user.get('role') or '') != 'admin':
+                    raise HTTPException(403,'大会チャットは参加者のみ送信できます')
                 con.execute('INSERT INTO sitngo_messages(id,event_id,user_id,author_name,body,created_at) VALUES (?,?,?,?,?,?)',
                     (uuid.uuid4().hex,table_id,user['id'],user['name'],body,self.db.utcnow()))
             await s.hub.broadcast(table_id)
