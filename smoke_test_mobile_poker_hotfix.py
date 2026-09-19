@@ -39,6 +39,8 @@ assert 'request.url.query == "v=' in server
 assert "?v=" in index
 assert "jj-arena-live-v" in sw
 
-for filename in ("mobile_poker_hotfix.py", "v52_patch.py", "v52_post_patch.py", "v53_patch.py", "v54_patch.py", "v55_patch.py", "v55_post_patch.py", "runtime_builder.py"):
-    py_compile.compile(str(ROOT / filename), doraise=True)
+# The behavioral contract is preserved in the immutable v1.24.4 snapshot. The
+# regression must not keep historical patch modules alive merely by compiling
+# them; only the compatibility snapshot builder is a current dependency.
+py_compile.compile(str(ROOT / "runtime_builder.py"), doraise=True)
 print("MOBILE_POKER_HOTFIX_SMOKE_OK")
