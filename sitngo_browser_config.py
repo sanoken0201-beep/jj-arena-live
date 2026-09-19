@@ -174,17 +174,17 @@ def install() -> None:
         source = ui._APP_PATCH
         source = source.replace(
             "<span>無料 · 賞品なし</span>",
-            "<span>${Number(event.entry_fee_points||0)>0?\`参加 ${fmt(event.entry_fee_points)}pt\`:'参加無料'}</span><span>${Number(event.entry_fee_points||0)>0?'5人以下1位総取り · 6人時1位70%/2位残余':'賞金ポイントなし'}</span>",
+            "<span>${Number(event.entry_fee_points||0)>0?`参加 ${fmt(event.entry_fee_points)}pt`:'参加無料'}</span><span>${Number(event.entry_fee_points||0)>0?'5人以下1位総取り · 6人時1位70%/2位残余':'賞金ポイントなし'}</span>",
             1,
         )
         source = source.replace(
-            "else if(registered&&event.can_cancel_registration)action=\`<div class=\"jj-sng-reg\"><span>参加登録済み · 受付順 #${event.registration_order||'—'}</span>",
-            "else if(registered&&event.can_cancel_registration)action=\`<div class=\"jj-sng-reg\"><span>参加登録済み · 受付順 #${event.registration_order||'—'}${Number(event.entry_fee_points||0)>0?\` · 支払済 ${fmt(event.entry_fee_points)}pt\`:''}</span>",
+            "else if(registered&&event.can_cancel_registration)action=`<div class=\"jj-sng-reg\"><span>参加登録済み · 受付順 #${event.registration_order||'—'}</span>",
+            "else if(registered&&event.can_cancel_registration)action=`<div class=\"jj-sng-reg\"><span>参加登録済み · 受付順 #${event.registration_order||'—'}${Number(event.entry_fee_points||0)>0?` · 支払済 ${fmt(event.entry_fee_points)}pt`:''}</span>",
             1,
         )
         source = source.replace(
-            "else if(event.can_register)action=\`<button type=\"button\" class=\"primary jj-sng-register\" data-sng-register=\"${safe(event.id)}\">参加する</button>\`;",
-            "else if(event.registration_block_reason==='insufficient_points')action=\`<button type=\"button\" class=\"soft jj-sng-register\" disabled>ポイント不足 · 残高 ${fmt(event.point_balance||0)}pt</button>\`;else if(event.registration_block_reason==='point_identity')action='<button type=\"button\" class=\"soft jj-sng-register\" disabled>ポイント紐付けを確認してください</button>';else if(event.can_register)action=\`<button type=\"button\" class=\"primary jj-sng-register\" data-sng-register=\"${safe(event.id)}\">参加する${Number(event.entry_fee_points||0)>0?\` · ${fmt(event.entry_fee_points)}pt\`:''}</button>\`;",
+            "else if(event.can_register)action=`<button type=\"button\" class=\"primary jj-sng-register\" data-sng-register=\"${safe(event.id)}\">参加する</button>`;",
+            "else if(event.registration_block_reason==='insufficient_points')action=`<button type=\"button\" class=\"soft jj-sng-register\" disabled>ポイント不足 · 残高 ${fmt(event.point_balance||0)}pt</button>`;else if(event.registration_block_reason==='point_identity')action='<button type=\"button\" class=\"soft jj-sng-register\" disabled>ポイント紐付けを確認してください</button>';else if(event.can_register)action=`<button type=\"button\" class=\"primary jj-sng-register\" data-sng-register=\"${safe(event.id)}\">参加する${Number(event.entry_fee_points||0)>0?` · ${fmt(event.entry_fee_points)}pt`:''}</button>`;",
             1,
         )
         source = source.replace(
@@ -197,13 +197,13 @@ def install() -> None:
 
         gameplay = ui._GAMEPLAY_PATCH
         gameplay = gameplay.replace(
-            ":'無料大会 · 再参加なし'}</span>\`;",
-            ":\`参加 ${fmt(t.entry_fee||0)}pt · 賞金 ${fmt(t.prize_points||0)}pt · 再参加なし\`}</span>\`;",
+            ":'無料大会 · 再参加なし'}</span>`;",
+            ":`参加 ${fmt(t.entry_fee||0)}pt · 賞金 ${fmt(t.prize_points||0)}pt · 再参加なし`}</span>`;",
             1,
         )
         gameplay = gameplay.replace(
-            "${t.results.map(x=>\`<span>${x.place}位 · ${safe(x.name)}</span>\`).join('')}<small>無料大会 · ポイントの増減なし</small>",
-            "${t.results.map(x=>\`<span>${x.place}位 · ${safe(x.name)}${Number(x.prize_points||0)>0?\` · +${fmt(x.prize_points)}pt\`:''}</span>\`).join('')}<small>賞金プール ${fmt(t.prize_points||0)}pt</small>",
+            "${t.results.map(x=>`<span>${x.place}位 · ${safe(x.name)}</span>`).join('')}<small>無料大会 · ポイントの増減なし</small>",
+            "${t.results.map(x=>`<span>${x.place}位 · ${safe(x.name)}${Number(x.prize_points||0)>0?` · +${fmt(x.prize_points)}pt`:''}</span>`).join('')}<small>賞金プール ${fmt(t.prize_points||0)}pt</small>",
             1,
         )
         ui._GAMEPLAY_PATCH = gameplay
