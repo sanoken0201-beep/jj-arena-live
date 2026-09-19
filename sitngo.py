@@ -195,6 +195,15 @@ class SitNGoService:
                             if hasattr(self, 'runtime'):
                                 busy = con.execute("SELECT id FROM sitngo_events WHERE status='running' AND id<>? LIMIT 1", (event_id,)).fetchone()
                                 if busy:
+                                    # Preserve the single-running-Sit&Go contract, but make
+                                    # the overdue event's wait state explicit to players/admins.
+                                    if status != "starting":
+                                        stamp = _iso(now)
+                                        con.execute(
+                                            "UPDATE sitngo_events SET status='starting',updated_at=? WHERE id=?",
+                                            (stamp, event_id),
+                                        )
+                                        changed.append(event_id)
                                     continue
                                 self.runtime.create(con, event, list(zip(participants, seats)), now)
                             for user_id, seat in zip(participants, seats):
@@ -300,8 +309,25 @@ class SitNGoService:
                 ).fetchone()
         with self.db.connect() as con:
             recent = con.execute("SELECT * FROM sitngo_events WHERE status='finished' ORDER BY updated_at DESC LIMIT 5").fetchall()
-        return {"event": self._event_payload(dict(row), user_id) if row else None, "structure": BLIND_STRUCTURE,
-                "recent": [self._event_payload(dict(r), user_id) for r in recent]}
+        event = self._event_payload(dict(row), user_id) if row else None
+        upcoming = None
+        if event and event.get("status") == "running":
+            with self.db.connect() as con:
+                next_row = con.execute(
+                    """SELECT * FROM sitngo_events
+                       WHERE status IN ('scheduled','registration_open','starting')
+                         AND id<>?
+                       ORDER BY starts_at ASC,id ASC LIMIT 1""",
+                    (event["id"],),
+                ).fetchone()
+            if next_row:
+                upcoming = self._event_payload(dict(next_row), user_id)
+        return {
+            "event": event,
+            "upcoming": upcoming,
+            "structure": BLIND_STRUCTURE,
+            "recent": [self._event_payload(dict(r), user_id) for r in recent],
+        }
 
     def admin_events(self, actor_id: int) -> dict:
         self.reconcile()
