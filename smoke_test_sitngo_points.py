@@ -236,7 +236,8 @@ def main() -> None:
         kinds = {
             str(row["kind"])
             for row in con.execute(
-                "SELECT DISTINCT kind FROM point_ledger WHERE kind LIKE 'sitngo_%'"
+                "SELECT DISTINCT kind FROM point_ledger WHERE kind IN (?,?,?)",
+                (sitngo_points.ENTRY_KIND, sitngo_points.REFUND_KIND, sitngo_points.PRIZE_KIND),
             ).fetchall()
         }
     require(
