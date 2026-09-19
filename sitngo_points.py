@@ -477,6 +477,7 @@ def install(sitngo_module, runtime_module) -> None:
 
     original_ensure_schema = service_cls._ensure_schema
     original_payload = service_cls._event_payload
+    original_admin_events = service_cls.admin_events
     original_reconcile = service_cls.reconcile
     original_cancel_event = service_cls.cancel_event
     original_save = runtime_cls.save
@@ -559,6 +560,17 @@ def install(sitngo_module, runtime_module) -> None:
         if admin or payload.get("status") in {"running", "finished"}:
             payload["point_summary"] = _point_summary(self, str(row["id"]))
         return payload
+
+    def admin_events(self, actor_id: int):
+        result = original_admin_events(self, actor_id)
+        result.setdefault("defaults", {})["entry_fee_points"] = 0
+        result["defaults"]["payout_policy"] = {
+            "five_or_fewer": "winner_take_all",
+            "six_first_percent": SIX_PLAYER_FIRST_PERCENT,
+            "six_second": "remainder",
+            "tie_rule": "split_occupied_prize_slots",
+        }
+        return result
 
     def register(self, event_id: str, user_id: int):
         if hasattr(self, "runtime") and self.runtime.ring_seated(user_id):
@@ -738,6 +750,7 @@ def install(sitngo_module, runtime_module) -> None:
 
     service_cls._ensure_schema = ensure_schema
     service_cls._event_payload = event_payload
+    service_cls.admin_events = admin_events
     service_cls.register = register
     service_cls.cancel_registration = cancel_registration
     service_cls.reconcile = reconcile
