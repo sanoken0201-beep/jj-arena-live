@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
+from pathlib import Path
 from unittest.mock import patch
 import uuid
 
@@ -131,9 +132,30 @@ def main() -> None:
     before = balance(users[0])
     register_at_window(service, event, users[0])
     require(balance(users[0]) == before - Decimal("400.00"), "entry debit missing")
+    with patch.object(sitngo, "_utcnow", return_value=registration_moment(event) + timedelta(seconds=2)):
+        try:
+            service.register(event["id"], users[0])
+        except HTTPException as exc:
+            require(exc.status_code == 409, "duplicate registration must be rejected")
+        else:
+            raise AssertionError("duplicate registration succeeded")
+    with db.connect() as con:
+        active_debits = con.execute(
+            "SELECT COUNT(*) n FROM sitngo_point_entries WHERE event_id=? AND user_id=? AND refund_tx_id IS NULL",
+            (event["id"], users[0]),
+        ).fetchone()
+    require(int(active_debits["n"] or 0) == 1, "duplicate registration created a second entry debit")
     with patch.object(sitngo, "_utcnow", return_value=registration_moment(event) + timedelta(seconds=5)):
         service.cancel_registration(event["id"], users[0])
     require(balance(users[0]) == before, "registration cancellation did not refund")
+    with patch.object(sitngo, "_utcnow", return_value=registration_moment(event) + timedelta(seconds=6)):
+        try:
+            service.cancel_registration(event["id"], users[0])
+        except HTTPException as exc:
+            require(exc.status_code == 400, "second cancellation must be rejected")
+        else:
+            raise AssertionError("second cancellation succeeded")
+    require(balance(users[0]) == before, "duplicate cancellation created a second refund")
     register_at_window(service, event, users[0])
     require(balance(users[0]) == before - Decimal("400.00"), "re-registration did not create a new debit")
     with db.connect() as con:
@@ -175,6 +197,8 @@ def main() -> None:
     service.reconcile(datetime.fromisoformat(auto["starts_at"]) + timedelta(seconds=1))
     require(service._row(auto["id"])["status"] == "cancelled", "one-player event did not cancel")
     require(balance(users[1]) == before_auto, "auto-cancel did not refund entry")
+    service.reconcile(datetime.fromisoformat(auto["starts_at"]) + timedelta(seconds=2))
+    require(balance(users[1]) == before_auto, "reconcile replay created a second auto-cancel refund")
 
     # <=5 entrants: the full pool goes to first place, exactly once.
     three = create_event(service, admin_id, "Three player payout", now + timedelta(minutes=55), 400)
@@ -244,6 +268,16 @@ def main() -> None:
         {sitngo_points.ENTRY_KIND, sitngo_points.REFUND_KIND, sitngo_points.PRIZE_KIND}.issubset(kinds),
         f"Sit&Go ledger kinds missing: {kinds}",
     )
+
+    # Build-time player/admin UI must expose the financial contract instead of
+    # silently retaining the former "free/no prize" copy.
+    js = production_app._patched_app_js()
+    require("jj sng point settlement ui 2026-09-20" in js, "player point UI marker missing")
+    require("registration_block_reason==='insufficient_points'" in js, "player insufficient-balance UI missing")
+    require("参加ポイントは登録時に徴収" in js, "player debit/refund explanation missing")
+    admin_js = Path("admin_static/admin_sitngo.js").read_text(encoding="utf-8")
+    require('id="sngEntryFee"' in admin_js, "admin entry-fee control missing")
+    require("1位70%・2位残余" in admin_js, "admin six-player payout policy missing")
 
     print("JJ_SITNGO_POINTS_OK")
 
