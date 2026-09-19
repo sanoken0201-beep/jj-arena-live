@@ -5,7 +5,7 @@ compiler remains usable in lightweight CI jobs that do not install FastAPI.
 """
 from __future__ import annotations
 
-CACHE_QUERY = "sngcfg=turn-safety-20260918-1"
+CACHE_QUERY = "sngcfg=audit-hardening-20260919-1"
 CHIP_UI_MARKER = "jj sitngo chip unit ui 2026-09-18"
 HAND_LEVEL_UI_MARKER = "jj sng 12-hand levels 2026-09-18"
 TURN_UI_MARKER = "jj sng turn safety 2026-09-18"

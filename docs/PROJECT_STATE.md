@@ -1,6 +1,6 @@
 # JJ Arena — Canonical Project State
 
-Updated: 2026-09-17
+Updated: 2026-09-19
 Snapshot basis: `main` at `5d7542589e78c1d0e16717cffad4893a502973b2`
 
 This file is the **human/AI handoff source of truth for the current project state**. It exists so long ChatGPT development chats can be replaced without losing critical context.
@@ -122,7 +122,9 @@ Performance work must not trade away action correctness, timing correctness, car
 
 Sit&Go is a dedicated root-level subsystem (`sitngo.py`, `sitngo_runtime.py`, `sitngo_ui.py`) with its own persistence and tests.
 
-Current committed gameplay documentation describes a scheduled 2–6 player freezeout using 10,000 tournament chips, 10-minute blind levels and big-blind ante. Tournament chips are isolated from Ring settlement.
+Current Sit&Go is a scheduled 2–6 player strict freezeout with no late registration or re-entry. Tournament chips are isolated from Ring settlement. Starting stack and the SB/BB/BBA structure are event-owned and admin-editable before start; the current default stack is 30,000. New tournaments advance blinds after every 12 completed hands rather than by elapsed time. Tournament-specific handling includes dead-button movement, the 3-handed to heads-up transition, BB-first BBA, TDA-style simultaneous-elimination ranking, denomination-safe side-pot/odd-chip settlement, and action/hand/turn tokens for stale-action protection.
+
+Only one Sit&Go starts at a time. If another event reaches its scheduled start while a tournament is running, it enters an explicit start-wait state and begins after the running event finishes. The lobby keeps the running event visible while also exposing the next registration event. A registered or active Sit&Go participant reserves table membership and cannot newly sit in Ring until that reservation ends.
 
 **Important implementation-status distinction:** the current committed implementation still reports `entry_fee=0` and `prize_points=0`. Point-funded Sit&Go entry/prizes are therefore a **pending product change, not current production truth**.
 
