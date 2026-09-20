@@ -81,29 +81,33 @@ def ensure_schema(db) -> None:
         )
 
 
+def _backup_with_connection(db, con, state: dict[str, Any]) -> None:
+    event_id = str(state.get("id") or "")
+    revision = int(state.get("_revision"))
+    _validate_state(event_id, state, revision)
+    raw = _state_json(state)
+    digest = _semantic_digest(state)
+    con.execute(
+        """INSERT INTO sitngo_state_backups(
+            id,event_id,revision,state_json,state_sha256,created_at
+        ) VALUES (?,?,?,?,?,?)
+        ON CONFLICT(event_id,state_sha256) DO NOTHING""",
+        ("sngb-" + uuid.uuid4().hex, event_id, revision, raw, digest, db.utcnow()),
+    )
+    rows = con.execute(
+        "SELECT id FROM sitngo_state_backups "
+        "WHERE event_id=? ORDER BY revision DESC,created_at DESC,id DESC",
+        (event_id,),
+    ).fetchall()
+    for row in rows[KEEP_PER_EVENT:]:
+        con.execute("DELETE FROM sitngo_state_backups WHERE id=?", (row["id"],))
+
+
 def backup_state(db, state: dict[str, Any]) -> bool:
     """Persist one meaningful snapshot without ever blocking gameplay."""
     try:
-        event_id = str(state.get("id") or "")
-        revision = int(state.get("_revision"))
-        _validate_state(event_id, state, revision)
-        raw = _state_json(state)
-        digest = _semantic_digest(state)
         with db.connect() as con:
-            con.execute(
-                """INSERT INTO sitngo_state_backups(
-                    id,event_id,revision,state_json,state_sha256,created_at
-                ) VALUES (?,?,?,?,?,?)
-                ON CONFLICT(event_id,state_sha256) DO NOTHING""",
-                ("sngb-" + uuid.uuid4().hex, event_id, revision, raw, digest, db.utcnow()),
-            )
-            rows = con.execute(
-                "SELECT id FROM sitngo_state_backups "
-                "WHERE event_id=? ORDER BY revision DESC,created_at DESC,id DESC",
-                (event_id,),
-            ).fetchall()
-            for row in rows[KEEP_PER_EVENT:]:
-                con.execute("DELETE FROM sitngo_state_backups WHERE id=?", (row["id"],))
+            _backup_with_connection(db, con, state)
         return True
     except Exception as exc:
         try:
@@ -121,6 +125,8 @@ def backup_state(db, state: dict[str, Any]) -> bool:
 
 def restore_latest(db, event_id: str) -> dict[str, Any]:
     """Restore the newest valid same-event snapshot or fail closed."""
+    restored = None
+    restored_revision = None
     with db.connect() as con:
         current = con.execute(
             "SELECT revision FROM sitngo_games WHERE event_id=?",
@@ -153,19 +159,23 @@ def restore_latest(db, event_id: str) -> dict[str, Any]:
             )
             if updated.rowcount != 1:
                 raise HTTPException(409, "大会の状態が更新されました。再接続してください")
-            try:
-                import resilience
+            restored = state
+            restored_revision = int(row["revision"])
+            break
+    if restored is None:
+        raise RuntimeError("Sit&Go current state is corrupt and no valid backup exists")
+    try:
+        import resilience
 
-                resilience.record_error(
-                    db,
-                    "sitngo_state_auto_restore",
-                    f"restored revision {int(row['revision'])}",
-                    path=event_id,
-                )
-            except Exception:
-                pass
-            return state
-    raise RuntimeError("Sit&Go current state is corrupt and no valid backup exists")
+        resilience.record_error(
+            db,
+            "sitngo_state_auto_restore",
+            f"restored revision {restored_revision}",
+            path=event_id,
+        )
+    except Exception:
+        pass
+    return restored
 
 
 def install(runtime_module) -> None:
@@ -192,7 +202,7 @@ def install(runtime_module) -> None:
             if row:
                 state = json.loads(row["state_json"])
                 _validate_state(str(event["id"]), state, int(row["revision"]))
-                backup_state(self.db, state)
+                _backup_with_connection(self.db, con, state)
         except Exception as exc:
             try:
                 import resilience
