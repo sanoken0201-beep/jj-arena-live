@@ -28,16 +28,20 @@ import sitngo_asset_cache
 import sitngo_chip_rules
 import sitngo_runtime
 import sitngo_tournament_rules
+import sitngo_process_guard
+import sitngo_resilience
 import read_efficiency
 
 # Configure the root-level Sit&Go extension before browser transforms bind the
 # Sit&Go UI functions and before the service installs its FastAPI routes. The
 # tournament rules must wrap the isolated engine first; denomination/chip rules
 # then wrap that tournament hand starter without touching the ring engine.
+sitngo_process_guard.require_single_worker()
 sitngo_admin_config.install(sitngo)
 sitngo_tournament_rules.install(sitngo_runtime)
 sitngo_chip_rules.install(sitngo_runtime)
 sitngo_asset_cache.install()
+sitngo_resilience.install(sitngo_runtime)
 
 from served_assets import (
     ASSET_VERSION,
