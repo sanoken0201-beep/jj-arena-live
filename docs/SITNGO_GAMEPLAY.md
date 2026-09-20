@@ -132,6 +132,20 @@ identity, tournament/event ID, hand ID, cards, chip amounts, network identifiers
 session identifiers or free text are stored. Telemetry failure is non-blocking and
 cannot change gameplay or settlement.
 
+A DB-backed alert outbox converts only abnormal aggregate counters into operational
+alerts. Thresholds are per UTC day: restart recovery 1, timeout-boundary protection 3,
+stale hand 5, stale turn 5, late action 10, missing tokens 10 and duplicate action 20.
+A metric produces at most one alert row per UTC day; its observed count continues to
+update after the threshold. Normal unattended `timeout_auto_action` is deliberately
+excluded because registered-but-absent players timing out is valid tournament behavior.
+
+External delivery is optional through `JJ_SITNGO_ALERT_WEBHOOK_URL`. Delivery runs
+on a separate background loop, never on the player action path. Webhook failures keep
+the alert pending and retry with bounded exponential backoff. The payload contains
+only source/type/severity/metric/day/count/threshold plus generated alert text; no
+player/tournament/hand/card/chip/network/session identifiers or user-entered text are
+included. The webhook URL itself is never returned by the administrator API.
+
 
 ## Operational acceptance
 
