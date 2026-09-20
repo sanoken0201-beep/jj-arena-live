@@ -206,6 +206,7 @@ class SitNGoService:
                                         )
                                         changed.append(event_id)
                                     continue
+                                self.points.assert_escrow(con,event_id,participants)
                                 self.runtime.create(con, event, list(zip(participants, seats)), now)
                             for user_id, seat in zip(participants, seats):
                                 con.execute(
