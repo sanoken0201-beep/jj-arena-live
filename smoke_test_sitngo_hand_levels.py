@@ -7,6 +7,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from unittest.mock import patch
 
+import sitngo_browser_config
 import sitngo_hand_levels
 from smoke_test_sitngo_phase1 import add_member, production_app, registration_moment, sitngo
 
@@ -106,7 +107,7 @@ def main() -> None:
     require("12ハンド" in admin_js, "admin UI does not expose fixed 12-hand progression")
     require('value="12ハンド" disabled' in admin_js, "admin UI still permits per-level minute editing")
     admin_index = (Path(__file__).resolve().parent / "admin_static" / "index.html").read_text(encoding="utf-8")
-    require(sitngo_hand_levels.ADMIN_CACHE_QUERY in admin_index, "admin Sit&Go cache-buster missing")
+    require(sitngo_browser_config.ADMIN_CACHE_QUERY in admin_index, "admin Sit&Go cache-buster missing")
 
     # Leave the shared PostgreSQL CI database ready for the next independent
     # contract test. Production never executes this fixture cleanup.
