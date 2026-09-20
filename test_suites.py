@@ -38,6 +38,8 @@ TEST_SUITES: dict[str, tuple[str, ...]] = {
         "smoke_test_prebuilt_assets.py",
         "smoke_test_pwa_update.py",
         "audit_ui_labels.py",
+        "smoke_test_ux_telemetry.py",
+        "smoke_test_ux_telemetry_followup.py",
     ),
     "runtime_release": (
         "smoke_test_test_ownership.py",
@@ -89,6 +91,8 @@ PRODUCTION_RELEASE_SELECTION: tuple[tuple[str, tuple[str, ...]], ...] = (
         "smoke_test_prebuilt_assets.py",
         "smoke_test_pwa_update.py",
         "audit_ui_labels.py",
+        "smoke_test_ux_telemetry.py",
+        "smoke_test_ux_telemetry_followup.py",
     )),
     ("auth_security", (
         "smoke_test_public_proxy_security.py",
