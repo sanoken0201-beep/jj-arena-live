@@ -159,3 +159,18 @@ When the administrator Sit&Go view is open, its existing 15-second refresh cycle
 updates the alert banner automatically and raises an in-console toast when a new
 warning/critical signature appears. This stage does not send data to LINE, Slack,
 email or any other external notification provider.
+
+
+## Compatibility metadata and browser ownership
+
+Blind progression is hand-count based. The persisted `minutes` value remains only for
+schema/rollback compatibility. New create/update API writes normalize every level to
+`minutes=10` even if a stale or direct client submits another 1–60 value. Historical
+persisted values are still accepted when reading old events; they never select the
+active blind level.
+
+Player Sit&Go browser behavior has one build-time owner: `sitngo_browser_config.py`.
+Standalone `served_assets` builds install that contract before binding the Sit&Go
+transform functions, so the output does not depend on importing `app.py` first.
+The administrator Sit&Go JavaScript/HTML is committed directly under `admin_static/`;
+application startup must not rewrite those files.
