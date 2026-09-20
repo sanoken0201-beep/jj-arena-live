@@ -88,8 +88,13 @@ def transform_app_js(source: str) -> str:
     )
     source = _replace_once(
         source,
-        "}catch(err){toast(err.message)}finally{jjV121ActionPending=false}",
-        "}catch(err){jjV73ActionRejected();toast(err.message)}finally{jjV121ActionPending=false}",
+        """    }catch(err){
+      toast(err.message);
+      if(currentTableId===tableId){""",
+        """    }catch(err){
+      jjV73ActionRejected();
+      toast(err.message);
+      if(currentTableId===tableId){""",
         "betting rejection",
     )
     source = _replace_once(
