@@ -162,3 +162,13 @@ The production rake audit keeps all-time `hand_conservation_or_completeness` and
 
 The operational `status` and `current_anomaly_total` must be computed from current-period and structural checks only. Known legacy defects remain visible in the report but must not independently mark the corrected current system unhealthy. The audit remains read-only and does not rewrite historical data.
 
+## D-017 — Sit&Go anomaly alerts use a non-blocking privacy-preserving outbox
+
+**Date:** 2026-09-21  
+**Status:** Accepted
+
+Sit&Go operational alerts are derived only from the aggregate safety telemetry defined in D-014. Alerting must never place external network I/O on the player action, timeout or settlement path. Threshold crossing writes a DB-backed outbox row; a separate background loop may deliver pending rows to the optional `JJ_SITNGO_ALERT_WEBHOOK_URL`.
+
+Alert payloads contain only generated operational metadata: source/type, severity, metric, UTC day, observed count and threshold. They do not contain user/account identity, tournament/table/hand IDs, cards, chip/bet amounts, IP/user agent, session identifiers or user-entered text. The configured webhook URL is secret configuration and is never returned through the admin API.
+
+Normal automatic timeout actions are not anomalies because registered players are intentionally allowed to remain absent while blinds/BBA and timeout check/fold continue. Therefore `timeout_auto_action` is observable but does not page operators. Other safety metrics use explicit daily thresholds and at most one alert per metric/day. Failed webhook delivery remains retryable with bounded backoff and cannot change gameplay.
