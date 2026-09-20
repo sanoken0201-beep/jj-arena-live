@@ -60,8 +60,8 @@ class TournamentPoints:
 
     def payouts(self,con,eid):
         row=con.execute('SELECT payouts_json FROM sitngo_payout_settings WHERE event_id=?',(eid,)).fetchone()
-        raw=json.loads(row['payouts_json']) if row else default_payouts()
         try:
+            raw=json.loads(row['payouts_json']) if row else default_payouts()
             checked=validate_payouts(raw)
         except (ValueError,TypeError,json.JSONDecodeError) as exc:
             raise RuntimeError('Sit&Go payout configuration is invalid; tournament start/settlement refused') from exc
