@@ -200,8 +200,28 @@ def main() -> None:
         admin_id,
     )
     require(editable["starting_stack"] == 45_000, "custom starting stack was not persisted")
-    require([x["minutes"] for x in editable["structure"]] == [8, 12, 15], "legacy custom level-duration metadata was not persisted")
-    require(editable["prepared_minutes"] == 35 and editable["target_minutes"] == 35, "legacy custom timing metadata must derive from structure")
+    require([x["minutes"] for x in editable["structure"]] == [10, 10, 10], "new API minute input must normalize to compatibility metadata")
+    require(editable["prepared_minutes"] == 30 and editable["target_minutes"] == 30, "new compatibility timing metadata must derive from canonical 10-minute placeholders")
+
+    # Persisted pre-12-hand rows retain their historical minute metadata for
+    # rollback/parity. A stack-only edit must not rewrite that compatibility data.
+    legacy_levels = [
+        {"level": i + 1, **level}
+        for i, level in enumerate(custom_structure)
+    ]
+    with db.connect() as con:
+        con.execute(
+            "UPDATE sitngo_events SET structure_json=?,level_minutes=?,target_minutes=?,prepared_minutes=? WHERE id=?",
+            (json.dumps(legacy_levels, ensure_ascii=False, separators=(",", ":")), 8, 35, 35, editable["id"]),
+        )
+    legacy_view = service._event_payload(service._row(editable["id"]), admin_id, admin=True)
+    require([x["minutes"] for x in legacy_view["structure"]] == [8, 12, 15], "stored legacy minute metadata was not preserved")
+    stack_only = service.update_event(
+        editable["id"],
+        sitngo.SitNGoUpdateIn(starting_stack=46_000),
+        admin_id,
+    )
+    require([x["minutes"] for x in stack_only["structure"]] == [8, 12, 15], "stack-only edit rewrote legacy minute metadata")
     moved = editable_start + timedelta(minutes=20)
     edited_structure = [
         {"small_blind": 400, "big_blind": 800, "bb_ante": 800, "minutes": 7},
@@ -215,6 +235,8 @@ def main() -> None:
     require(edited["name"] == "Edited Sit&Go", "admin rename failed")
     require(abs((datetime.fromisoformat(edited["starts_at"]) - moved).total_seconds()) < 1, "admin reschedule failed")
     require(edited["starting_stack"] == 50_000 and edited["structure"][0]["big_blind"] == 800, "admin tournament settings update failed")
+    require([x["minutes"] for x in edited["structure"]] == [10, 10], "submitted update minutes must normalize to compatibility metadata")
+    require(edited["prepared_minutes"] == 20 and edited["target_minutes"] == 20, "updated compatibility timing metadata drift")
     require(edited["config_editable"], "pre-start event must report editable configuration")
 
     with patch.object(sitngo, "_utcnow", return_value=registration_moment(edited)):
