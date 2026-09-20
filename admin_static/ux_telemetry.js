@@ -2,7 +2,7 @@
   const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
   const safe=v=>String(v??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
   const fmt=n=>new Intl.NumberFormat('ja-JP',{maximumFractionDigits:1}).format(Number(n||0));
-  const labels={fold:'フォールド',check:'チェック',call:'コール',raise:'ベット/レイズ',allin:'オールイン',preset:'プリセット',slider:'スライダー',step:'±0.5BB',input:'直接入力',check_fold:'チェック/フォールド',settings:'設定',focus:'卓を広く表示',history:'ハンド履歴',chat:'チャット',table_open:'卓からレビュー',bookmark:'あとで復習',rejected:'操作拒否',ws_open:'WS再接続',fresh_state:'状態復旧',submit:'準備OK',mobile:'モバイル',tablet:'タブレット',desktop:'デスクトップ',unknown:'不明'};
+  const labels={fold:'フォールド',check:'チェック',call:'コール',raise:'ベット/レイズ',allin:'オールイン',preset:'プリセット',slider:'スライダー',step:'±0.5BB',input:'直接入力',check_fold:'チェック/フォールド',settings:'設定',focus:'卓を広く表示',history:'ハンド履歴',chat:'チャット',table_open:'卓からレビュー',bookmark:'あとで復習',failed:'操作失敗',ws_open:'WS再接続',fresh_state:'状態復旧',submit:'準備OK',mobile:'モバイル',tablet:'タブレット',desktop:'デスクトップ',unknown:'不明'};
   let currentDays=7;
   async function fetchSummary(days){const res=await fetch(`/api/admin/console/ux-telemetry?days=${days}`,{credentials:'include'});if(res.status===401){location.href='/';throw new Error('ログインが必要です')}let data=null;try{data=await res.json()}catch{}if(!res.ok)throw new Error(data?.detail||`HTTP ${res.status}`);return data}
   function ensureUi(){
@@ -21,7 +21,7 @@
         <article class="ux-kpi"><span>接続フォールバック</span><strong id="uxFallbacks">—</strong><small id="uxReconnects">—</small></article>
         <article class="ux-kpi"><span>着席→準備OK</span><strong id="uxReadyP50">—</strong><small id="uxReadyCount">—</small></article>
         <article class="ux-kpi"><span>卓→ハンド復習</span><strong id="uxReviewOpens">—</strong><small id="uxReviewBookmarks">—</small></article>
-        <article class="ux-kpi"><span>サーバー操作拒否</span><strong id="uxActionRejects">—</strong><small>bet/action request</small></article>
+        <article class="ux-kpi"><span>アクション失敗</span><strong id="uxActionRejects">—</strong><small>最終送信が完了しなかった回数</small></article>
       </div>
       <div class="ux-grid">
         <article class="panel"><div class="panel-head"><div><div class="eyebrow">TREND</div><h3>日別プレイ状況</h3></div><span class="ux-live-dot">集計のみ</span></div><div id="uxTrend" class="ux-trend"></div></article>
