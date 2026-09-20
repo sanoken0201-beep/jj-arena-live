@@ -33,6 +33,7 @@ def main():
         assert con.execute('SELECT COUNT(*) n FROM sitngo_registrations WHERE event_id=?',(eid,)).fetchone()['n']==1
         assert service.points.balance(con,uid)==-1001
         assert con.execute("SELECT COUNT(*) n FROM point_ledger WHERE user_id=? AND kind='sitngo_entry'",(uid,)).fetchone()['n']==1
+    assert service.server.seated_table_for_user(uid)==eid
     service.cancel_registration(eid,uid)
     with db.connect() as con:assert service.points.balance(con,uid)==0
     service.register(eid,uid)
