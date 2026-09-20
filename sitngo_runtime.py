@@ -400,7 +400,15 @@ class TournamentRuntime:
             self.recover_legacy()
             while True:
                 self.event.clear()
-                self.service.reconcile()
+                try:
+                    self.service.reconcile()
+                except Exception as exc:
+                    import resilience
+                    import sitngo_observability
+                    resilience.record_error(self.db,'sitngo_reconcile',f'{type(exc).__name__}: {exc}',path='scheduler')
+                    sitngo_observability.record(self.db,'reconcile_error')
+                    await asyncio.sleep(1)
+                    continue
                 with self.db.connect() as con:
                     ids=[r['id'] for r in con.execute("SELECT id FROM sitngo_events WHERE status='running'").fetchall()]
                 due=time.time()+5
@@ -411,7 +419,9 @@ class TournamentRuntime:
                         if value is not None: due=min(due,value)
                     except Exception as exc:
                         import resilience
+                        import sitngo_observability
                         resilience.record_error(self.db,'sitngo_lifecycle',f'{type(exc).__name__}: {exc}',path=eid)
+                        sitngo_observability.record(self.db,'tick_error')
                 # tick() does not signal its own checkpoint. Preserve signals
                 # from actions arriving while a broadcast yielded control.
                 if self.event.is_set():
