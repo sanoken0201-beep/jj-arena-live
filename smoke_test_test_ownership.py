@@ -27,9 +27,12 @@ def main() -> None:
     assert test_owner("smoke_test_runtime_builder_snapshot.py") == "runtime_release"
     assert test_owner("smoke_test_sitngo_gameplay.py") == "sitngo"
 
-    # Browser-only coverage belongs to a named suite but may not enter Render's
-    # production-dependency release gate.
-    assert BROWSER_ONLY_TESTS <= set(tests_for_group("ring_gameplay"))
+    # Browser-only coverage may belong to any active concern (Ring, Sit&Go,
+    # etc.) but every browser-only test must have one named owner and may not
+    # enter Render's production-dependency release gate.
+    active_files = {filename for group in TEST_SUITES for filename in tests_for_group(group)}
+    assert BROWSER_ONLY_TESTS <= active_files
+    assert test_owner("smoke_test_sitngo_browser.py") == "sitngo"
     release_files = {filename for _, filename in production_release_tests()}
     assert not (BROWSER_ONLY_TESTS & release_files)
 
