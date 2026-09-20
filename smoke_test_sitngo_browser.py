@@ -60,7 +60,7 @@ def main():
                 if route.request.method=='POST':
                     captured.append(route.request.post_data_json)
                     return route.fulfill(json={})
-                return route.fulfill(json={'events':[], 'defaults':None})
+                return route.fulfill(json={'events':[], 'defaults':{'starting_stack':30000,'max_players':6,'min_players':2,'target_minutes':90,'structure':[{'level':1,'small_blind':200,'big_blind':400,'bb_ante':400,'minutes':10}]}})
             if 'admin_sitngo.js' in url:return route.fulfill(content_type='text/javascript',body=Path('admin_static/admin_sitngo.js').read_text())
             if route.request.resource_type=='script':return route.fulfill(body='')
             if route.request.resource_type=='stylesheet':return route.fulfill(body='')
