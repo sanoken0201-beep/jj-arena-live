@@ -1,5 +1,5 @@
 """Transactional tournament escrow and awards, using integer hundredths."""
-from decimal import Decimal, ROUND_HALF_UP
+from decimal import Decimal, ROUND_HALF_UP, InvalidOperation
 import json
 import uuid
 from fastapi import HTTPException
@@ -50,13 +50,52 @@ class TournamentPoints:
 
     def payouts(self,con,eid):
         row=con.execute('SELECT payouts_json FROM sitngo_payout_settings WHERE event_id=?',(eid,)).fetchone()
-        return json.loads(row['payouts_json']) if row else default_payouts()
+        try:
+            raw=json.loads(row['payouts_json']) if row else default_payouts()
+            validated=validate_payouts(raw)
+        except (ValueError,TypeError,json.JSONDecodeError,InvalidOperation) as exc:
+            raise RuntimeError('Sit&Go payout configuration is invalid; tournament start/settlement refused') from exc
+        return {str(n):[str(v) for v in rates] for n,rates in validated.items()}
 
     def configure(self,con,eid,fee,payouts):
         validate_payouts(payouts)
         rates={n:[str(v) for v in r] for n,r in payouts.items()}
         con.execute('INSERT INTO sitngo_terms(event_id,fee_cents) VALUES (?,?) ON CONFLICT(event_id) DO UPDATE SET fee_cents=excluded.fee_cents',(eid,cents(fee)))
         con.execute('INSERT INTO sitngo_payout_settings(event_id,payouts_json) VALUES (?,?) ON CONFLICT(event_id) DO UPDATE SET payouts_json=excluded.payouts_json',(eid,json.dumps(rates)))
+
+    def assert_start_ready(self,con,eid,participants):
+        # Validate locked payout terms before the first card is dealt. A corrupt
+        # persisted configuration must never be discovered only at settlement.
+        self.payouts(con,eid)
+        fee=self.fee(con,eid)
+        expected={int(uid) for uid in participants}
+        rows=con.execute(
+            'SELECT user_id,entry_tx,fee_cents,refunded FROM sitngo_payments WHERE event_id=?',
+            (eid,),
+        ).fetchall()
+        active={int(r['user_id']):r for r in rows if not int(r['refunded'])}
+
+        if fee==0:
+            if active:
+                raise RuntimeError('Free Sit&Go has unexpected active entry escrow; start refused')
+            return
+
+        if set(active)!=expected:
+            raise RuntimeError('Tournament escrow is incomplete; start refused')
+        for uid,row in active.items():
+            if int(row['fee_cents'])!=fee:
+                raise RuntimeError('Tournament escrow fee mismatch; start refused')
+            ledger=con.execute(
+                'SELECT user_id,amount,kind FROM point_ledger WHERE id=?',
+                (row['entry_tx'],),
+            ).fetchone()
+            if (
+                not ledger
+                or int(ledger['user_id'])!=uid
+                or str(ledger['kind'])!='sitngo_entry'
+                or cents(ledger['amount'])!=-fee
+            ):
+                raise RuntimeError('Tournament escrow ledger mismatch; start refused')
 
     def describe(self,eid,count):
         with self.db.connect() as con:

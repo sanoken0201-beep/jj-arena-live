@@ -2,7 +2,7 @@
 
 JJ Poker Club向けの共有Webアプリです。ランキング、公式ポイント、活動予定、学習、管理機能、プレイマネーのリアルタイムNLHを統合しています。
 
-**現金・換金・賭け金機能はありません。** オンライン卓のArena chipsは練習用プレイマネーで、公式JJポイントとは分離されています。
+**現金・換金・賭け金機能はありません。** RingのArena chipsとSit&Goのトーナメントチップはゲーム内専用です。Sit&Goでは参加費・賞金だけを公式JJポイント台帳に連携し、トーナメントチップそのものを公式ポイントや現金へ換算しません。
 
 ## 現在の本番構成
 
@@ -115,6 +115,7 @@ JJ_ADMIN_PIN=<新しい6桁PIN>
 - スマートフォン縦画面向けポーカーUI
 - participant-only hand review
 - privacy-preserving UX telemetry
+- 2〜6人Sit&Go（管理者設定の参加費・配当、登録時point escrow、取消返却、終了時point-ledger賞金精算）
 
 ## 開発環境
 

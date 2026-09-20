@@ -1,6 +1,6 @@
 # JJ Arena — Decision Log
 
-Updated: 2026-09-17
+Updated: 2026-09-20
 
 This file records durable project decisions and the reason behind them. It is not a chronological transcript of every change.
 
@@ -82,21 +82,20 @@ Sit&Go uses dedicated modules and persistence so tournament-specific ante, blind
 
 The Ring renderer and interaction patterns may be reused for UX consistency, but tournament state and cash/practice-chip settlement remain separated.
 
-## D-009 — Pending Sit&Go point-entry payout rule
+## D-009 — Sit&Go entry and prize points use locked ledger escrow
 
-**Date:** 2026-09-17  
-**Status:** Proposed / product requirement, not yet current implementation
+**Date:** 2026-09-20  
+**Status:** Accepted
 
-The intended next point-system integration is:
+Sit&Go entry fees and prizes are part of the official JJ-point ledger, while tournament chips remain isolated gameplay units.
 
-- the administrator chooses the JJ-point entry cost when creating/opening a Sit&Go;
-- for 2–5 entrants, 100% of the collected entry-point pool is paid to 1st place;
-- for 6 entrants, 70% is paid to 1st and 30% to 2nd;
-- settlement must use the official point ledger.
+The administrator chooses the entry fee and field-size payout percentages before registration. Defaults are winner-takes-all for 2–5 entrants and 70% / 30% for 6 entrants. The first registration locks the point terms so participants cannot be charged under one rule and paid under another.
 
-The current committed Sit&Go implementation still reports zero entry fee and zero prize points, so this entry must not be read as evidence that settlement is already live.
+The entry fee is debited at registration as `sitngo_entry` and paired with a `sitngo_payments` escrow record. A pre-start cancellation, administrator cancellation, or minimum-player cancellation returns that exact recorded amount once as `sitngo_refund`; refunds reference the original debit and use a database-level claim for idempotency. Insufficient balances fail before registration commits.
 
-Before implementation is accepted, the following must be decided and tested: registration-time debit versus start-time debit, cancellation refunds, insufficient balance, duplicate settlement/idempotency, fractional-point rounding if any, failure rollback, and what happens if the event starts below the originally expected field size.
+Before the first hand, paid events fail closed unless the registered participant set exactly matches unrefunded escrow, each payment uses the locked fee, and its referenced `sitngo_entry` ledger row matches user and amount. Persisted payout JSON is revalidated at read/start/settlement time. Free events likewise refuse to start if unexpected active escrow exists.
+
+At tournament completion, the entire recorded pool is allocated in integer hundredths and written as `sitngo_prize` rows plus one `sitngo_settlements` record. Settlement is idempotent and re-verifies persisted awards against escrow and prize ledger on replay. Tied places split the occupied prize slots; any indivisible 0.01 pt residual is assigned by randomized seat order, with user ID only as a deterministic fallback. The general admin reversal path cannot reverse tournament accounting rows independently.
 
 ## D-010 — Long ChatGPT chats are expected; continuity is document-driven
 
