@@ -60,7 +60,7 @@ def main():
 
     # A paid tournament must never deal a hand unless every registered entrant
     # has an exact, unrefunded entry debit matching the locked tournament fee.
-    guard_users=[add_member(1200+i) for i in range(2)]
+    guard_users=[add_member(91200+i) for i in range(2)]
     guard_start=datetime.now(timezone.utc)+timedelta(minutes=2)
     guarded=service.create_event(sitngo.SitNGoCreateIn(
         name='Escrow guard',entry_fee='10.01',starts_at=guard_start.isoformat()),admin)['id']
