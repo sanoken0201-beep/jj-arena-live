@@ -23,7 +23,10 @@ EVENT_DETAILS: dict[str, set[str]] = {
     "decision": {"fold", "check", "call", "raise", "allin"},
     "timeout": {"check", "fold", "unknown"},
     "fallback": {"ws_close"},
-    "reconnect": {"ws_open"},
+    "reconnect": {"ws_open", "fresh_state"},
+    "ready": {"submit"},
+    "action_result": {"rejected"},
+    "review": {"table_open", "bookmark"},
     "sizing": {"preset", "slider", "step", "input", "allin"},
     "preaction": {"check", "check_fold"},
     "ui": {"settings", "focus", "history", "chat"},
@@ -32,7 +35,7 @@ EVENT_DETAILS: dict[str, set[str]] = {
 
 class TelemetryEvent(BaseModel):
     model_config = ConfigDict(extra="forbid")
-    event: Literal["decision", "timeout", "fallback", "reconnect", "sizing", "preaction", "ui"]
+    event: Literal["decision", "timeout", "fallback", "reconnect", "ready", "action_result", "review", "sizing", "preaction", "ui"]
     detail: str = Field(min_length=1, max_length=24)
     device: Literal["mobile", "tablet", "desktop"]
     duration_ms: int | None = Field(default=None, ge=0, le=120_000)
@@ -43,8 +46,8 @@ class TelemetryEvent(BaseModel):
             raise ValueError("unsupported telemetry detail")
         if self.event == "decision" and self.duration_ms is None:
             raise ValueError("decision telemetry requires duration_ms")
-        if self.event != "decision" and self.duration_ms is not None:
-            raise ValueError("duration_ms is only allowed for decision telemetry")
+        if self.event not in {"decision", "ready"} and self.duration_ms is not None:
+            raise ValueError("duration_ms is only allowed for decision/ready telemetry")
         return self
 
 
@@ -122,7 +125,8 @@ def summary(db, days: int = 7, now: datetime | None = None) -> dict:
     devices = Counter(str(r["device"]) for r in events)
     details: dict[str, Counter] = defaultdict(Counter)
     trend: dict[str, Counter] = defaultdict(Counter)
-    durations: list[int] = []
+    decision_durations: list[int] = []
+    ready_durations: list[int] = []
     for row in events:
         event = str(row["event_type"])
         detail = str(row["detail"])
@@ -130,12 +134,17 @@ def summary(db, days: int = 7, now: datetime | None = None) -> dict:
         day = str(row["created_at"])[:10]
         trend[day][event] += 1
         if event == "decision" and row.get("duration_ms") is not None:
-            durations.append(int(row["duration_ms"]))
+            decision_durations.append(int(row["duration_ms"]))
+        if event == "ready" and row.get("duration_ms") is not None:
+            ready_durations.append(int(row["duration_ms"]))
 
     decision_count = counts["decision"]
     timeout_count = counts["timeout"]
     opportunities = decision_count + timeout_count
-    avg = round(sum(durations) / len(durations)) if durations else None
+    avg = round(sum(decision_durations) / len(decision_durations)) if decision_durations else None
+    ready_avg = round(sum(ready_durations) / len(ready_durations)) if ready_durations else None
+    reconnect_opens = int(details["reconnect"]["ws_open"])
+    reconnect_successes = int(details["reconnect"]["fresh_state"])
 
     day_rows = []
     for offset in range(days - 1, -1, -1):
@@ -147,6 +156,9 @@ def summary(db, days: int = 7, now: datetime | None = None) -> dict:
             "timeouts": int(c["timeout"]),
             "fallbacks": int(c["fallback"]),
             "reconnects": int(c["reconnect"]),
+            "ready": int(c["ready"]),
+            "action_rejections": int(c["action_result"]),
+            "reviews": int(c["review"]),
         })
 
     def dist(event: str) -> list[dict]:
@@ -170,15 +182,30 @@ def summary(db, days: int = 7, now: datetime | None = None) -> dict:
             "timeouts": int(timeout_count),
             "timeout_rate_pct": round((timeout_count / opportunities) * 100, 2) if opportunities else 0.0,
             "fallbacks": int(counts["fallback"]),
-            "reconnects": int(counts["reconnect"]),
+            "reconnects": reconnect_opens,
+            "reconnect_successes": reconnect_successes,
+            "ready_submits": int(counts["ready"]),
+            "action_rejections": int(counts["action_result"]),
+            "review_opens": int(details["review"]["table_open"]),
+            "review_bookmarks": int(details["review"]["bookmark"]),
         },
         "decision_ms": {
             "average": avg,
-            "p50": _percentile(durations, 0.50),
-            "p90": _percentile(durations, 0.90),
-            "max": max(durations) if durations else None,
+            "p50": _percentile(decision_durations, 0.50),
+            "p90": _percentile(decision_durations, 0.90),
+            "max": max(decision_durations) if decision_durations else None,
+        },
+        "ready_ms": {
+            "average": ready_avg,
+            "p50": _percentile(ready_durations, 0.50),
+            "p90": _percentile(ready_durations, 0.90),
+            "max": max(ready_durations) if ready_durations else None,
+            "samples": len(ready_durations),
         },
         "actions": dist("decision"),
+        "action_results": dist("action_result"),
+        "reviews": dist("review"),
+        "reconnect_details": dist("reconnect"),
         "timeouts": dist("timeout"),
         "sizing": dist("sizing"),
         "preactions": dist("preaction"),
