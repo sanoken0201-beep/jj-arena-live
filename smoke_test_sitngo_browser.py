@@ -41,10 +41,18 @@ def main():
                 cards=page.locator('.jj-v7-hand')
                 assert cards.is_visible()
                 assert page.evaluate('document.documentElement.scrollWidth<=innerWidth+1')
-            s['tournament'].update(status='finished',remaining=1,results=[{'user_id':1,'name':'Hero','place':1},{'user_id':2,'name':'Other','place':2}])
+            s['tournament'].update(
+                status='finished',
+                remaining=1,
+                results=[{'user_id':1,'name':'Hero','place':1,'prize_points':20.02},{'user_id':2,'name':'Other','place':2,'prize_points':0}],
+                prize_points=20.02,
+                point_statement={'entry_points':-10.01,'refund_points':0,'prize_points':20.02,'net_points':10.01,'settled':True},
+            )
             s['status']='waiting';s['legal']={'can_act':False}
             page.evaluate('(s)=>JJ_TEST.setState(s)',s)
-            assert page.locator('#actionBar').inner_text().find('大会終了')>=0
+            finished=page.locator('#actionBar').inner_text()
+            assert '大会終了' in finished
+            assert 'あなたのポイント精算' in finished and '大会増減 +10.01 pt' in finished
             assert page.locator('#actionBar [data-action]').count()==0
             assert not errors,errors
             artifacts=Path('test-artifacts/sitngo');artifacts.mkdir(parents=True,exist_ok=True)
