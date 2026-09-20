@@ -70,6 +70,7 @@ TEST_SUITES: dict[str, tuple[str, ...]] = {
         "smoke_test_sitngo_multi_session.py",
         "smoke_test_sitngo_process_model.py",
         "smoke_test_sitngo_resilience.py",
+        "smoke_test_sitngo_contract_consolidation.py",
         "smoke_test_sitngo_browser.py",
     ),
 }
@@ -144,6 +145,7 @@ PRODUCTION_RELEASE_SELECTION: tuple[tuple[str, tuple[str, ...]], ...] = (
         "smoke_test_sitngo_gameplay.py",
         "smoke_test_sitngo_process_model.py",
         "smoke_test_sitngo_resilience.py",
+        "smoke_test_sitngo_contract_consolidation.py",
     )),
 )
 

@@ -77,7 +77,7 @@ Do not mix poker game-rule changes and UI-only changes in one patch unless the c
 
 `served_assets.py` and the production browser pipeline compile the final browser output into `.jj_build/` during build. `browser_asset_pipeline.py` owns final post-build ordering, and `browser_runtime_consolidation.py` keeps deterministic browser mutation out of request-time serving.
 
-Production should serve validated prebuilt assets rather than execute the historical UX transform chain on each request. Missing production build artifacts should fail closed rather than silently create a different runtime.
+Production should serve validated prebuilt assets rather than execute the historical UX transform chain on each request. Missing production build artifacts should fail closed rather than silently create a different runtime. Sit&Go player browser transforms are configured solely through the dependency-free `sitngo_browser_config.py` before build aliases bind; `sitngo_admin_config.py`, `sitngo_hand_levels.py` and `sitngo_asset_cache.py` no longer maintain parallel player-UI mutation implementations. The committed `admin_static` files are the admin Sit&Go UI source of truth and are never rewritten at process startup.
 
 ## 6. Product lifecycle
 
@@ -126,7 +126,7 @@ Ring UX telemetry remains privacy-preserving and low overhead. The existing batc
 
 ## 10. Sit&Go current implementation
 
-Sit&Go is a dedicated root-level subsystem (`sitngo.py`, `sitngo_runtime.py`, `sitngo_ui.py`, `sitngo_points.py`) with its own persistence and tests. New events default to 30,000 tournament chips and a big-blind-ante structure. Administrators may configure the starting stack and each level's SB/BB/BBA before play begins. New tournaments advance one level after every 12 completed hands; persisted minute/target/prepared-minute fields are legacy/rollback metadata and do not select blinds. Online tournament accounting stays in an exact permanent 100-point unit and does not redistribute stacks through physical-style color-ups. Tournament chips remain isolated from Ring settlement.
+Sit&Go is a dedicated root-level subsystem (`sitngo.py`, `sitngo_runtime.py`, `sitngo_ui.py`, `sitngo_points.py`) with its own persistence and tests. New events default to 30,000 tournament chips and a big-blind-ante structure. Administrators may configure the starting stack and each level's SB/BB/BBA before play begins. New tournaments advance one level after every 12 completed hands; persisted minute/target/prepared-minute fields are legacy/rollback metadata and do not select blinds. New create/update API writes canonicalize each level's compatibility `minutes` value to 10, while historical persisted values remain readable for rollback compatibility. Online tournament accounting stays in an exact permanent 100-point unit and does not redistribute stacks through physical-style color-ups. Tournament chips remain isolated from Ring settlement.
 
 Official JJ points are integrated as the tournament entry/prize accounting domain:
 

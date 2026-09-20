@@ -13,13 +13,12 @@ from __future__ import annotations
 import json
 import time
 from datetime import datetime, timezone
-from pathlib import Path
 
 HANDS_PER_LEVEL = 12
 LEVEL_MODE = "hands"
 PLAYER_UI_MARKER = "jj sng 12-hand levels 2026-09-18"
 ADMIN_UI_MARKER = "jj sng admin 12-hand levels 2026-09-18"
-ADMIN_CACHE_QUERY = "hl=12hands-20260918-1"
+ADMIN_CACHE_QUERY = "sng=12hands-20260921-2"
 
 
 def level_index_for_completed_hands(completed_hands: int, level_count: int) -> int:
@@ -44,50 +43,10 @@ def _replace_prefixed_line(source: str, prefix: str, replacement: str, *, requir
 
 
 def _patch_player_ui() -> None:
-    import sitngo_ui as ui
+    """Compatibility delegate; browser behavior is owned by sitngo_browser_config."""
+    import sitngo_browser_config
 
-    if getattr(ui, "_JJ_HAND_LEVELS_PATCHED", False):
-        return
-
-    ui._SITNGO_PANEL = ui._SITNGO_PANEL.replace(
-        "6-MAX · ADMIN STRUCTURE · BB ANTE",
-        "6-MAX · 12 HAND LEVELS · BB ANTE",
-    ).replace(
-        "6-MAX · 10 MIN LEVELS · BB ANTE",
-        "6-MAX · 12 HAND LEVELS · BB ANTE",
-    )
-
-    source = ui._APP_PATCH
-    if "  const jjSngLevelSummary=" in source:
-        source = _replace_prefixed_line(
-            source,
-            "  const jjSngLevelSummary=",
-            "  const jjSngLevelSummary=levels=>'12ハンド/レベル';",
-        )
-    source = _replace_prefixed_line(
-        source,
-        "  function jjSngStructureHtml(",
-        "  function jjSngStructureHtml(levels){return `<details class=\"jj-sng-structure\"><summary>ブラインドストラクチャーを見る</summary><div class=\"jj-sng-levels\">${(levels||[]).map(x=>`<div class=\"jj-sng-level\"><span>Lv.${x.level}</span><b>${fmt(x.small_blind)} / ${fmt(x.big_blind)}</b><small>BBA ${fmt(x.bb_ante)} · 12ハンド</small></div>`).join('')}</div></details>`}",
-    )
-    source = source.replace(
-        "jjSngStructureHtml(eventLevels,event.target_minutes)",
-        "jjSngStructureHtml(eventLevels)",
-    )
-    source = source.replace("10分レベル", "12ハンド/レベル")
-    source += f"\n  // {PLAYER_UI_MARKER}\n"
-    ui._APP_PATCH = source
-
-    # The in-table tournament clock lives in the separate gameplay fragment,
-    # which transform_app_js appends after the lobby fragment. Patch that exact
-    # source so the displayed contract matches the server's hand-count scheduler.
-    gameplay = ui._GAMEPLAY_PATCH
-    old_clock = "    el.innerHTML=`<span>Lv.${Number(t.level)} · ${fmt(tableState.small_blind)}/${fmt(tableState.big_blind)} · BBA ${fmt(t.bb_ante)}</span><span>残り${Number(t.remaining)}/${Number(t.entrants)}人${t.status==='finished'?' · 終了':t.next_level_at?` · 次 ${jjSngCountdown(t.next_level_at)}`:''}</span>`;"
-    new_clock = "    el.innerHTML=`<span>Lv.${Number(t.level)} · ${fmt(tableState.small_blind)}/${fmt(tableState.big_blind)} · BBA ${fmt(t.bb_ante)}</span><span>${t.status==='finished'?'終了':`${Number(t.hand_in_level||0)}/${Number(t.hands_per_level||12)}ハンド`} · 残り${Number(t.remaining)}/${Number(t.entrants)}人</span>`;"
-    if old_clock not in gameplay:
-        raise RuntimeError("Sit&Go 12-hand UI drift: table clock contract changed")
-    ui._GAMEPLAY_PATCH = gameplay.replace(old_clock, new_clock, 1)
-    ui._JJ_HAND_LEVELS_PATCHED = True
-
+    sitngo_browser_config.install()
 
 def transform_admin_js(source: str) -> str:
     """Keep legacy minute payloads hidden while making the admin contract clear."""
@@ -142,12 +101,8 @@ def transform_admin_index(source: str) -> str:
 
 
 def _patch_admin_assets() -> None:
-    root = Path(__file__).resolve().parent / "admin_static"
-    js_path = root / "admin_sitngo.js"
-    index_path = root / "index.html"
-    js_path.write_text(transform_admin_js(js_path.read_text(encoding="utf-8")), encoding="utf-8", newline="\n")
-    index_path.write_text(transform_admin_index(index_path.read_text(encoding="utf-8")), encoding="utf-8", newline="\n")
-
+    """No runtime writes: admin_static is committed in its canonical form."""
+    return None
 
 def _patch_service_contract(sitngo_module) -> None:
     service_cls = sitngo_module.SitNGoService
@@ -328,7 +283,6 @@ def install(sitngo_module, runtime_module) -> None:
     _patch_service_contract(sitngo_module)
     _patch_runtime(runtime_module)
     _patch_player_ui()
-    _patch_admin_assets()
 
 
 __all__ = [

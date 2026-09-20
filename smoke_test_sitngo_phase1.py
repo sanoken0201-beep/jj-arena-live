@@ -200,8 +200,8 @@ def main() -> None:
         admin_id,
     )
     require(editable["starting_stack"] == 45_000, "custom starting stack was not persisted")
-    require([x["minutes"] for x in editable["structure"]] == [8, 12, 15], "legacy custom level-duration metadata was not persisted")
-    require(editable["prepared_minutes"] == 35 and editable["target_minutes"] == 35, "legacy custom timing metadata must derive from structure")
+    require([x["minutes"] for x in editable["structure"]] == [10, 10, 10], "new event minute metadata was not canonicalized")
+    require(editable["prepared_minutes"] == 30 and editable["target_minutes"] == 30, "canonical compatibility timing metadata drift")
     moved = editable_start + timedelta(minutes=20)
     edited_structure = [
         {"small_blind": 400, "big_blind": 800, "bb_ante": 800, "minutes": 7},
@@ -215,6 +215,8 @@ def main() -> None:
     require(edited["name"] == "Edited Sit&Go", "admin rename failed")
     require(abs((datetime.fromisoformat(edited["starts_at"]) - moved).total_seconds()) < 1, "admin reschedule failed")
     require(edited["starting_stack"] == 50_000 and edited["structure"][0]["big_blind"] == 800, "admin tournament settings update failed")
+    require([x["minutes"] for x in edited["structure"]] == [10, 10], "updated event minute metadata was not canonicalized")
+    require(edited["prepared_minutes"] == 20 and edited["target_minutes"] == 20, "updated compatibility timing metadata drift")
     require(edited["config_editable"], "pre-start event must report editable configuration")
 
     with patch.object(sitngo, "_utcnow", return_value=registration_moment(edited)):

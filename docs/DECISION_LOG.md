@@ -179,3 +179,12 @@ Alert derivation is server-owned so browser and future notification channels sha
 JJ Arena's table locks, WebSocket connection hub and Sit&Go scheduler ownership are process-local. Production therefore runs exactly one ASGI worker. The Render start command and `WEB_CONCURRENCY` both pin one worker, while startup rejects an explicitly conflicting worker-count environment rather than silently running an unsafe multi-process topology.
 
 The authoritative Sit&Go state remains `sitngo_games.state_json`. In addition to normal persisted restart recovery, the runtime keeps up to 40 meaningful same-event generations in `sitngo_state_backups`. Revision and elapsed-clock heartbeat changes alone do not create new generations. Backup writes are fail-open so observability/recovery storage cannot block poker actions. If the current state is malformed or structurally invalid, restoration is fail-closed and may use only a validated same-event snapshot with a matching stored revision.
+
+## D-019 — Sit&Go timing metadata is compatibility-only and browser transforms have one owner
+
+**Date:** 2026-09-21  
+**Status:** Accepted
+
+Sit&Go blind progression is determined only by completed hand count. The per-level `minutes` field remains in persisted/API structures for schema and rollback compatibility, but new create/update writes canonicalize it to 10 so direct or stale clients cannot create a second ineffective timing contract. Historical stored minute values remain readable and do not affect blind selection.
+
+Player Sit&Go browser transforms are owned by the dependency-free `sitngo_browser_config.py` and installed explicitly by the production asset compiler before transform aliases are bound. Runtime extension modules may delegate to that owner but must not carry parallel UI mutation implementations. The committed `admin_static` files are the administrator UI source of truth and must not be rewritten at application startup.
