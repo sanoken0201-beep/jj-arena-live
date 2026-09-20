@@ -31,6 +31,7 @@ _APP_PATCH = r'''
     const untilOpen=now<registrationOpen,untilStart=now<starts;
     let action='';
     if(status==='running'||status==='finished')action=event.table_id?`<button type="button" class="primary jj-sng-register" data-sng-open="${safe(event.table_id)}">${status==='finished'?'結果を見る':registered?'大会テーブルへ':'観戦する'}</button>`:'<div class="jj-sng-note">テーブル準備中</div>';
+    else if(status==='starting')action='<div class="jj-sng-note">前のSit&Go終了後に開始します。受付は締め切られています。</div>';
     else if(registered&&event.can_cancel_registration)action=`<div class="jj-sng-reg"><span>参加登録済み · 受付順 #${event.registration_order||'—'}</span><button type="button" class="soft" data-sng-cancel="${safe(event.id)}">参加を取り消す</button></div>`;
     else if(event.can_register)action=`<button type="button" class="primary jj-sng-register" data-sng-register="${safe(event.id)}">参加する</button>`;
     else if(full)action='<button type="button" class="soft jj-sng-register" disabled>満席</button>';
@@ -42,7 +43,7 @@ _APP_PATCH = r'''
   }
   async function renderSitNGo(){
     const host=$('#sitngoNext');if(!host)return;
-    try{const data=await api('/sitngo/next'),event=data?.event;if(currentTableId?.startsWith('sng-'))return;host.innerHTML=(event?jjSngEventHtml(event,data.structure):jjSngEmpty())+(data.recent||[]).map(x=>jjSngEventHtml(x,x.structure)).join('');jjSngRefreshClocks()}catch(err){host.innerHTML=`<article class="card empty">${safe(err.message)}</article>`}
+    try{const data=await api('/sitngo/next'),event=data?.event,upcoming=data?.upcoming;if(currentTableId?.startsWith('sng-'))return;const current=event?jjSngEventHtml(event,data.structure):jjSngEmpty(),next=upcoming&&upcoming.id!==event?.id?`<div class="eyebrow jj-sng-next-label">NEXT EVENT</div>${jjSngEventHtml(upcoming,upcoming.structure||data.structure)}`:'';host.innerHTML=current+next+(data.recent||[]).map(x=>jjSngEventHtml(x,x.structure)).join('');jjSngRefreshClocks()}catch(err){host.innerHTML=`<article class="card empty">${safe(err.message)}</article>`}
   }
   function jjSetPlayMode(mode){
     jjPlayMode=mode==='sitngo'?'sitngo':'ring';
@@ -159,8 +160,6 @@ __all__ = ["SITNGO_UI_MARKER", "transform_app_js", "transform_index", "transform
 _GAMEPLAY_PATCH = r'''
 
   // Sit&Go gameplay uses the ring renderer, input handlers and state transport.
-  const jjSngRingPot=totalPot;
-  totalPot=function(){return jjSngRingPot()+Number(tableState?.tournament?.ante_paid||0)};
   const jjSngRingOpen=openTable;
   openTable=async function(id){
     const result=await jjSngRingOpen(id);
