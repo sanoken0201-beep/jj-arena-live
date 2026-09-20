@@ -213,7 +213,7 @@ def _patch_player_ui() -> None:
         "event structure call",
     )
     source = source.replace('無料 · 賞品なし','参加費 ${fmt(event.entry_fee)} pt · 賞金 ${fmt(event.prize_points)} pt')
-    source = source.replace('${action}${participants}', '<details><summary>プライズ配分</summary>${Object.entries(event.payout_percentages||{}).map(([n,r])=>`<p>${safe(n)}人：${r.map((v,i)=>`${i+1}位 ${safe(v)}%`).join(" / ")}</p>`).join("")}<p>登録時に参加費を徴収します。開始前の取消・中止で返却。同順位は該当順位分を均等分配し、0.01pt単位で端数調整します。</p></details>${action}${participants}')
+    source = source.replace('${action}${participants}', '<details><summary>プライズ配分</summary>${Object.entries(event.payout_percentages||{}).map(([n,r])=>`<p>${safe(n)}人：${r.map((v,i)=>`${i+1}位 ${safe(v)}%`).join(" / ")}</p>`).join("")}<p>参加登録時点で着席確定です。残高不足でも登録でき、参加費分だけ公式ポイントがマイナスになる場合があります。開始時に画面を開いていなくてもブラインド・BBAは進行します。開始前の取消・中止では参加費を返却します。同順位は該当順位分を均等分配し、0.01pt単位で端数調整します。</p></details>${action}${participants}')
     ui._APP_PATCH = source
     ui._JJ_ADMIN_STRUCTURE_PATCHED = True
 
