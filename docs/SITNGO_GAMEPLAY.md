@@ -10,9 +10,11 @@ registration or re-entry. The last prepared level repeats until a winner is
 determined. Ring and tournament chips never share settlement.
 
 The existing ring table renderer, cards, raise sizing, pre-actions and connection
-recovery are reused. Tournament actions additionally carry the hand ID; delayed
-requests cannot act on the next hand. The lobby provides an explicit table/rejoin
-button and recent results. No production event is created by deploying this code.
+recovery are reused. Tournament actions additionally carry action, hand and turn
+identifiers; delayed or duplicated requests cannot act on a later turn or hand.
+The lobby provides an explicit table/rejoin button and recent results. While one
+Sit&Go is running it can also show the next scheduled, registration-open or
+start-waiting event so an open registration window is not hidden.
 
 ## Tournament chip rules
 
@@ -36,13 +38,13 @@ exactly once.
 
 ## Tournament conventions
 
-Random seats; advancing button; button is small blind heads-up; simultaneous
-eliminations are ordered by starting stack and equal stacks tie; disconnected
-entrants continue paying blinds, and time out to check/fold. JJ's ante policy posts
+Random seats; dead-button movement; button is small blind heads-up; simultaneous
+eliminations use the tournament's post-ante comparison stack and equal stacks tie;
+disconnected entrants continue paying blinds, and time out to check/fold. JJ's ante policy posts
 the big blind first, then as much of the ante as the remaining stack allows; BBA
 remains in heads-up. Ante is dead money available to all live hands, never call
-credit or an uncalled contribution. Blind-level changes and color-ups apply only
-when dealing the next hand, never in the middle of an active hand.
+credit or an uncalled contribution. Blind-level changes and legacy accounting-unit
+normalization apply only when dealing the next hand, never in the middle of an active hand.
 
 The immutable materialized engine is loaded into a separate module namespace.
 Tournament-only ante, denomination and zero-rake wrappers cannot change ring
@@ -77,9 +79,9 @@ tournaments; total-chip conservation; exact entry escrow and prize-ledger
 conservation; the default six-player 70/30 award; short BBA; split/odd chips;
 main/side pots; exact-once BBA POT display; 100-point raise sizing; legacy accounting
 normalization without stack redistribution; micro-stack survival; restart; timeouts;
-12-hand blind changes;
-authenticated HTTP/WebSocket; stale hand and duplicate action handling; cash-only
-endpoint rejection; chat/history privacy; and phone/desktop ring UI actions.
+12-hand blind changes; authenticated HTTP/WebSocket; stale hand/turn, duplicate
+action and timeout-boundary handling; aggregate runtime telemetry; cash-only endpoint
+rejection; chat/history privacy; and phone/desktop ring UI actions.
 
 ## Point entry and administrator-defined prizes
 
@@ -111,3 +113,21 @@ configuration and requires the registered field to match unrefunded escrow exact
 Each paid escrow row must match the locked fee and reference the corresponding
 `sitngo_entry` ledger debit for the same user and amount; a free event must have
 no active escrow. Any mismatch fails closed before table creation.
+
+
+## Player-visible point settlement
+
+After a paid tournament finishes, a participant can see a ledger-backed summary of
+that event's point accounting: entry debit, any refund, prize award and net tournament
+point change. The summary is derived from existing `sitngo_entry`,
+`sitngo_refund` and `sitngo_prize` rows; it does not create a second accounting
+source of truth.
+
+## Runtime observability
+
+Sit&Go safety telemetry is stored only as daily aggregate counters for missing action
+tokens, duplicate actions, stale hand/turn submissions, late actions,
+timeout-boundary protection, automatic timeout actions and restart recovery. No user
+identity, tournament/event ID, hand ID, cards, chip amounts, network identifiers,
+session identifiers or free text are stored. Telemetry failure is non-blocking and
+cannot change gameplay or settlement.
