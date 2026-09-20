@@ -54,6 +54,45 @@ def record(db, metric: str, now: datetime | None = None) -> bool:
         return False
 
 
+def classify_alerts(totals: dict[str, int], window_days: int) -> list[dict]:
+    """Derive conservative operator alerts from aggregate safety counters.
+
+    Normal user timeouts and their automatic actions are intentionally excluded.
+    """
+    days=max(1,int(window_days))
+    missing=int(totals.get("missing_tokens",0))
+    stale=int(totals.get("stale_hand",0))+int(totals.get("stale_turn",0))
+    restart=int(totals.get("restart_recovery",0))
+    duplicate=int(totals.get("duplicate_action",0))
+    boundary=int(totals.get("timeout_boundary_protected",0))
+    alerts=[]
+    def add(code,severity,title,detail,count):
+        alerts.append(dict(code=code,severity=severity,title=title,detail=detail,count=int(count)))
+    if missing >= 5:
+        add("missing_tokens","critical","古い操作画面の可能性があります",
+            f"{days}日間でaction token不足を{missing}件検知しました。キャッシュ更新や古いクライアントが残っていないか確認してください。",missing)
+    elif missing >= 1:
+        add("missing_tokens","warning","action token不足を検知しました",
+            f"{days}日間で{missing}件です。単発なら再読込で解消する場合があります。増加する場合は配信中のブラウザ資産を確認してください。",missing)
+    if stale >= 10:
+        add("stale_action","critical","古いhand/turnからの操作が多発しています",
+            f"{days}日間でstale hand/turnを合計{stale}件検知しました。WebSocket同期・再接続・多重送信を確認してください。",stale)
+    elif stale >= 3:
+        add("stale_action","warning","stale actionが増えています",
+            f"{days}日間でstale hand/turnを合計{stale}件検知しました。継続する場合は同期状態を確認してください。",stale)
+    if restart >= 1:
+        add("restart_recovery","warning","大会中の再起動復旧が発生しました",
+            f"{days}日間で{restart}件です。復旧自体は保護されていますが、意図しない再起動でないか確認してください。",restart)
+    if duplicate >= 5:
+        add("duplicate_action","info","action再送が増えています",
+            f"{days}日間で重複actionを{duplicate}件吸収しました。二重処理は防止されています。",duplicate)
+    if boundary >= 1:
+        add("timeout_boundary","info","timeout境界競合を保護しました",
+            f"{days}日間で{boundary}件です。プレイヤー操作は保護されており、発生傾向の確認用情報です。",boundary)
+    order={"critical":0,"warning":1,"info":2}
+    return sorted(alerts,key=lambda x:(order[x["severity"]],x["code"]))
+
+
 def summary(db, days: int = 7, now: datetime | None = None) -> dict:
     days=max(1,min(90,int(days)))
     end=(now or datetime.now(timezone.utc)).astimezone(timezone.utc).date()
@@ -72,6 +111,7 @@ def summary(db, days: int = 7, now: datetime | None = None) -> dict:
         count=int(row["count"] or 0)
         totals[metric]+=count
         trend.setdefault(str(row["day"]),{})[metric]=count
+    alerts=classify_alerts(totals,days)
     return {
         "window_days":days,
         "privacy":{
@@ -83,6 +123,8 @@ def summary(db, days: int = 7, now: datetime | None = None) -> dict:
         },
         "totals":totals,
         "trend":[{"date":day,**{m:int(values.get(m,0)) for m in sorted(METRICS)}} for day,values in sorted(trend.items())],
+        "alerts":alerts,
+        "alert_status":next((severity for severity in ("critical","warning","info") if any(a["severity"]==severity for a in alerts)),"ok"),
     }
 
 
@@ -98,4 +140,4 @@ def install(service) -> None:
         return summary(db,days=days)
 
 
-__all__=["METRICS","ensure_schema","install","record","summary"]
+__all__=["METRICS","classify_alerts","ensure_schema","install","record","summary"]
