@@ -94,8 +94,8 @@ def transform_app_js(source: str) -> str:
     )
     source = _replace_once(
         source,
-        "try{await post(\`/tables/\${currentTableId}/start\`);toast('開始準備を完了しました')}",
-        "try{await post(\`/tables/\${currentTableId}/start\`);jjV73ReadySuccess();toast('開始準備を完了しました')}",
+        "try{await post(`/tables/${currentTableId}/start`);toast('開始準備を完了しました')}",
+        "try{await post(`/tables/${currentTableId}/start`);jjV73ReadySuccess();toast('開始準備を完了しました')}",
         "ready success",
     )
     source = _replace_once(
