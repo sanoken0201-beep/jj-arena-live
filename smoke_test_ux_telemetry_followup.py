@@ -28,7 +28,7 @@ def main() -> None:
     assert CACHE_QUERY in index
     assert "jjV6Telemetry.awaitingFresh=true" in js
     assert "jjV73FreshState();" in js
-    assert "jjV73ActionRejected();toast(err.message)" in js
+    assert "jjV73ActionFailed();" in js and "toast(err.message);" in js
     assert "jjV73ReadySuccess();toast('開始準備を完了しました')" in js
     assert "jjV73Review('table_open')" in js
     assert "jjV73Review('bookmark')" in js
@@ -47,7 +47,7 @@ def main() -> None:
     assert "setInterval" not in module_source
     assert EVENT_DETAILS["reconnect"] == {"ws_open", "fresh_state"}
     assert EVENT_DETAILS["ready"] == {"submit"}
-    assert EVENT_DETAILS["action_result"] == {"rejected"}
+    assert EVENT_DETAILS["action_result"] == {"failed"}
     assert EVENT_DETAILS["review"] == {"table_open", "bookmark"}
 
     admin_js = (ROOT / "admin_static" / "ux_telemetry.js").read_text(encoding="utf-8")
