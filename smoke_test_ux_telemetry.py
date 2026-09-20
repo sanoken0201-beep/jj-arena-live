@@ -43,6 +43,12 @@ def main() -> None:
         TelemetryEvent(event="timeout", detail="fold", device="mobile"),
         TelemetryEvent(event="fallback", detail="ws_close", device="desktop"),
         TelemetryEvent(event="reconnect", detail="ws_open", device="desktop"),
+        TelemetryEvent(event="reconnect", detail="fresh_state", device="desktop"),
+        TelemetryEvent(event="ready", detail="submit", device="mobile", duration_ms=3500),
+        TelemetryEvent(event="ready", detail="submit", device="desktop"),
+        TelemetryEvent(event="action_result", detail="rejected", device="mobile"),
+        TelemetryEvent(event="review", detail="table_open", device="mobile"),
+        TelemetryEvent(event="review", detail="bookmark", device="mobile"),
         TelemetryEvent(event="sizing", detail="preset", device="mobile"),
         TelemetryEvent(event="preaction", detail="check_fold", device="mobile"),
         TelemetryEvent(event="ui", detail="history", device="mobile"),
@@ -55,6 +61,13 @@ def main() -> None:
     assert data["totals"]["timeout_rate_pct"] == 25.0
     assert data["totals"]["fallbacks"] == 1
     assert data["totals"]["reconnects"] == 1
+    assert data["totals"]["reconnect_successes"] == 1
+    assert data["totals"]["ready_submits"] == 2
+    assert data["totals"]["action_rejections"] == 1
+    assert data["totals"]["review_opens"] == 1
+    assert data["totals"]["review_bookmarks"] == 1
+    assert data["ready_ms"]["samples"] == 1
+    assert data["ready_ms"]["p50"] == 3500
     assert data["decision_ms"]["average"] == 4000
     assert data["decision_ms"]["p50"] == 2000
     assert data["decision_ms"]["p90"] == 9000
@@ -76,6 +89,8 @@ def main() -> None:
     for payload in (
         {"event": "decision", "detail": "call", "device": "mobile"},
         {"event": "ui", "detail": "settings", "device": "mobile", "duration_ms": 12},
+        {"event": "review", "detail": "table_open", "device": "mobile", "duration_ms": 12},
+        {"event": "action_result", "detail": "rejected", "device": "mobile", "duration_ms": 12},
         {"event": "ui", "detail": "free_text", "device": "mobile"},
         {"event": "ui", "detail": "settings", "device": "mobile", "user_id": 123},
         {"event": "ui", "detail": "settings", "device": "mobile", "hand_id": "abc"},
@@ -87,6 +102,10 @@ def main() -> None:
             pass
         else:
             raise AssertionError(f"unsafe telemetry payload accepted: {payload}")
+
+    # READY duration is optional: reloaded/already-seated users still contribute
+    # a success count without fabricating a seat-to-ready latency sample.
+    assert TelemetryEvent(event="ready", detail="submit", device="desktop").duration_ms is None
 
     try:
         TelemetryBatch(events=[TelemetryEvent(event="ui", detail="settings", device="mobile")] * 31)
