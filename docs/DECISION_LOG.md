@@ -1,6 +1,6 @@
 # JJ Arena — Decision Log
 
-Updated: 2026-09-20
+Updated: 2026-09-21
 
 This file records durable project decisions and the reason behind them. It is not a chronological transcript of every change.
 
@@ -118,3 +118,29 @@ The compatibility/parity runtime must not reconstruct v1.24.4 by unpacking `rele
 `runtime_builder.py` copies the files recorded in `materialized_v1244.manifest.json` into an isolated runtime directory and verifies their size/hash before and after copying. This makes the committed `materialized_v1244/` tree the single canonical v1.24.4 source for both production loading and compatibility construction.
 
 Historical release bundles and patch modules may remain for forensic history, but they are not runtime dependencies and must not be silently reintroduced into the compatibility builder. `smoke_test_runtime_builder_snapshot.py` and the production release gate protect this contract.
+
+## D-012 — Sit&Go blind progression is hand-count based and online chips remain exact
+
+**Date:** 2026-09-21  
+**Status:** Accepted
+
+New Sit&Go tournaments advance one blind level after every 12 completed hands, only between hands. Persisted minute, target-minute and prepared-minute values remain compatibility/rollback metadata and do not select the active blind level.
+
+Tournament chips use a permanent exact 100-point accounting unit. Physical-tournament color-up behavior must not round, race off or redistribute value between online players. The legacy color-up compatibility hook may only normalize old persisted state without changing player stacks. BBA is dead money in the main pot and browser POT calculation must include it exactly once.
+
+## D-013 — A running Sit&Go must not hide the next registration event
+
+**Date:** 2026-09-21  
+**Status:** Accepted
+
+JJ Arena continues to run at most one Sit&Go table at a time. When another event is scheduled, accepting registrations or waiting in `starting`, the player lobby may show that upcoming event alongside the currently running tournament. This prevents a live tournament from hiding an open registration window while preserving the single-running-table operational contract.
+
+## D-014 — Sit&Go safety telemetry is aggregate and privacy-preserving
+
+**Date:** 2026-09-21  
+**Status:** Accepted
+
+Runtime observability for Sit&Go action safety stores only daily aggregate counters for missing tokens, duplicate actions, stale hand/turn submissions, late actions, timeout-boundary protection, automatic timeout actions and restart recovery. It must not persist user identity, event/table IDs, hand IDs, cards, chip amounts, network identifiers, session identifiers or free-form text.
+
+Observability failure must never block or alter tournament actions, timeout progression or settlement.
+
