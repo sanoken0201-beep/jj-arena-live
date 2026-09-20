@@ -112,7 +112,7 @@ JJ_SITNGO_ALERT_WEBHOOK_URL=<HTTPS webhook / relay endpoint>
 - 未設定でもSit&Goは通常動作し、閾値到達alertはDB outboxと管理画面に保持されます。
 - 設定時は30秒間隔の独立background loopがpending alertを送信します。player action / timeout / settlement処理から外部通信は行いません。
 - webhook failureはalertを失わず、最大1時間までの指数backoffで再試行します。
-- 外部payloadはaggregate metric/day/count/thresholdだけで、player/event/hand/card/chip/IP/session/free textを含みません。
+- 外部payloadはaggregate metric/day/count/thresholdと重複排除用の非機密`alert_key`だけで、player/event/hand/card/chip/IP/session/free textを含みません。
 - 通常の不在者timeout（`timeout_auto_action`）は正常動作なので通知対象外です。
 - productionではHTTPSのみを使用します。localhost HTTPはCI専用です。
 
