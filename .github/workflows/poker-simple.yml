@@ -24,6 +24,7 @@ jobs:
       - run: python smoke_test_poker_simple.py
       - run: python smoke_test_oop_check_browser.py
       - run: python smoke_test_poker_control_audit.py
+      - run: python smoke_test_network_recovery_browser.py
       - uses: actions/upload-artifact@v4
         if: always()
         with:
