@@ -15,6 +15,16 @@ def _sha(path: Path) -> str:
 
 
 def main() -> None:
+    root = Path(__file__).resolve().parent
+    build_entry_source = (root / "build_served_assets.py").read_text(encoding="utf-8")
+    compiler_source = (root / "served_assets.py").read_text(encoding="utf-8")
+    assert "sitngo_browser_config.install()" not in build_entry_source, (
+        "build entrypoint must not initialize individual browser transforms"
+    )
+    assert compiler_source.count("sitngo_browser_config.install()") == 1, (
+        "served_assets must be the single Sit&Go browser transform owner"
+    )
+
     canonical = served_assets.MATERIALIZED_STATIC
     source_before = {
         name: _sha(canonical / name)
