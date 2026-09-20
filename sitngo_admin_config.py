@@ -18,6 +18,7 @@ from sitngo_points import default_payouts, validate_payouts
 
 DEFAULT_STARTING_STACK = 30_000
 DEFAULT_TARGET_MINUTES = 90
+COMPAT_LEVEL_MINUTES = 10
 MAX_LEVELS = 30
 MAX_PREPARED_MINUTES = 600
 
@@ -45,7 +46,8 @@ class BlindLevelIn(BaseModel):
     small_blind: int = Field(ge=100, le=100_000_000)
     big_blind: int = Field(ge=100, le=100_000_000)
     bb_ante: int = Field(ge=0, le=100_000_000)
-    minutes: int = Field(ge=1, le=60)
+    # Compatibility-only metadata. Blind progression is fixed at 12 completed hands.
+    minutes: int = Field(default=COMPAT_LEVEL_MINUTES, ge=1, le=60)
 
 
 class ConfiguredSitNGoCreateIn(BaseModel):
@@ -86,7 +88,7 @@ def _level_dict(value: Any) -> dict[str, int]:
             "small_blind": int(raw["small_blind"]),
             "big_blind": int(raw["big_blind"]),
             "bb_ante": int(raw.get("bb_ante", raw["big_blind"])),
-            "minutes": int(raw["minutes"]),
+            "minutes": int(raw.get("minutes", COMPAT_LEVEL_MINUTES)),
         }
     except (KeyError, TypeError, ValueError) as exc:
         raise HTTPException(400, "ブラインドストラクチャーの形式が不正です") from exc
@@ -104,7 +106,12 @@ def _validate_stack(value: Any) -> int:
     return stack
 
 
-def normalize_structure(raw_levels: Any, starting_stack: int) -> list[dict[str, int]]:
+def normalize_structure(
+    raw_levels: Any,
+    starting_stack: int,
+    *,
+    preserve_legacy_minutes: bool = False,
+) -> list[dict[str, int]]:
     stack = _validate_stack(starting_stack)
     levels = list(raw_levels or [])
     if not levels:
@@ -116,12 +123,13 @@ def normalize_structure(raw_levels: Any, starting_stack: int) -> list[dict[str, 
     prior: dict[str, int] | None = None
     for index, item in enumerate(levels, start=1):
         level = _level_dict(item)
-        sb, bb, ante, minutes = (
+        sb, bb, ante = (
             level["small_blind"],
             level["big_blind"],
             level["bb_ante"],
-            level["minutes"],
         )
+        stored_minutes = level["minutes"]
+        minutes = stored_minutes if preserve_legacy_minutes else COMPAT_LEVEL_MINUTES
         if not (100 <= sb < bb <= 100_000_000):
             raise HTTPException(400, f"Lv.{index}: SBはBBより小さい正の値にしてください")
         if not 0 <= ante <= 100_000_000:
@@ -159,11 +167,11 @@ def _stored_structure(row: dict[str, Any]) -> list[dict[str, int]]:
     stack = int(row.get("starting_stack") or DEFAULT_STARTING_STACK)
     try:
         raw = json.loads(row.get("structure_json") or "[]")
-        return normalize_structure(raw, stack)
+        return normalize_structure(raw, stack, preserve_legacy_minutes=True)
     except (json.JSONDecodeError, HTTPException, TypeError, ValueError):
         # Legacy/corrupt rows should stay operable. This fallback is deliberately
         # not written back, so an administrator can inspect/correct the event.
-        return normalize_structure(DEFAULT_BLIND_STRUCTURE, DEFAULT_STARTING_STACK)
+        return normalize_structure(DEFAULT_BLIND_STRUCTURE, DEFAULT_STARTING_STACK, preserve_legacy_minutes=True)
 
 
 def _structure_metrics(levels: list[dict[str, int]]) -> tuple[int, int, int]:
@@ -171,51 +179,6 @@ def _structure_metrics(levels: list[dict[str, int]]) -> tuple[int, int, int]:
     target = min(DEFAULT_TARGET_MINUTES, prepared)
     first_minutes = int(levels[0]["minutes"])
     return first_minutes, target, prepared
-
-
-def _patch_player_ui() -> None:
-    import sitngo_ui as ui
-
-    if getattr(ui, "_JJ_ADMIN_STRUCTURE_PATCHED", False):
-        return
-
-    def replace_once(source: str, old: str, new: str, label: str) -> str:
-        if source.count(old) != 1:
-            raise RuntimeError(f"Sit&Go configurable UI drift: {label}")
-        return source.replace(old, new, 1)
-
-    ui._SITNGO_PANEL = replace_once(
-        ui._SITNGO_PANEL,
-        "6-MAX · 10 MIN LEVELS · BB ANTE",
-        "6-MAX · ADMIN STRUCTURE · BB ANTE",
-        "panel rule copy",
-    )
-    source = ui._APP_PATCH
-    old_function = """  function jjSngStructureHtml(levels){return `<details class=\"jj-sng-structure\"><summary>ブラインドストラクチャーを見る</summary><div class=\"jj-sng-levels\">${(levels||[]).map(x=>`<div class=\"jj-sng-level ${Number(x.level)===9?'target':''}\"><span>Lv.${x.level}</span><b>${fmt(x.small_blind)} / ${fmt(x.big_blind)}</b><small>BBA ${fmt(x.bb_ante)} · ${x.minutes}分${Number(x.level)===9?' · 90分':''}</small></div>`).join('')}</div></details>`}\n"""
-    new_function = """  const jjSngLevelSummary=levels=>{const values=[...new Set((levels||[]).map(x=>Number(x.minutes)||0).filter(Boolean))];return values.length===1?`${values[0]}分レベル`:'可変レベル'};\n  function jjSngStructureHtml(levels,targetMinutes){let elapsed=0;return `<details class=\"jj-sng-structure\"><summary>ブラインドストラクチャーを見る</summary><div class=\"jj-sng-levels\">${(levels||[]).map(x=>{const start=elapsed;elapsed+=Number(x.minutes)||0;const target=Number(targetMinutes||0),hit=target>0&&start<target&&elapsed>=target;return `<div class=\"jj-sng-level ${hit?'target':''}\"><span>Lv.${x.level}</span><b>${fmt(x.small_blind)} / ${fmt(x.big_blind)}</b><small>BBA ${fmt(x.bb_ante)} · ${x.minutes}分 · ${start}–${elapsed}分${hit?` · ${target}分目標`:''}</small></div>`}).join('')}</div></details>`}\n"""
-    source = replace_once(source, old_function, new_function, "structure renderer")
-    source = replace_once(
-        source,
-        "    const status=event.status||'scheduled',registered=!!event.is_registered,full=!!event.full;\n",
-        "    const status=event.status||'scheduled',registered=!!event.is_registered,full=!!event.full,eventLevels=event.structure||levels||[];\n",
-        "event structure binding",
-    )
-    source = replace_once(
-        source,
-        "<div class=\"jj-sng-rules\"><span>6-max</span><span>10,000点</span><span>10分レベル</span><span>BB Ante</span><span>無料 · 賞品なし</span><span>再参加なし</span></div>",
-        "<div class=\"jj-sng-rules\"><span>6-max</span><span>${fmt(event.starting_stack)}点</span><span>${jjSngLevelSummary(eventLevels)}</span><span>BB Ante</span><span>無料 · 賞品なし</span><span>再参加なし</span></div>",
-        "event rules",
-    )
-    source = replace_once(
-        source,
-        "${jjSngStructureHtml(levels||event.structure)}",
-        "${jjSngStructureHtml(eventLevels,event.target_minutes)}",
-        "event structure call",
-    )
-    source = source.replace('無料 · 賞品なし','参加費 ${fmt(event.entry_fee)} pt · 賞金 ${fmt(event.prize_points)} pt')
-    source = source.replace('${action}${participants}', '<details><summary>プライズ配分</summary>${Object.entries(event.payout_percentages||{}).map(([n,r])=>`<p>${safe(n)}人：${r.map((v,i)=>`${i+1}位 ${safe(v)}%`).join(" / ")}</p>`).join("")}<p>参加登録時点で着席確定です。残高不足でも登録でき、参加費分だけ公式ポイントがマイナスになる場合があります。開始時に画面を開いていなくてもブラインド・BBAは進行します。開始前の取消・中止では参加費を返却します。同順位は該当順位分を均等分配し、0.01pt単位で端数調整します。</p></details>${action}${participants}')
-    ui._APP_PATCH = source
-    ui._JJ_ADMIN_STRUCTURE_PATCHED = True
 
 
 def install(sitngo_module) -> None:
@@ -341,7 +304,11 @@ def install(sitngo_module) -> None:
             if payload.starting_stack is not None or payload.structure is not None:
                 stack = _validate_stack(payload.starting_stack if payload.starting_stack is not None else event["starting_stack"])
                 raw_levels = payload.structure if payload.structure is not None else json.loads(event["structure_json"])
-                levels = normalize_structure(raw_levels, stack)
+                levels = normalize_structure(
+                    raw_levels,
+                    stack,
+                    preserve_legacy_minutes=payload.structure is None,
+                )
                 level_minutes, target_minutes, prepared_minutes = _structure_metrics(levels)
                 sets.extend(
                     [
@@ -383,7 +350,7 @@ def install(sitngo_module) -> None:
         if con.execute("SELECT event_id FROM sitngo_games WHERE event_id=?", (eid,)).fetchone():
             return
         stack = _validate_stack(event["starting_stack"])
-        levels = normalize_structure(json.loads(event["structure_json"]), stack)
+        levels = normalize_structure(json.loads(event["structure_json"]), stack, preserve_legacy_minutes=True)
         first = levels[0]
         engine = self.engine
         state = engine.blank_table_state(
@@ -429,7 +396,6 @@ def install(sitngo_module) -> None:
         self.signal()
 
     sitngo_runtime.TournamentRuntime.create = runtime_create
-    _patch_player_ui()
     sitngo_module._JJ_ADMIN_STRUCTURE_PATCHED = True
 
 
@@ -437,6 +403,7 @@ __all__ = [
     "BlindLevelIn",
     "ConfiguredSitNGoCreateIn",
     "ConfiguredSitNGoUpdateIn",
+    "COMPAT_LEVEL_MINUTES",
     "DEFAULT_BLIND_STRUCTURE",
     "DEFAULT_STARTING_STACK",
     "install",
