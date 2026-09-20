@@ -36,6 +36,7 @@ def main() -> None:
             "smoke_test_runtime_builder_snapshot.py",
             "smoke_test_runtime_performance.py",
             "smoke_test_runtime_observability.py",
+            "smoke_test_rake_integrity_runtime_audit.py",
             "smoke_test_point_ledger_precision.py",
             "smoke_test_v1244.py",
             "smoke_test_resilience_retention.py",
@@ -50,6 +51,7 @@ def main() -> None:
         }
         assert gate.RELEASE_TESTS == production_release_tests()
         assert ("ring_gameplay", "smoke_test_rake_settlement_fix.py") in gate.RELEASE_TESTS
+        assert ("runtime_release", "smoke_test_rake_integrity_runtime_audit.py") in gate.RELEASE_TESTS
         assert {filename for _, filename in gate.RELEASE_TESTS} == expected
         assert {group for group, _ in gate.RELEASE_TESTS} == {
             group for group, _ in PRODUCTION_RELEASE_SELECTION
