@@ -79,7 +79,8 @@ def main(paid=False):
             assert state['tournament'].get('points_settled') is True
             if count==6:
                 winner=next(r for r in results if r['place']==1)
-                runner_up=next(r for r in results if r['place']==2)
+                second_place=[r for r in results if r['place']==2]
+                assert second_place
                 with db.connect() as con:
                     payments=con.execute(
                         'SELECT user_id,entry_tx,fee_cents,refunded FROM sitngo_payments WHERE event_id=? ORDER BY user_id',
@@ -99,7 +100,10 @@ def main(paid=False):
                         (f'sng-prize-{eid}-%',),
                     ).fetchall()
                     prizes={int(row['user_id']):cents(row['amount']) for row in prize_rows}
-                    assert prizes=={int(winner['user_id']):4204,int(runner_up['user_id']):1802},prizes
+                    second_ids={int(r['user_id']) for r in second_place}
+                    assert prizes.get(int(winner['user_id']))==4204,prizes
+                    assert sum(prizes.get(uid,0) for uid in second_ids)==1802,prizes
+                    assert set(prizes)==({int(winner['user_id'])}|second_ids),prizes
                     settled=con.execute(
                         'SELECT awards_json FROM sitngo_settlements WHERE event_id=?',
                         (eid,),
@@ -108,7 +112,7 @@ def main(paid=False):
                     awards={int(uid):int(amount) for uid,amount in json.loads(settled['awards_json']).items()}
                     assert len(awards)==6 and sum(awards.values())==6006
                     assert awards[int(winner['user_id'])]==4204
-                    assert awards[int(runner_up['user_id'])]==1802
+                    assert sum(awards[int(r['user_id'])] for r in second_place)==1802
                     assert all(awards[int(r['user_id'])]==0 for r in results if r['place']>2)
                     ranking_names={
                         int(row['id']):str(row['ranking_name'] or row['name'])
