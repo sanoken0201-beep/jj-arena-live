@@ -61,6 +61,16 @@ The final stage, `browser_runtime_consolidation.py`, absorbs the deterministic b
 
 `build_served_assets.py` must not manually call individual final transforms. New final browser layers are registered in `browser_asset_pipeline.POST_BUILD_STAGES` so ordering is explicit and testable.
 
+## Repository pruning
+
+Stage 6 removes the obsolete pre-materialization copies of the core from the repository root: `server.py`, `db.py`, `poker_engine.py`, and the old root `static/` tree. These files are not production inputs after the materialized-core cutover and create an import-resolution hazard because ad-hoc bare imports can select an obsolete implementation instead of the canonical core.
+
+The canonical committed core is `materialized_v1244/`; the canonical served browser output remains `.jj_build/`. Production `app.py` imports the runtime through `app_materialized.py`, while `served_assets.py` compiles from `materialized_v1244/static`.
+
+`smoke_test_root_core_pruned.py` is owned by `runtime_release` and selected by the production release gate. It fails if a stale root core/static copy reappears, if the canonical materialized files disappear, or if the production runtime/browser pointers move away from `materialized_v1244` without an explicit architecture change.
+
+Rollback/parity artifacts such as `app_legacy.py`, `runtime_builder.py`, `release_v14/`, `v18_assets/`, and `v54_patch.py` are intentionally outside this Stage 6 guard. Their remaining lifecycle is reviewed separately in Stage 7B.2 rather than being made a permanent dependency of the pruned architecture.
+
 ## Test ownership
 
 Stage 5 makes `test_suites.py` the enforceable source of truth for active regression ownership. Tests are grouped by operational concern:

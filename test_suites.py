@@ -53,6 +53,7 @@ TEST_SUITES: dict[str, tuple[str, ...]] = {
         "smoke_test_materialized_import_scope.py",
         "smoke_test_production_entrypoint_isolated.py",
         "smoke_test_v2_production_cutover.py",
+        "smoke_test_root_core_pruned.py",
     ),
     "sitngo": (
         "smoke_test_sitngo_phase1.py",
@@ -129,6 +130,7 @@ PRODUCTION_RELEASE_SELECTION: tuple[tuple[str, tuple[str, ...]], ...] = (
         "smoke_test_materialized_import_scope.py",
         "smoke_test_production_entrypoint_isolated.py",
         "smoke_test_v2_production_cutover.py",
+        "smoke_test_root_core_pruned.py",
     )),
     ("ring_gameplay", (
         "smoke_test_v1244.py",
