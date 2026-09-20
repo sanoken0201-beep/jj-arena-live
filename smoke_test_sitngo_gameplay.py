@@ -37,6 +37,15 @@ def main(paid=False):
         assert state['_ante_paid']==400
         assert state['small_blind']==200 and state['big_blind']==400
         assert state['chip_unit']==100
+        # Registration is the seating commitment. Nobody needs to reconnect or
+        # open the tournament table before the server seats the full field and
+        # posts forced bets for them.
+        assert {int(p['user_id']) for p in state['seats']}==set(users[:count])
+        assert all(not p.get('sitting_out',False) for p in state['seats'])
+        sb=next(p for p in state['seats'] if p['seat']==state['hand']['small_blind_seat'])
+        bb=next(p for p in state['seats'] if p['seat']==state['hand']['big_blind_seat'])
+        assert sb['round_bet']==200 and sb['stack']==29800
+        assert bb['round_bet']==400 and bb['stack']==29200
         assert sum(p['stack']+p['contributed'] for p in state['seats'])+state['_ante_paid']==count*30000
         pub=rt.public(state,users[0])
         assert pub['chip_unit']==100 and pub['tournament']['chip_unit']==100
@@ -51,6 +60,25 @@ def main(paid=False):
         recovered=rt.load(eid)
         assert recovered['hand']['id']==state['hand']['id'] and recovered['hand']['deck']==state['hand']['deck']
         assert abs(datetime.fromisoformat(recovered['hand']['action_deadline']).timestamp()-before-70)<.01
+        if count==2:
+            # Simulate both registered players never returning to the table. The
+            # scheduler times out the action, starts the next hand, rotates the
+            # blinds, and posts them again without any connection/presence event.
+            first_sb=recovered['hand']['small_blind_seat'];first_bb=recovered['hand']['big_blind_seat']
+            clock=datetime.fromisoformat(recovered['hand']['action_deadline']).timestamp()+.1
+            with patch('time.time',return_value=clock):asyncio.run(rt.tick(eid,now=clock))
+            waiting=rt.load(eid)
+            assert waiting['status']=='waiting' and waiting.get('next_hand_at_epoch')
+            clock=float(waiting['next_hand_at_epoch'])+.1
+            with patch('time.time',return_value=clock):asyncio.run(rt.tick(eid,now=clock))
+            rotated=rt.load(eid)
+            assert rotated['status']=='playing'
+            assert rotated['hand']['small_blind_seat']==first_bb
+            assert rotated['hand']['big_blind_seat']==first_sb
+            assert all(not p.get('sitting_out',False) for p in rotated['seats'])
+            new_sb=next(p for p in rotated['seats'] if p['seat']==rotated['hand']['small_blind_seat'])
+            new_bb=next(p for p in rotated['seats'] if p['seat']==rotated['hand']['big_blind_seat'])
+            assert new_sb['round_bet']==200 and new_bb['round_bet']==400
         # Complete an actual tournament through the engine and runtime scheduler.
         for _ in range(2000):
             state=rt.load(eid)
