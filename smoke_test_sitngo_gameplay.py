@@ -74,7 +74,42 @@ def main(paid=False):
         assert service._row(eid)['status']=='finished'
         if paid:
             from sitngo_points import cents
-            assert sum(cents(r['prize_points']) for r in state['tournament']['results'])==count*1001
+            results=state['tournament']['results']
+            assert sum(cents(r['prize_points']) for r in results)==count*1001
+            assert state['tournament'].get('points_settled') is True
+            if count==6:
+                winner=next(r for r in results if r['place']==1)
+                runner_up=next(r for r in results if r['place']==2)
+                with db.connect() as con:
+                    payments=con.execute(
+                        'SELECT user_id,entry_tx,fee_cents,refunded FROM sitngo_payments WHERE event_id=? ORDER BY user_id',
+                        (eid,),
+                    ).fetchall()
+                    assert len(payments)==6
+                    assert all(int(row['fee_cents'])==1001 and int(row['refunded'])==0 for row in payments)
+                    for row in payments:
+                        entry=con.execute(
+                            'SELECT user_id,amount,kind FROM point_ledger WHERE id=?',
+                            (row['entry_tx'],),
+                        ).fetchone()
+                        assert entry and int(entry['user_id'])==int(row['user_id'])
+                        assert entry['kind']=='sitngo_entry' and cents(entry['amount'])==-1001
+                    prize_rows=con.execute(
+                        "SELECT user_id,amount FROM point_ledger WHERE kind='sitngo_prize' AND id LIKE ? ORDER BY user_id",
+                        (f'sng-prize-{eid}-%',),
+                    ).fetchall()
+                    prizes={int(row['user_id']):cents(row['amount']) for row in prize_rows}
+                    assert prizes=={int(winner['user_id']):4204,int(runner_up['user_id']):1802},prizes
+                    settled=con.execute(
+                        'SELECT awards_json FROM sitngo_settlements WHERE event_id=?',
+                        (eid,),
+                    ).fetchone()
+                    assert settled
+                    awards={int(uid):int(amount) for uid,amount in json.loads(settled['awards_json']).items()}
+                    assert len(awards)==6 and sum(awards.values())==6006
+                    assert awards[int(winner['user_id'])]==4204
+                    assert awards[int(runner_up['user_id'])]==1802
+                    assert all(awards[int(r['user_id'])]==0 for r in results if r['place']>2)
         old=list(state['tournament']['results'])
         rt.save(state)
         assert rt.load(eid)['tournament']['results']==old
