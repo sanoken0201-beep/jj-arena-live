@@ -145,6 +145,7 @@ Official JJ points are integrated as the tournament entry/prize accounting domai
 - CI includes a multi-session operational-acceptance regression in which independent member sessions act on one tournament and must converge on the same authoritative revision, turn, hand and stacks.
 - `sitngo_games.state_json` is protected by up to 40 meaningful generations in `sitngo_state_backups`. Heartbeat-only clock/revision changes do not consume generations. If the authoritative JSON is malformed or structurally invalid, the runtime restores the newest validated same-event snapshot atomically before resuming.
 - accumulated hand-history and tournament-chat reads are backed by composite `(event_id, created_at, id)`-ordered indexes (`hand_id` for hand history) so event-scoped reverse-chronological reads do not degrade into full-table scans as club history grows.
+- adopted Sit&Go contracts are mapped to their active regression evidence in `sitngo_acceptance.py`; the release-gated acceptance-manifest test fails if an active Sit&Go test loses traceability or the manifest points to inactive evidence.
 
 Paid end-to-end regression completes real 2-, 3-, 4-, 5- and 6-player tournaments. The 6-player path explicitly verifies each entry debit, escrow row, 70/30 winner/runner-up award, settlement record and prize-ledger row. PostgreSQL and SQLite Sit&Go CI both exercise the point integration.
 
