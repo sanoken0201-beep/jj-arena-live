@@ -143,3 +143,19 @@ CI also runs a multi-session acceptance scenario with independent authenticated 
 sessions on the same tournament. After actions from different sessions, every client
 must converge on the same authoritative revision, turn, hand and stack state, while
 replayed action IDs remain idempotent.
+
+
+## Operator alerting
+
+The telemetry summary derives conservative operator alerts without storing any new
+identifying data. Missing action tokens warn from the first occurrence and become
+critical at five within the selected window. Combined stale-hand/stale-turn events
+warn at three and become critical at ten. Tournament restart recovery is a warning.
+High duplicate-action counts and protected timeout-boundary races are informational.
+Normal player deadline expiry and automatic timeout check/fold are intentionally not
+operator alerts, regardless of count.
+
+When the administrator Sit&Go view is open, its existing 15-second refresh cycle
+updates the alert banner automatically and raises an in-console toast when a new
+warning/critical signature appears. This stage does not send data to LINE, Slack,
+email or any other external notification provider.
