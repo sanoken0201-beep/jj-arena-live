@@ -126,9 +126,10 @@ Official JJ points are integrated as the tournament entry/prize accounting domai
 
 - the administrator sets an `entry_fee` and payout percentages for each actual field size from 2 through 6;
 - defaults are winner-takes-all for 2–5 entrants and 70% / 30% for 6 entrants;
-- registration debits the entrant through `point_ledger` and records the locked payment in `sitngo_payments`;
+- registration debits the entrant through `point_ledger` and records the locked payment in `sitngo_payments`; insufficient balance does not block entry, so the official season balance may become negative;
 - registration cancellation, administrator cancellation and minimum-player cancellation refund the recorded entry exactly once;
 - the first registration permanently locks the event's point terms;
+- registration is also the seating commitment: registered entrants are included at tournament start even if they never reopen the table, and their blinds/BBA continue to post while absent;
 - tournament start fails closed if the registered field, locked fee, entry ledger rows or persisted payout configuration do not match exactly;
 - finished tournaments settle through `sitngo_settlements` and `sitngo_prize` ledger rows, preserving the complete pool to 0.01 pt and verifying persisted awards on replay;
 - manual admin reversal cannot independently reverse Sit&Go entry/refund/prize rows.
