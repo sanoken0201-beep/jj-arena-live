@@ -25,7 +25,7 @@ EVENT_DETAILS: dict[str, set[str]] = {
     "fallback": {"ws_close"},
     "reconnect": {"ws_open", "fresh_state"},
     "ready": {"submit"},
-    "action_result": {"rejected"},
+    "action_result": {"failed"},
     "review": {"table_open", "bookmark"},
     "sizing": {"preset", "slider", "step", "input", "allin"},
     "preaction": {"check", "check_fold"},
