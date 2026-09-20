@@ -33,16 +33,16 @@ NETWORK_HOOKS = r'''
     fresh(){return !!jjV2Connection.fresh},
     mode(){return String(jjV2Connection.mode||'')},
     disconnect(){
-      // Mirror the fail-closed boundary used by the production recovery path:
-      // connection freshness is revoked before recovery telemetry is emitted.
-      jjV2SetConnection('reconnecting',false);
+      // Mirror production onclose exactly: emit recovery telemetry, then revoke
+      // freshness. Do not rerender stale legal state after disabling controls.
       jjV6ConnectionClosed();
-      renderPokerRoom();
+      jjV2SetConnection('reconnecting',false);
     },
     socketOpen(){
+      // A socket-open signal alone is not authoritative state and production
+      // does not rerender the action bar until a fresh state is accepted.
       jjV6ConnectionOpen();
       jjV2SetConnection('syncing',false);
-      renderPokerRoom();
     },
     accept(s,source='poll'){
       const previous=tableState;
