@@ -24,7 +24,7 @@ python -m uvicorn app:app --host 0.0.0.0 --port $PORT
 
 現在のproduction coreは、検証済みv1.24.4 Golden Masterをコミット済みソースとして固定した **`materialized_v1244/`** です。`app_materialized.py` がこのcoreを読み込み、管理・学習・分析・レジリエンス・性能・セキュリティ等のroot-level extensionを既定順序で適用します。`app.py` はRender-facingの安定entrypointで、materialized coreを直接変更せずにproduction統合を行います。
 
-旧 `release_v14` + patch chainによるruntime再構築はproduction startupでもcompatibility runtimeでも使用しません。**`app_legacy.py`** はparity / emergency rollbackの隔離oracleとして残し、`runtime_builder.py` は `materialized_v1244.manifest.json` に記録された検証済みsnapshotから互換runtimeを構築します。historical patch chainと `release_v14` はforensic/history参照であり、runtime依存先ではありません。
+旧 `release_v14` + patch chainによるruntime再構築はproduction startupでもcompatibility runtimeでも使用しません。**`app_legacy.py`** はparity / emergency rollbackの隔離oracleとして残し、`runtime_builder.py` は `materialized_v1244.manifest.json` に記録された検証済みsnapshotから互換runtimeを構築します。Stage 7B.2で `release_v14/`, `v18_assets/`, `v54_patch.py` の作業ツリー上のコピーは削除済みで、forensic参照はGit履歴を使用します。
 
 ### Browser asset build
 

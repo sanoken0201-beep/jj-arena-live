@@ -117,7 +117,7 @@ The compatibility/parity runtime must not reconstruct v1.24.4 by unpacking `rele
 
 `runtime_builder.py` copies the files recorded in `materialized_v1244.manifest.json` into an isolated runtime directory and verifies their size/hash before and after copying. This makes the committed `materialized_v1244/` tree the single canonical v1.24.4 source for both production loading and compatibility construction.
 
-Historical release bundles and patch modules may remain for forensic history, but they are not runtime dependencies and must not be silently reintroduced into the compatibility builder. `smoke_test_runtime_builder_snapshot.py` and the production release gate protect this contract.
+Historical release bundles and patch modules are not runtime dependencies and must not be silently reintroduced into the compatibility builder. Stage 7B.2 removes the remaining `release_v14/`, `v18_assets/`, and `v54_patch.py` working-tree artifacts; forensic access is through Git history. `smoke_test_runtime_builder_snapshot.py`, `smoke_test_legacy_artifacts_pruned.py`, and the production release gate protect this contract.
 
 ## D-012 — Sit&Go blind progression is hand-count based and online chips remain exact
 

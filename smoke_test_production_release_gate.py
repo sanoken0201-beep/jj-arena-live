@@ -47,6 +47,7 @@ def main() -> None:
             "smoke_test_production_entrypoint_isolated.py",
             "smoke_test_v2_production_cutover.py",
             "smoke_test_root_core_pruned.py",
+            "smoke_test_legacy_artifacts_pruned.py",
             "smoke_test_single_public_table.py",
             "smoke_test_rake_settlement_fix.py",
             "smoke_test_sitngo_phase1.py",
