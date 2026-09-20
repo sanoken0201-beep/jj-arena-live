@@ -1,4 +1,4 @@
-"""Operational acceptance: two independent member sessions share one Sit&Go safely."""
+"""Operational acceptance: independent member sessions share one Sit&Go safely."""
 from __future__ import annotations
 
 import os
@@ -33,7 +33,7 @@ def main() -> None:
     with prod.db.connect() as con:
         admin = int(con.execute("SELECT id FROM users WHERE role='admin' ORDER BY id LIMIT 1").fetchone()["id"])
 
-    users = [add_member(6100 + i) for i in range(2)]
+    users = [add_member(6100 + i) for i in range(3)]
     starts = datetime.now(timezone.utc) + timedelta(minutes=10)
     event = service.create_event(
         sitngo.SitNGoCreateIn(name="multi-session acceptance", starts_at=starts.isoformat()),
@@ -66,8 +66,8 @@ def main() -> None:
     after = {uid: clients[uid].get(f"/api/tables/{eid}").json()["state"] for uid in users}
     after_revisions = {int(s["_revision"]) for s in after.values()}
     after_turns = {s["turn_id"] for s in after.values()}
-    require(len(after_revisions) == 1, "two sessions observed different revisions after action")
-    require(len(after_turns) == 1, "two sessions observed different turns after action")
+    require(len(after_revisions) == 1, "sessions observed different revisions after action")
+    require(len(after_turns) == 1 and next(iter(after_turns)), "sessions observed different turns after action")
     require(next(iter(after_revisions)) > next(iter(revisions)), "authoritative revision did not advance")
     require(next(iter(after_turns)) != state["turn_id"], "turn token did not advance after action")
 
@@ -88,12 +88,11 @@ def main() -> None:
     second = second_client.post(f"/api/tables/{eid}/action", json=second_body)
     require(second.status_code == 200, f"second device action failed: {second.text}")
 
-    final_a = clients[users[0]].get(f"/api/tables/{eid}").json()["state"]
-    final_b = clients[users[1]].get(f"/api/tables/{eid}").json()["state"]
-    require(final_a["_revision"] == final_b["_revision"], "sessions diverged after second device action")
-    require(final_a["hand"]["id"] == final_b["hand"]["id"], "sessions disagree on current hand")
+    finals = [clients[uid].get(f"/api/tables/{eid}").json()["state"] for uid in users]
+    require(len({int(s["_revision"]) for s in finals}) == 1, "sessions diverged after second device action")
+    require(len({s["hand"]["id"] for s in finals}) == 1, "sessions disagree on current hand")
     require(
-        [p["stack"] for p in final_a["seats"]] == [p["stack"] for p in final_b["seats"]],
+        len({tuple(p["stack"] for p in s["seats"]) for s in finals}) == 1,
         "sessions disagree on tournament stacks",
     )
 
