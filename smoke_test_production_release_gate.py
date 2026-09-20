@@ -43,11 +43,13 @@ def main() -> None:
             "smoke_test_production_entrypoint_isolated.py",
             "smoke_test_v2_production_cutover.py",
             "smoke_test_single_public_table.py",
+            "smoke_test_rake_settlement_fix.py",
             "smoke_test_sitngo_phase1.py",
             "smoke_test_sitngo_gameplay.py",
             "audit_ui_labels.py",
         }
         assert gate.RELEASE_TESTS == production_release_tests()
+        assert ("ring_gameplay", "smoke_test_rake_settlement_fix.py") in gate.RELEASE_TESTS
         assert {filename for _, filename in gate.RELEASE_TESTS} == expected
         assert {group for group, _ in gate.RELEASE_TESTS} == {
             group for group, _ in PRODUCTION_RELEASE_SELECTION
