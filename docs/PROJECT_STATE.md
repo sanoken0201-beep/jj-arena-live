@@ -1,7 +1,7 @@
 # JJ Arena — Canonical Project State
 
-Updated: 2026-09-20
-Snapshot basis: Sit&Go point-integration release built from `main` at `ff23c26c0a951342087e6b9355242f4373b2e2b5`
+Updated: 2026-09-21
+Snapshot basis: Sit&Go backlog-completion work based on `main` at `da77bf561c4fae78e2e581f5d77fc3755e9bb45f`
 
 This file is the **human/AI handoff source of truth for the current project state**. It exists so long ChatGPT development chats can be replaced without losing critical context.
 
@@ -120,7 +120,7 @@ Performance work must not trade away action correctness, timing correctness, car
 
 ## 10. Sit&Go current implementation
 
-Sit&Go is a dedicated root-level subsystem (`sitngo.py`, `sitngo_runtime.py`, `sitngo_ui.py`, `sitngo_points.py`) with its own persistence and tests. New events default to 30,000 tournament chips and a 10-minute-level big-blind-ante structure; administrators may configure the starting stack, blinds, ante and level durations before play begins. Tournament chips remain isolated from Ring settlement.
+Sit&Go is a dedicated root-level subsystem (`sitngo.py`, `sitngo_runtime.py`, `sitngo_ui.py`, `sitngo_points.py`) with its own persistence and tests. New events default to 30,000 tournament chips and a big-blind-ante structure. Administrators may configure the starting stack and each level's SB/BB/BBA before play begins. New tournaments advance one level after every 12 completed hands; persisted minute/target/prepared-minute fields are legacy/rollback metadata and do not select blinds. Online tournament accounting stays in an exact permanent 100-point unit and does not redistribute stacks through physical-style color-ups. Tournament chips remain isolated from Ring settlement.
 
 Official JJ points are integrated as the tournament entry/prize accounting domain:
 
@@ -132,7 +132,10 @@ Official JJ points are integrated as the tournament entry/prize accounting domai
 - registration is also the seating commitment: registered entrants are included at tournament start even if they never reopen the table, and their blinds/BBA continue to post while absent;
 - tournament start fails closed if the registered field, locked fee, entry ledger rows or persisted payout configuration do not match exactly;
 - finished tournaments settle through `sitngo_settlements` and `sitngo_prize` ledger rows, preserving the complete pool to 0.01 pt and verifying persisted awards on replay;
-- manual admin reversal cannot independently reverse Sit&Go entry/refund/prize rows.
+- manual admin reversal cannot independently reverse Sit&Go entry/refund/prize rows;
+- while one Sit&Go is running, the player lobby can also expose the next scheduled/registration/starting event so an open registration window is not hidden;
+- finished participants can see a ledger-backed point statement showing entry debit, refund, prize and net tournament point change;
+- privacy-preserving Sit&Go runtime observability stores only aggregate counts for stale/duplicate/late actions, timeout boundary protection, automatic timeout actions and restart recovery; it stores no user, event, hand, card, chip, network or free-text identifiers.
 
 Paid end-to-end regression completes real 2-, 3-, 4-, 5- and 6-player tournaments. The 6-player path explicitly verifies each entry debit, escrow row, 70/30 winner/runner-up award, settlement record and prize-ledger row. PostgreSQL and SQLite Sit&Go CI both exercise the point integration.
 
