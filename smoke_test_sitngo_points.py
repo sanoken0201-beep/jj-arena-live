@@ -67,10 +67,36 @@ def main():
         {'user_id':u,'place':p} for u,p in zip(ids,[1,2,2,4,5,6])]}}
     with db.connect() as con:service.points.settle(con,state)
     assert [cents(r['prize_points']) for r in state['tournament']['results']]==[4204,901,901,0,0,0]
+    # Replaying a persisted settlement must verify that the prize ledger still
+    # matches escrow, not merely trust awards_json.
+    with db.connect() as con:
+        prize_id=f'sng-prize-{tied}-{ids[0]}'
+        con.execute('UPDATE point_ledger SET amount=amount+0.01 WHERE id=?',(prize_id,))
+        try:service.points.settle(con,state)
+        except RuntimeError as exc:assert 'prize ledger' in str(exc)
+        else:raise AssertionError('corrupt persisted settlement was trusted')
+        con.execute('UPDATE point_ledger SET amount=amount-0.01 WHERE id=?',(prize_id,))
     with db.connect() as con:service.points.settle(con,state)
     with db.connect() as con:
         total=con.execute("SELECT SUM(amount) n FROM point_ledger WHERE kind IN ('sitngo_entry','sitngo_refund','sitngo_prize')").fetchone()['n']
         assert cents(total)==0
+    # When a tied prize cannot be split to an exact cent, the extra 0.01pt is
+    # assigned by the tournament's randomized seat order, never by account id.
+    tiny=event('0.05'); tiny_ids=[add_member(9800+i) for i in range(6)]
+    with db.connect() as con:
+        for i,u in enumerate(tiny_ids):service.points.write(con,tiny,u,5,'credit',f'tiny-funding-{i}')
+    for u in tiny_ids:service.register(tiny,u)
+    tiny_state={
+        'id':tiny,
+        'seats':[{'user_id':u,'seat':seat} for u,seat in zip(tiny_ids,[0,5,4,1,2,3])],
+        'tournament':{'status':'finished','entrants':6,'results':[
+            {'user_id':u,'place':p} for u,p in zip(tiny_ids,[1,2,2,4,5,6])
+        ]},
+    }
+    with db.connect() as con:service.points.settle(con,tiny_state)
+    tiny_awards={r['user_id']:cents(r['prize_points']) for r in tiny_state['tournament']['results']}
+    assert tiny_awards[tiny_ids[2]]==5 and tiny_awards[tiny_ids[1]]==4,tiny_awards
+
     from sitngo_points import default_payouts
     rates=default_payouts();rates['6']=[0,0,0,0,0,100]
     eid=event('0')
