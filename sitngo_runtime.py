@@ -102,6 +102,8 @@ class TournamentRuntime:
             con.execute("""CREATE TABLE IF NOT EXISTS sitngo_messages(
                 id TEXT PRIMARY KEY, event_id TEXT NOT NULL REFERENCES sitngo_events(id),
                 user_id INTEGER NOT NULL, author_name TEXT NOT NULL, body TEXT NOT NULL, created_at TEXT NOT NULL)""")
+            con.execute("CREATE INDEX IF NOT EXISTS idx_sitngo_hands_event_created ON sitngo_hands(event_id,created_at DESC,hand_id DESC)")
+            con.execute("CREATE INDEX IF NOT EXISTS idx_sitngo_messages_event_created ON sitngo_messages(event_id,created_at DESC,id DESC)")
         self.install_dispatch(ring_engine)
         self.install_routes()
 
