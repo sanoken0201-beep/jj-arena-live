@@ -41,6 +41,7 @@ def record(db, metric: str, now: datetime | None = None) -> bool:
         raise ValueError(f"unknown Sit&Go runtime metric: {metric}")
     try:
         day=_day(now)
+        observed_count=None
         with db.connect() as con:
             con.execute(
                 """INSERT INTO sitngo_runtime_metrics(day,metric,count)
@@ -55,7 +56,15 @@ def record(db, metric: str, now: datetime | None = None) -> bool:
                     "SELECT count FROM sitngo_runtime_metrics WHERE day=? AND metric=?",
                     (day,metric),
                 ).fetchone()
-                sitngo_alerting.consider(con,day,metric,int(row["count"] or 0),now=now)
+                observed_count=int(row["count"] or 0)
+        if observed_count is not None:
+            try:
+                with db.connect() as con:
+                    sitngo_alerting.consider(con,day,metric,observed_count,now=now)
+            except Exception:
+                # Alert queueing is an optional operational side effect. Losing an
+                # alert must never lose or roll back the underlying safety metric.
+                pass
         return True
     except Exception:
         # Observability must never break tournament actions or timeout progress.
