@@ -32,6 +32,7 @@ TEST_SUITES: dict[str, tuple[str, ...]] = {
         "smoke_test_poker_simple.py",
         "smoke_test_oop_check_browser.py",
         "smoke_test_poker_control_audit.py",
+        "smoke_test_network_recovery_browser.py",
         "smoke_test_rake_settlement_fix.py",
     ),
     "browser_contract": (
@@ -91,6 +92,7 @@ BROWSER_ONLY_TESTS = frozenset(
         "smoke_test_poker_simple.py",
         "smoke_test_oop_check_browser.py",
         "smoke_test_poker_control_audit.py",
+        "smoke_test_network_recovery_browser.py",
         "smoke_test_sitngo_browser.py",
     }
 )
