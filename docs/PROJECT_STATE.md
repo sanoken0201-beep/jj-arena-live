@@ -1,7 +1,7 @@
 # JJ Arena — Canonical Project State
 
 Updated: 2026-09-21
-Snapshot basis: UX recovery telemetry completion based on `main` at `59c9242051a6824c3aebe767ab7fc6e1b3c0b188`
+Snapshot basis: Stage 6 / Stage 7B.2 / Sit&Go legacy-source / architecture-test cleanup completion based on `main` at `21a3551296304f18250c9f2c0015d98b2fa71782`
 
 This file is the **human/AI handoff source of truth for the current project state**. It exists so long ChatGPT development chats can be replaced without losing critical context.
 
@@ -77,7 +77,7 @@ Do not mix poker game-rule changes and UI-only changes in one patch unless the c
 
 `served_assets.py` and the production browser pipeline compile the final browser output into `.jj_build/` during build. `browser_asset_pipeline.py` owns final post-build ordering, and `browser_runtime_consolidation.py` keeps deterministic browser mutation out of request-time serving.
 
-Production should serve validated prebuilt assets rather than execute the historical UX transform chain on each request. Missing production build artifacts should fail closed rather than silently create a different runtime. Sit&Go player browser transforms are configured solely through the dependency-free `sitngo_browser_config.py` before build aliases bind; `sitngo_admin_config.py`, `sitngo_hand_levels.py` and `sitngo_asset_cache.py` no longer maintain parallel player-UI mutation implementations. The committed `admin_static` files are the admin Sit&Go UI source of truth and are never rewritten at process startup.
+Production should serve validated prebuilt assets rather than execute the historical UX transform chain on each request. Missing production build artifacts should fail closed rather than silently create a different runtime. `served_assets.py` is the single owner of dependency-free browser-transform initialization, including the Sit&Go browser contract installer; `build_served_assets.py` is limited to build → finalize → validate orchestration and must not initialize individual transforms. Sit&Go player browser transforms are configured solely through the dependency-free `sitngo_browser_config.py` before build aliases bind; `sitngo_admin_config.py`, `sitngo_hand_levels.py` and `sitngo_asset_cache.py` no longer maintain parallel player-UI mutation implementations. The committed `admin_static` files are the admin Sit&Go UI source of truth and are never rewritten at process startup.
 
 ## 6. Product lifecycle
 
@@ -162,7 +162,7 @@ Important regression domains include:
 - Sit&Go
 - PostgreSQL behavior
 
-Historical one-off tests may remain for forensic value but are not automatically active release owners.
+Historical one-off tests may remain for forensic value but are not automatically active release owners. Stage 6 root-core pruning and Stage 7B.2 legacy-artifact pruning are complete on `main`; current release coverage includes guards preventing those stale paths from returning. The Sit&Go canonical player source now expresses the 12-hand level model directly instead of relying on legacy timed-UI migration transforms.
 
 The compatibility-runtime snapshot contract is now covered by `smoke_test_runtime_builder_snapshot.py` and the production release gate. A future change must not silently reintroduce runtime patch-chain replay. Active product regressions also validate canonical materialized/runtime behavior directly; they do not retain a source-level dependency on `v54_patch.py` or the old release reconstruction chain.
 
