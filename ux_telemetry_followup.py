@@ -88,14 +88,34 @@ def transform_app_js(source: str) -> str:
     )
     source = _replace_once(
         source,
-        """    }catch(err){
-      toast(err.message);
-      if(currentTableId===tableId){""",
-        """    }catch(err){
+        """      try{next=await post('/tables/'+tableId+'/action',body)}
+      catch(err){
+        if(!(err instanceof TypeError))throw err;
+        await new Promise(r=>setTimeout(r,450));
+        if(currentTableId!==tableId||jjV124DecisionKey()!==decisionKey)throw err;
+        next=await post('/tables/'+tableId+'/action',body);
+      }
+      // A newer WS snapshot wins over an older HTTP response.
+      if(currentTableId===tableId&&tableState===before&&next?.legal){
+        tableState=next;jjV2AcceptState('http',before);
+      }
+    }catch(err){
+      toast(err.message);""",
+        """      try{next=await post('/tables/'+tableId+'/action',body)}
+      catch(err){
+        if(!(err instanceof TypeError))throw err;
+        await new Promise(r=>setTimeout(r,450));
+        if(currentTableId!==tableId||jjV124DecisionKey()!==decisionKey)throw err;
+        next=await post('/tables/'+tableId+'/action',body);
+      }
+      // A newer WS snapshot wins over an older HTTP response.
+      if(currentTableId===tableId&&tableState===before&&next?.legal){
+        tableState=next;jjV2AcceptState('http',before);
+      }
+    }catch(err){
       jjV73ActionFailed();
-      toast(err.message);
-      if(currentTableId===tableId){""",
-        "betting rejection",
+      toast(err.message);""",
+        "final poker action failure",
     )
     source = _replace_once(
         source,
