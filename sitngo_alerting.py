@@ -17,6 +17,8 @@ from urllib.request import Request, urlopen
 from fastapi import Depends
 
 ALERT_THRESHOLDS = {
+    "reconcile_error": 1,
+    "tick_error": 1,
     "restart_recovery": 1,
     "timeout_boundary_protected": 3,
     "stale_hand": 5,
@@ -26,7 +28,7 @@ ALERT_THRESHOLDS = {
     "duplicate_action": 20,
 }
 
-_CRITICAL = frozenset({"restart_recovery"})
+_CRITICAL = frozenset({"reconcile_error", "tick_error", "restart_recovery"})
 _ENV = "JJ_SITNGO_ALERT_WEBHOOK_URL"
 
 
