@@ -76,9 +76,20 @@
   function renderStructure(levels,targetMinutes){return `<details class="sng-structure-admin"><summary>ブラインドストラクチャー</summary><div class="sng-structure-grid">${(levels||[]).map(x=>`<div><b>Lv.${x.level} · ${fmt(x.small_blind)}/${fmt(x.big_blind)}</b><small>BBA ${fmt(x.bb_ante)} · 12ハンド</small></div>`).join('')}</div></details>`}
   function statusClass(status){return status==='registration_open'?'open':status==='running'?'running':status==='cancelled'?'cancelled':''}
   const telemetryLabels={missing_tokens:'token不足',duplicate_action:'重複action',stale_hand:'古いhand',stale_turn:'古いturn',late_action:'deadline超過',timeout_boundary_protected:'境界競合を保護',timeout_auto_action:'自動timeout',restart_recovery:'再起動復旧'};
+  let lastAlertSignature='';
+  function renderRuntimeAlerts(){
+    const host=$('#sngRuntimeAlert');if(!host)return;
+    const alerts=telemetry?.alerts||[],status=telemetry?.alert_status||'ok';
+    if(!alerts.length){host.innerHTML='<div class="sng-alert-ok"><b>異常なし</b><span>現在、運営確認が必要なSit&Go安全イベントはありません。</span></div>';lastAlertSignature='';return}
+    host.innerHTML='<div class="sng-alert-summary '+safe(status)+'"><b>'+(status==='critical'?'至急確認':status==='warning'?'要確認':'参考情報')+'</b><span>'+alerts.length+'件の監視シグナルがあります。</span></div><div class="sng-alert-list">'+alerts.map(a=>'<div class="sng-alert-item '+safe(a.severity)+'"><div><b>'+safe(a.title)+'</b><span>'+safe(a.detail)+'</span></div><strong>'+fmt(a.count)+'</strong></div>').join('')+'</div>';
+    const actionable=alerts.filter(a=>a.severity==='critical'||a.severity==='warning');
+    const signature=actionable.map(a=>a.code+':'+a.severity+':'+a.count).join('|');
+    if(signature&&signature!==lastAlertSignature){toast((actionable.some(a=>a.severity==='critical')?'Sit&Goで至急確認事項があります':'Sit&Goで要確認事項があります'));lastAlertSignature=signature}
+  }
   function renderTelemetry(){
     const host=$('#sngTelemetry');if(!host)return;
-    if(!telemetry){host.innerHTML='<div class="empty-state">安全イベントを読み込めませんでした。</div>';return}
+    if(!telemetry){host.innerHTML='<div class="empty-state">安全イベントを読み込めませんでした。</div>';$('#sngRuntimeAlert').innerHTML='';return}
+    renderRuntimeAlerts();
     const totals=telemetry.totals||{},days=Number(telemetry.window_days||7);
     host.innerHTML='<div class="sng-telemetry-grid">'+Object.entries(telemetryLabels).map(([key,label])=>'<div><span>'+safe(label)+'</span><b>'+fmt(totals[key]||0)+'</b><small>件 / '+days+'日</small></div>').join('')+'</div><p class="field-note compact">個人ID・大会ID・hand ID・カード・チップ量・IP・session・自由記述は保存しません。</p>';
   }

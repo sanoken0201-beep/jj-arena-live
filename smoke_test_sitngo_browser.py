@@ -65,7 +65,7 @@ def main():
         def route_admin(route):
             url=route.request.url
             if '/api/admin/sitngo/telemetry' in url:
-                return route.fulfill(json={'window_days':7,'privacy':{'stores_user_identity':False},'totals':{'missing_tokens':1,'duplicate_action':2,'stale_hand':3,'stale_turn':4,'late_action':5,'timeout_boundary_protected':6,'timeout_auto_action':7,'restart_recovery':8},'trend':[]})
+                return route.fulfill(json={'window_days':7,'privacy':{'stores_user_identity':False},'totals':{'missing_tokens':1,'duplicate_action':2,'stale_hand':3,'stale_turn':4,'late_action':5,'timeout_boundary_protected':6,'timeout_auto_action':7,'restart_recovery':8},'trend':[],'alert_status':'warning','alerts':[{'code':'missing_tokens','severity':'warning','title':'action token不足を検知しました','detail':'7日間で1件です。','count':1},{'code':'stale_action','severity':'warning','title':'stale actionが増えています','detail':'7日間で7件です。','count':7}]})
             if '/api/admin/sitngo' in url:
                 if route.request.method=='POST':
                     captured.append(route.request.post_data_json)
@@ -82,6 +82,9 @@ def main():
         telemetry=page.locator('#sngTelemetry').inner_text()
         assert '重複action' in telemetry and '2' in telemetry and '再起動復旧' in telemetry and '8' in telemetry
         assert '個人ID・大会ID・hand ID' in telemetry
+        alert=page.locator('#sngRuntimeAlert').inner_text()
+        assert '要確認' in alert and 'action token不足' in alert and 'stale action' in alert
+        assert 'Sit&Goで要確認事項があります' in page.locator('#toast').inner_text()
         page.fill('#sngEntryFee','25.50')
         page.locator('#sngPointSettings summary').click()
         rates=page.locator('[data-sng-payout="6"]')
