@@ -1,6 +1,6 @@
 # JJ Arena Architecture Status
 
-Updated: 2026-09-17
+Updated: 2026-09-21
 
 This document classifies production surfaces so compatibility code is not mistaken for an active product path. `materialized_v1244/` remains the immutable canonical core and is not edited for ordinary product changes.
 
@@ -59,7 +59,7 @@ The browser build is two-tiered:
 
 The final stage, `browser_runtime_consolidation.py`, absorbs the deterministic browser mutations that previously lived in `app.py` at request time. The validated `.jj_build` directory is therefore the canonical browser output. `app.py` may perform transport work such as ETag/gzip handling, but it must not rewrite HTML, JavaScript or CSS source while serving a request.
 
-`build_served_assets.py` must not manually call individual final transforms. New final browser layers are registered in `browser_asset_pipeline.POST_BUILD_STAGES` so ordering is explicit and testable.
+`served_assets.py` owns dependency-free browser transform initialization, including the Sit&Go browser contract installer. `build_served_assets.py` is intentionally limited to build → finalize → validate orchestration and must not initialize individual transforms. New final browser layers are registered in `browser_asset_pipeline.POST_BUILD_STAGES` so ordering is explicit and testable.
 
 ## Repository pruning
 
