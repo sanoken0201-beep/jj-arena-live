@@ -162,7 +162,7 @@ admin_api_consolidation.install(app, runtime_server)
 learning_content.install(app)
 daily_quiz.install(app, runtime_server, db)
 hand_analytics.install(app, runtime_server, db)
-if bool(getattr(db, "IS_POSTGRES", False)) and os.environ.get("RENDER", "").strip().lower() in {"1", "true", "yes"}:
+if rake_integrity_runtime_audit.should_run(db, os.environ):
     # Production-only, SELECT-only persisted-rake audit. It runs after the
     # analytics tables exist and logs only aggregate anomaly counts/hand IDs.
     rake_integrity_runtime_audit.run(db)
