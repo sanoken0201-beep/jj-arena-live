@@ -192,7 +192,9 @@ _GAMEPLAY_PATCH = r'''
     jjSngTableClock();
     $('#jjObserverJoin')?.remove();
     if(t.status==='finished'){
-      $('#actionBar').innerHTML=`<div class="jj-sng-finish"><strong>大会終了</strong>${t.results.map(x=>`<span>${x.place}位 · ${safe(x.name)} · ${Number(x.prize_points||0)} pt</span>`).join('')}<small>賞金総額 ${Number(t.prize_points||0)} pt</small></div>`;
+      const ps=t.point_statement,sign=v=>Number(v||0)>0?`+${Number(v)}`:String(Number(v||0));
+      const statement=ps?`<div class="jj-sng-point-statement"><b>あなたのポイント精算</b><span>参加費 ${sign(ps.entry_points)} pt</span>${Number(ps.refund_points||0)?`<span>返金 +${Number(ps.refund_points)} pt</span>`:''}<span>賞金 +${Number(ps.prize_points||0)} pt</span><strong>大会増減 ${sign(ps.net_points)} pt</strong></div>`:'';
+      $('#actionBar').innerHTML=`<div class="jj-sng-finish"><strong>大会終了</strong>${t.results.map(x=>`<span>${x.place}位 · ${safe(x.name)} · ${Number(x.prize_points||0)} pt</span>`).join('')}<small>賞金総額 ${Number(t.prize_points||0)} pt</small>${statement}</div>`;
     }else if(t.results.some(x=>x.user_id===me?.id)){
       const r=t.results.find(x=>x.user_id===me.id);
       $('#actionBar').innerHTML=`<div class="jj-sng-finish"><strong>${r.place}位で終了しました</strong><span>このまま観戦できます</span></div>`;
