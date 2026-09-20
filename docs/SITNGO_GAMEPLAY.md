@@ -1,12 +1,13 @@
 # Single-table Sit&Go
 
 Sit&Go is a scheduled 2–6-player freezeout. New events default to 30,000 tournament
-chips, 10-minute levels, big-blind ante and a 150-minute prepared structure, but the
-administrator owns the event configuration: starting stack, SB, BB, BBA and each
-level duration can be edited before the event starts. Once play begins the saved
-configuration is locked. There is no late registration or re-entry. The last
-prepared level repeats until a winner is determined. 90 minutes is a target, not a
-forced ending. Ring and tournament chips never share settlement.
+chips and big-blind ante. The administrator owns the event configuration: starting
+stack plus each level's SB, BB and BBA can be edited before the event starts. New
+tournaments advance one blind level after every 12 completed hands. Persisted minute,
+target-minute and prepared-minute fields are legacy/rollback metadata and do not
+select blinds. Once play begins the saved configuration is locked. There is no late
+registration or re-entry. The last prepared level repeats until a winner is
+determined. Ring and tournament chips never share settlement.
 
 The existing ring table renderer, cards, raise sizing, pre-actions and connection
 recovery are reused. Tournament actions additionally carry the hand ID; delayed
@@ -15,37 +16,23 @@ button and recent results. No production event is created by deploying this code
 
 ## Tournament chip rules
 
-100 is the absolute minimum tournament denomination. Every configured stack,
-SB, BB and BBA is stored in 100-point units. The active denomination is derived
-from the starting stack and all forced bets that remain in the saved structure.
-For the default 30,000 structure the scheduled units are:
+100 is the permanent online tournament accounting unit. Every configured starting
+stack, SB, BB and BBA must be representable in 100-point units. Unlike a physical
+tournament, JJ Arena does not race off or redistribute low-denomination chips when
+blinds rise: each player's exact stack is preserved throughout the tournament.
 
-- Lv.1–4: 100
-- Lv.5–6: 500
-- Lv.7–10: 1,000
-- Lv.11–13: 5,000
-- Lv.14 onward: 10,000
+A compatibility color-up hook remains for legacy persisted states, but it never
+moves value between players. It may normalize the accounting unit back to 100 only
+between hands and only when no contribution or ante remains in the pot. Any state
+containing a stack, contribution, blind or ante below the legal 100-point unit fails
+closed instead of being persisted.
 
-A color-up is executed only between hands, immediately before the first hand of a
-level that permits a larger unit. It preserves the exact tournament chip supply,
-removes obsolete denominations and cannot reduce a live player to zero. Because
-this is an online table, the remainder conversion is deterministic rather than a
-physical random chip race; the allocation is bounded to whole new chips and is
-audited in `tournament.chip_up_history`.
-
-Normal bets/raises must be exact multiples of the active denomination. Calls and
-all-ins remain legal through the canonical betting engine, but all tournament
-stacks/contributions are checked server-side after every action and before every
-save. A state containing a 50-point/1-point chip when the active denomination is
-100 or more fails closed instead of being persisted.
-
-At showdown each main/side pot is split independently in whole active chips. The
-engine never creates a half-chip. Any odd chip is awarded beginning with the first
-eligible tied winner to the left of the button. The BBA is dead money in the main
-pot rather than a separate logical pot, so one showdown cannot accidentally make
-an additional odd-chip decision just for the ante. Player POT and percentage-bet
-UI also includes the posted BBA and uses the active denomination as its sizing
-step.
+Normal bets/raises use 100-point increments. Calls and all-ins remain legal through
+the canonical betting engine. At showdown each main/side pot is split in whole
+100-point chips; any odd chip is awarded beginning with the first eligible tied
+winner to the left of the button. The BBA is dead money in the main pot rather than
+a separate logical pot. Player POT and percentage-bet UI include the posted BBA
+exactly once.
 
 ## Tournament conventions
 
@@ -68,8 +55,9 @@ state. Optimistic revisions reject stale writers.
 
 The scheduler preserves 45-second action deadlines, staged runouts and at least
 1.6 seconds between hands (including the canonical showdown hold). Blind levels
-change only when dealing a new hand. Checkpoints are written at every action and
-at most five seconds apart during play. Restart resumes the saved hand and moves
+change only between hands, after each block of 12 completed hands. Checkpoints are
+written at every action and at most five seconds apart during play. Restart resumes
+the saved hand and moves
 deadlines by the time since the last checkpoint; up to five seconds of recent
 play can be treated as downtime. It does not redeal or restore spent chips.
 Deploy one application worker, as required by the existing in-process ring locks.
@@ -87,8 +75,9 @@ real hand with the assigned seats.
 Validation covers complete free 2/4/6-player tournaments and paid 2/3/4/5/6-player
 tournaments; total-chip conservation; exact entry escrow and prize-ledger
 conservation; the default six-player 70/30 award; short BBA; split/odd chips;
-main/side pots; BBA main-pot integration; denomination-aware raises; scheduled and
-custom color-ups; micro-stack survival; restart; timeouts; blind changes;
+main/side pots; exact-once BBA POT display; 100-point raise sizing; legacy accounting
+normalization without stack redistribution; micro-stack survival; restart; timeouts;
+12-hand blind changes;
 authenticated HTTP/WebSocket; stale hand and duplicate action handling; cash-only
 endpoint rejection; chat/history privacy; and phone/desktop ring UI actions.
 
