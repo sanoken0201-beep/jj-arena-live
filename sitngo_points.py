@@ -16,12 +16,23 @@ def default_payouts():
 def validate_payouts(value):
     if set(value) != {str(n) for n in range(2,7)}:
         raise ValueError('2〜6人それぞれの配当率を設定してください')
+    normalized={}
     for n, rates in value.items():
-        if len(rates) != int(n):raise ValueError('順位数が不正です')
-        if any(not Decimal(str(x)).is_finite() or x < 0 or x > 100 or Decimal(str(x))*100 != int(Decimal(str(x))*100) for x in rates):
-            raise ValueError('配当率は0〜100%、小数2桁までです')
-        if sum(Decimal(str(x)) for x in rates) != 100:raise ValueError('配当率の合計を100%にしてください')
-    return value
+        if len(rates) != int(n):
+            raise ValueError('順位数が不正です')
+        clean=[]
+        for raw in rates:
+            try:
+                rate=Decimal(str(raw))
+            except Exception as exc:
+                raise ValueError('配当率は0〜100%、小数2桁までです') from exc
+            if not rate.is_finite() or rate < 0 or rate > 100 or rate*100 != int(rate*100):
+                raise ValueError('配当率は0〜100%、小数2桁までです')
+            clean.append(rate)
+        if sum(clean) != Decimal('100'):
+            raise ValueError('配当率の合計を100%にしてください')
+        normalized[str(n)]=clean
+    return normalized
 
 
 def prize_schedule(pool, entrants, payouts=None):
@@ -49,12 +60,44 @@ class TournamentPoints:
 
     def payouts(self,con,eid):
         row=con.execute('SELECT payouts_json FROM sitngo_payout_settings WHERE event_id=?',(eid,)).fetchone()
-        return json.loads(row['payouts_json']) if row else default_payouts()
+        try:
+            raw=json.loads(row['payouts_json']) if row else default_payouts()
+            checked=validate_payouts(raw)
+        except (ValueError,TypeError,json.JSONDecodeError) as exc:
+            raise RuntimeError('Sit&Go payout configuration is invalid; tournament start/settlement refused') from exc
+        return {n:[str(v) for v in rates] for n,rates in checked.items()}
 
     def configure(self,con,eid,fee,payouts):
-        rates={n:[str(v) for v in r] for n,r in payouts.items()}
+        checked=validate_payouts(payouts)
+        rates={n:[str(v) for v in r] for n,r in checked.items()}
         con.execute('INSERT INTO sitngo_terms(event_id,fee_cents) VALUES (?,?) ON CONFLICT(event_id) DO UPDATE SET fee_cents=excluded.fee_cents',(eid,cents(fee)))
         con.execute('INSERT INTO sitngo_payout_settings(event_id,payouts_json) VALUES (?,?) ON CONFLICT(event_id) DO UPDATE SET payouts_json=excluded.payouts_json',(eid,json.dumps(rates)))
+
+    def assert_escrow(self,con,eid,participants):
+        fee=self.fee(con,eid)
+        expected={int(uid) for uid in participants}
+        rows=con.execute(
+            'SELECT user_id,entry_tx,fee_cents,refunded FROM sitngo_payments WHERE event_id=?',
+            (eid,),
+        ).fetchall()
+        active={int(r['user_id']):r for r in rows if not int(r['refunded'])}
+        if fee==0:
+            if active:
+                raise RuntimeError('Free Sit&Go has unexpected active entry escrow')
+            return
+        if set(active)!=expected:
+            raise RuntimeError('Tournament escrow is incomplete; start refused')
+        for uid,row in active.items():
+            if int(row['fee_cents'])!=fee:
+                raise RuntimeError('Tournament escrow fee mismatch; start refused')
+            ledger=con.execute(
+                "SELECT user_id,amount,kind FROM point_ledger WHERE id=?",
+                (row['entry_tx'],),
+            ).fetchone()
+            if not ledger or int(ledger['user_id'])!=uid or str(ledger['kind'])!='sitngo_entry' or cents(ledger['amount'])!=-fee:
+                raise RuntimeError('Tournament escrow ledger mismatch; start refused')
+        # Fail closed on payout corruption before any cards are dealt.
+        self.payouts(con,eid)
 
     def describe(self,eid,count):
         with self.db.connect() as con:
@@ -113,8 +156,16 @@ class TournamentPoints:
                 raise RuntimeError('Tournament escrow mismatch; settlement refused')
             pool=sum(int(r['fee_cents']) for r in rows);schedule=prize_schedule(pool,t['entrants'],self.payouts(con,eid))
             awards={str(r['user_id']):0 for r in results}
+            seat_rows=con.execute(
+                'SELECT user_id,seat FROM sitngo_registrations WHERE event_id=?',
+                (eid,),
+            ).fetchall()
+            seat_order={int(r['user_id']):int(r['seat']) if r['seat'] is not None else 10**9 for r in seat_rows}
             for place in sorted({r['place'] for r in results}):
-                tied=sorted((r for r in results if r['place']==place),key=lambda r:r['user_id'])
+                tied=sorted(
+                    (r for r in results if r['place']==place),
+                    key=lambda r:(seat_order.get(int(r['user_id']),10**9),int(r['user_id'])),
+                )
                 total=sum(schedule[place-1:place-1+len(tied)]);share,remainder=divmod(total,len(tied))
                 for i,r in enumerate(tied):awards[str(r['user_id'])]=share+int(i<remainder)
             if sum(awards.values())!=pool:raise RuntimeError('Tournament awards do not conserve points')
