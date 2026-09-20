@@ -243,6 +243,7 @@ runtime performance変更では、少なくとも以下の意味を変えない�
 [ ] action timeout remains 45 seconds
 [ ] next-hand delay / forced runout timing remain correct
 [ ] no new ERROR logs
+[ ] Sit&Go管理画面のruntime safetyが想定どおり表示され、warning/criticalがある場合は内容を確認
 [ ] no JJ_TIMEOUT_LOOP_ERROR / JJ_WS_CONNECTION_ERROR during normal play
 ```
 
