@@ -12,7 +12,9 @@ from copy import deepcopy
 from typing import Any
 
 from fastapi import HTTPException
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
+from decimal import Decimal
+from sitngo_points import default_payouts, validate_payouts
 
 DEFAULT_STARTING_STACK = 30_000
 DEFAULT_TARGET_MINUTES = 90
@@ -47,6 +49,10 @@ class BlindLevelIn(BaseModel):
 
 
 class ConfiguredSitNGoCreateIn(BaseModel):
+    entry_fee: Decimal = Field(default=Decimal(0), ge=0, le=1000000, decimal_places=2)
+    payout_percentages: dict[str, list[Decimal]] = Field(default_factory=default_payouts)
+    _validate_payouts = field_validator('payout_percentages')(validate_payouts)
+
     name: str = Field(default="JJ Sit&Go", min_length=1, max_length=80)
     starts_at: str = Field(min_length=10, max_length=50)
     starting_stack: int = Field(default=DEFAULT_STARTING_STACK, ge=1_000, le=10_000_000)
@@ -54,6 +60,14 @@ class ConfiguredSitNGoCreateIn(BaseModel):
 
 
 class ConfiguredSitNGoUpdateIn(BaseModel):
+    entry_fee: Decimal | None = Field(default=None, ge=0, le=1000000, decimal_places=2)
+    payout_percentages: dict[str, list[Decimal]] | None = None
+
+    @field_validator('payout_percentages')
+    @classmethod
+    def check_payouts(cls, value):
+        return validate_payouts(value) if value is not None else None
+
     name: str | None = Field(default=None, min_length=1, max_length=80)
     starts_at: str | None = Field(default=None, min_length=10, max_length=50)
     starting_stack: int | None = Field(default=None, ge=1_000, le=10_000_000)
@@ -198,6 +212,8 @@ def _patch_player_ui() -> None:
         "${jjSngStructureHtml(eventLevels,event.target_minutes)}",
         "event structure call",
     )
+    source = source.replace('無料 · 賞品なし','参加費 ${fmt(event.entry_fee)} pt · 賞金 ${fmt(event.prize_points)} pt')
+    source = source.replace('${action}${participants}', '<details><summary>プライズ配分</summary>${Object.entries(event.payout_percentages||{}).map(([n,r])=>`<p>${safe(n)}人：${r.map((v,i)=>`${i+1}位 ${safe(v)}%`).join(" / ")}</p>`).join("")}<p>登録時に参加費を徴収します。開始前の取消・中止で返却。同順位は該当順位分を均等分配し、0.01pt単位で端数調整します。</p></details>${action}${participants}')
     ui._APP_PATCH = source
     ui._JJ_ADMIN_STRUCTURE_PATCHED = True
 
@@ -269,9 +285,12 @@ def install(sitngo_module) -> None:
                     stamp,
                 ),
             )
+            self.points.configure(con, event_id, payload.entry_fee, payload.payout_percentages)
         self._audit(
             actor_id,
             "sitngo.create",
+            entry_fee=str(payload.entry_fee),
+            payout_percentages={n:[str(v) for v in r] for n,r in payload.payout_percentages.items()},
             event_id=event_id,
             starts_at=sitngo_module._iso(starts),
             name=payload.name.strip(),
@@ -283,6 +302,7 @@ def install(sitngo_module) -> None:
     def update_event(self, event_id: str, payload: ConfiguredSitNGoUpdateIn, actor_id: int):
         self.reconcile()
         with self._lock, self.db.connect() as con:
+            con.execute("UPDATE sitngo_events SET updated_at=updated_at WHERE id=?", (event_id,))
             row = con.execute("SELECT * FROM sitngo_events WHERE id=?", (event_id,)).fetchone()
             if not row:
                 raise HTTPException(404, "Sit&Goが見つかりません")
@@ -292,6 +312,16 @@ def install(sitngo_module) -> None:
             sets: list[str] = []
             args: list[object] = []
             changed: dict[str, object] = {}
+            if payload.entry_fee is not None or payload.payout_percentages is not None:
+                fee = payload.entry_fee if payload.entry_fee is not None else Decimal(self.points.fee(con,event_id))/100
+                rates = payload.payout_percentages if payload.payout_percentages is not None else self.points.payouts(con,event_id)
+                old_rates=self.points.payouts(con,event_id)
+                is_changed = self.points.fee(con,event_id) != int(fee*100) or any([Decimal(str(v)) for v in rates[n]] != [Decimal(str(v)) for v in old_rates[n]] for n in rates)
+                if is_changed:
+                    if con.execute('SELECT 1 FROM sitngo_registrations WHERE event_id=? LIMIT 1',(event_id,)).fetchone():
+                        raise HTTPException(409,'参加登録後は参加費・配当率を変更できません。中止して新しい大会を作成してください')
+                    self.points.configure(con,event_id,fee,rates)
+                    changed.update(entry_fee=str(fee),payout_percentages={n:[str(v) for v in r] for n,r in rates.items()})
             if payload.name is not None:
                 name = payload.name.strip()
                 if not name:
@@ -376,8 +406,9 @@ def install(sitngo_module) -> None:
             tournament={
                 "event_id": eid,
                 "status": "running",
-                "entry_fee": 0,
-                "prize_points": 0,
+                "entry_fee": self.service.points.fee(con,eid)/100,
+                "prize_points": self.service.points.fee(con,eid)*len(participants)/100,
+                "payout_percentages": self.service.points.payouts(con,eid)[str(len(participants))],
                 "started_at_epoch": now.timestamp(),
                 "clock_at_epoch": now.timestamp(),
                 "elapsed_seconds": 0,

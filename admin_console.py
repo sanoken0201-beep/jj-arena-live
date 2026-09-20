@@ -238,6 +238,7 @@ def install_admin_console(app):
         with db.connect() as con:
             o=con.execute("SELECT * FROM point_ledger WHERE id=?",(txid,)).fetchone()
             if not o:raise HTTPException(404,"transaction not found")
+            if str(o["kind"]).startswith("sitngo_"):raise HTTPException(400,"大会の徴収・返却・配当は個別に取り消せません")
             if o["reversal_of"]:raise HTTPException(400,"取消取引は再取消できません")
             if con.execute("SELECT 1 FROM point_ledger WHERE reversal_of=?",(txid,)).fetchone():raise HTTPException(409,"すでに取消済みです")
             rid="pt-"+uuid.uuid4().hex;amount=-float(o["amount"]);con.execute("INSERT INTO point_ledger(id,user_id,amount,kind,reason,effective_at,created_by,created_at,reversal_of) VALUES (?,?,?,?,?,?,?,?,?)",(rid,o["user_id"],amount,"reversal",f"取消: {o['reason']}",o["effective_at"],user["id"],_now(db),txid))

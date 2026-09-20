@@ -88,6 +88,8 @@ class SitNGoService:
         self.server = server
         self._lock = threading.RLock()
         self._ensure_schema()
+        from sitngo_points import TournamentPoints
+        self.points = TournamentPoints(self)
 
     def _ensure_schema(self) -> None:
         uid = "BIGINT" if getattr(self.db, "IS_POSTGRES", False) else "INTEGER"
@@ -172,6 +174,7 @@ class SitNGoService:
         changed: list[str] = []
         with self._lock:
             with self.db.connect() as con:
+                con.execute("UPDATE sitngo_events SET updated_at=updated_at WHERE status IN ('scheduled','registration_open','starting')")
                 rows = con.execute(
                     "SELECT * FROM sitngo_events WHERE status IN ('scheduled','registration_open','starting') ORDER BY starts_at,id"
                 ).fetchall()
@@ -215,6 +218,7 @@ class SitNGoService:
                                 (stamp, stamp, event_id),
                             )
                         else:
+                            self.points.refund(con, event_id)
                             stamp = _iso(now)
                             con.execute(
                                 "UPDATE sitngo_events SET status='cancelled',cancelled_at=?,updated_at=?,cancel_reason=? WHERE id=?",
@@ -276,7 +280,7 @@ class SitNGoService:
                 payload.update(table_id=row['id'], tournament=game['tournament'])
             except HTTPException:
                 payload['table_id'] = None
-        payload.update(entry_fee=0, prize_points=0, reentry=False)
+        payload.update(self.points.describe(str(row["id"]), len(active_regs)))
         if status in {'running', 'finished'} or admin:
             payload["participants"] = [
                 {
@@ -375,6 +379,7 @@ class SitNGoService:
     def update_event(self, event_id: str, payload: SitNGoUpdateIn, actor_id: int) -> dict:
         self.reconcile()
         with self._lock, self.db.connect() as con:
+            con.execute("UPDATE sitngo_events SET updated_at=updated_at WHERE id=?", (event_id,))
             row = con.execute("SELECT * FROM sitngo_events WHERE id=?", (event_id,)).fetchone()
             if not row:
                 raise HTTPException(404, "Sit&Goが見つかりません")
@@ -412,11 +417,13 @@ class SitNGoService:
     def cancel_event(self, event_id: str, reason: str, actor_id: int) -> dict:
         self.reconcile()
         with self._lock, self.db.connect() as con:
+            con.execute("UPDATE sitngo_events SET updated_at=updated_at WHERE id=?", (event_id,))
             row = con.execute("SELECT * FROM sitngo_events WHERE id=?", (event_id,)).fetchone()
             if not row:
                 raise HTTPException(404, "Sit&Goが見つかりません")
             if row["status"] in {"running", "finished"}:
                 raise HTTPException(400, "開始後の大会はこの操作では中止できません")
+            self.points.refund(con, event_id)
             stamp = self.db.utcnow()
             con.execute(
                 "UPDATE sitngo_events SET status='cancelled',cancelled_at=?,cancel_reason=?,updated_at=? WHERE id=?",
@@ -432,6 +439,7 @@ class SitNGoService:
     def delete_event(self, event_id: str, actor_id: int) -> dict:
         self.reconcile()
         with self._lock, self.db.connect() as con:
+            con.execute("UPDATE sitngo_events SET updated_at=updated_at WHERE id=?", (event_id,))
             row = con.execute("SELECT status FROM sitngo_events WHERE id=?", (event_id,)).fetchone()
             if not row:
                 raise HTTPException(404, "Sit&Goが見つかりません")
@@ -440,6 +448,8 @@ class SitNGoService:
                 raise HTTPException(400, "参加履歴がある大会は削除せず中止してください")
             if row["status"] not in {"scheduled", "cancelled"}:
                 raise HTTPException(400, "この大会は削除できません")
+            con.execute("DELETE FROM sitngo_payout_settings WHERE event_id=?", (event_id,))
+            con.execute("DELETE FROM sitngo_terms WHERE event_id=?", (event_id,))
             con.execute("DELETE FROM sitngo_events WHERE id=?", (event_id,))
         self._audit(actor_id, "sitngo.delete", event_id=event_id)
         return {"ok": True}
@@ -450,6 +460,7 @@ class SitNGoService:
         self.reconcile()
         now = _utcnow()
         with self._lock, self.db.connect() as con:
+            con.execute("UPDATE sitngo_events SET updated_at=updated_at WHERE id=?", (event_id,))
             event_row = con.execute("SELECT * FROM sitngo_events WHERE id=?", (event_id,)).fetchone()
             if not event_row:
                 raise HTTPException(404, "Sit&Goが見つかりません")
@@ -470,6 +481,7 @@ class SitNGoService:
             ).fetchone()
             if int(count["n"] or 0) >= int(event.get("max_players") or MAX_PLAYERS):
                 raise HTTPException(409, "満席です")
+            self.points.charge(con, event_id, user_id)
             stamp = _iso(now)
             if existing:
                 con.execute(
@@ -489,6 +501,7 @@ class SitNGoService:
         self.reconcile()
         now = _utcnow()
         with self._lock, self.db.connect() as con:
+            con.execute("UPDATE sitngo_events SET updated_at=updated_at WHERE id=?", (event_id,))
             event = con.execute("SELECT * FROM sitngo_events WHERE id=?", (event_id,)).fetchone()
             if not event:
                 raise HTTPException(404, "Sit&Goが見つかりません")
@@ -501,6 +514,7 @@ class SitNGoService:
             ).fetchone()
             if not reg or reg["status"] != "registered":
                 raise HTTPException(400, "参加登録されていません")
+            self.points.refund(con, event_id, user_id)
             stamp = _iso(now)
             con.execute(
                 "UPDATE sitngo_registrations SET status='cancelled',cancelled_at=?,seat=NULL WHERE event_id=? AND user_id=?",

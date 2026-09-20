@@ -5,7 +5,7 @@ compiler remains usable in lightweight CI jobs that do not install FastAPI.
 """
 from __future__ import annotations
 
-CACHE_QUERY = "sngcfg=turn-safety-20260918-1"
+CACHE_QUERY = "sngcfg=admin-prizes-20260920-1"
 CHIP_UI_MARKER = "jj sitngo chip unit ui 2026-09-18"
 HAND_LEVEL_UI_MARKER = "jj sng 12-hand levels 2026-09-18"
 TURN_UI_MARKER = "jj sng turn safety 2026-09-18"
@@ -122,6 +122,8 @@ def install() -> None:
     const meta=$('#roomMeta');if(meta)meta.textContent=`Sit&Go · Freezeout · ${fmt(unit)}点単位`;
   };
 '''
+        source = source.replace('無料 · 賞品なし','参加費 ${fmt(event.entry_fee)} pt · 賞金 ${fmt(event.prize_points)} pt')
+        source = source.replace('${action}${participants}', '<details><summary>プライズ配分</summary>${Object.entries(event.payout_percentages||{}).map(([n,r])=>`<p>${safe(n)}人：${r.map((v,i)=>`${i+1}位 ${safe(v)}%`).join(" / ")}</p>`).join("")}<p>登録時に参加費を徴収します。開始前の取消・中止で返却。同順位は該当順位分を均等分配し、0.01pt単位で端数調整します。</p></details>${action}${participants}')
         ui._APP_PATCH = source
         ui._JJ_ADMIN_STRUCTURE_PATCHED = True
 

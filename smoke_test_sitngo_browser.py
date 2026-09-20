@@ -50,6 +50,33 @@ def main():
             artifacts=Path('test-artifacts/sitngo');artifacts.mkdir(parents=True,exist_ok=True)
             page.screenshot(path=str(artifacts/f'finished-{w}x{h}.png'))
             page.close()
+        # Exercise the actual administrator form and outgoing request.
+        import json
+        page=browser.new_page(viewport={'width':390,'height':844})
+        captured=[]
+        def route_admin(route):
+            url=route.request.url
+            if '/api/admin/sitngo' in url:
+                if route.request.method=='POST':
+                    captured.append(route.request.post_data_json)
+                    return route.fulfill(json={})
+                return route.fulfill(json={'events':[], 'defaults':None})
+            if 'admin_sitngo.js' in url:return route.fulfill(content_type='text/javascript',body=Path('admin_static/admin_sitngo.js').read_text())
+            if route.request.resource_type=='script':return route.fulfill(body='')
+            if route.request.resource_type=='stylesheet':return route.fulfill(body='')
+            return route.fulfill(content_type='text/html',body=Path('admin_static/index.html').read_text())
+        page.route('**/*',route_admin)
+        page.goto('https://sng.test/admin#sitngo')
+        page.wait_for_selector('#sngEntryFee')
+        page.fill('#sngEntryFee','25.50')
+        page.locator('#sngPointSettings summary').click()
+        rates=page.locator('[data-sng-payout="6"]')
+        rates.nth(0).fill('50');rates.nth(1).fill('50')
+        page.locator('#sngSubmit').click()
+        page.wait_for_function("document.querySelector('#toast').textContent.includes('設定しました')")
+        assert len(captured)==1 and captured[0]['entry_fee']=='25.50',captured
+        assert captured[0]['payout_percentages']['6']==['50','50','0','0','0','0']
+        page.close()
         browser.close()
     print('JJ_SITNGO_BROWSER_OK')
 

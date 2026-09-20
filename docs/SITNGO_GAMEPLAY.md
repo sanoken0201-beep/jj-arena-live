@@ -86,3 +86,26 @@ integration; denomination-aware raises; scheduled and custom color-ups; micro-st
 survival; restart; timeouts; blind changes; authenticated HTTP/WebSocket; stale
 hand and duplicate action handling; cash-only endpoint rejection; chat/history
 privacy; and phone/desktop ring UI actions.
+
+## Point entry and administrator-defined prizes
+
+New events accept `entry_fee` (0–1,000,000 pt, two decimal places) and
+`payout_percentages`, keyed by actual entrant counts `2` through `6`. Each
+array contains one percentage per place and must total exactly 100%; 0% is
+valid for any place. Defaults are winner-takes-all for 2–5 players and 70/30
+for 6 players, and administrators can replace every percentage.
+
+Registration debits the current season balance; insufficient balances are
+rejected. Cancellation before the start, administrator cancellation, and
+minimum-player cancellation refund the recorded entry. The first registration
+locks point terms, including after cancellation, so published terms cannot
+change beneath participants. Existing events with no terms remain free.
+
+Ledger changes share the registration/game transaction. Account/event locks,
+a recorded escrow payment, and a unique settlement prevent duplicate charges,
+refunds, and awards. Completed-game persistence and prizes commit together.
+Integer hundredths preserve the entire pool; largest fractional remainders
+receive residual cents in place order. Tied places split the sum of occupied
+prize slots, with residual cents assigned by user ID. Tournament chips and
+ring settlement remain separate. The general manual reversal endpoint cannot
+reverse tournament entries independently.
