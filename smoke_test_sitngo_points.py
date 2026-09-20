@@ -81,6 +81,9 @@ def main():
         con.execute('UPDATE sitngo_payments SET fee_cents=1001 WHERE event_id=? AND user_id=?',(guarded,guard_users[1]))
     service.reconcile(guard_start+timedelta(seconds=2))
     assert service._row(guarded)['status']=='running'
+    guard_state={'id':guarded,'tournament':{'status':'finished','entrants':2,'results':[
+        {'user_id':guard_users[0],'place':1},{'user_id':guard_users[1],'place':2}]}}
+    with db.connect() as con:service.points.settle(con,guard_state)
     with db.connect() as con:
         con.execute("UPDATE sitngo_events SET status='finished',updated_at=? WHERE id=?",(db.utcnow(),guarded))
 
