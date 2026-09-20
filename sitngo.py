@@ -563,6 +563,8 @@ def install(app, db, server) -> SitNGoService:
     import sys
     service.runtime = TournamentRuntime(service, sys.modules["poker_engine"])
     app.state.jj_sitngo = service
+    import sitngo_observability
+    sitngo_observability.install(service)
 
     @app.get("/api/sitngo/next")
     def sitngo_next(user=Depends(server.current_user)):
