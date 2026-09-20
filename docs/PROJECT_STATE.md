@@ -1,7 +1,7 @@
 # JJ Arena — Canonical Project State
 
 Updated: 2026-09-21
-Snapshot basis: UX recovery telemetry completion based on `main` at `59c9242051a6824c3aebe767ab7fc6e1b3c0b188`
+Snapshot basis: Sit&Go anomaly-alerting work based on `main` at `cd03517112ae4d3ba7831f957a917b0c5429f1c7`
 
 This file is the **human/AI handoff source of truth for the current project state**. It exists so long ChatGPT development chats can be replaced without losing critical context.
 
@@ -140,6 +140,7 @@ Official JJ points are integrated as the tournament entry/prize accounting domai
 - while one Sit&Go is running, the player lobby can also expose the next scheduled/registration/starting event so an open registration window is not hidden;
 - finished participants can see a ledger-backed point statement showing entry debit, refund, prize and net tournament point change;
 - privacy-preserving Sit&Go runtime observability stores only aggregate counts for stale/duplicate/late actions, timeout boundary protection, automatic timeout actions and restart recovery; it stores no user, event, hand, card, chip, network or free-text identifiers; the admin Sit&Go view exposes the rolling seven-day aggregate counters.
+- anomaly alerting queues one privacy-preserving alert per metric/day after configured thresholds are crossed. Normal unattended `timeout_auto_action` is intentionally not an alert. Alert delivery runs outside gameplay through a DB-backed outbox and optional `JJ_SITNGO_ALERT_WEBHOOK_URL`; when no webhook is configured, alerts remain visible/pending in the admin view without affecting play.
 - CI includes a multi-session operational-acceptance regression in which independent member sessions act on one tournament and must converge on the same authoritative revision, turn, hand and stacks.
 
 Paid end-to-end regression completes real 2-, 3-, 4-, 5- and 6-player tournaments. The 6-player path explicitly verifies each entry debit, escrow row, 70/30 winner/runner-up award, settlement record and prize-ledger row. PostgreSQL and SQLite Sit&Go CI both exercise the point integration.
