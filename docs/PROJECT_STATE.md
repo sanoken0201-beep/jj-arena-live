@@ -1,7 +1,7 @@
 # JJ Arena — Canonical Project State
 
-Updated: 2026-09-17
-Snapshot basis: `main` at `5d7542589e78c1d0e16717cffad4893a502973b2`
+Updated: 2026-09-20
+Snapshot basis: Sit&Go point-integration release built from `main` at `ff23c26c0a951342087e6b9355242f4373b2e2b5`
 
 This file is the **human/AI handoff source of truth for the current project state**. It exists so long ChatGPT development chats can be replaced without losing critical context.
 
@@ -120,20 +120,20 @@ Performance work must not trade away action correctness, timing correctness, car
 
 ## 10. Sit&Go current implementation
 
-Sit&Go is a dedicated root-level subsystem (`sitngo.py`, `sitngo_runtime.py`, `sitngo_ui.py`) with its own persistence and tests.
+Sit&Go is a dedicated root-level subsystem (`sitngo.py`, `sitngo_runtime.py`, `sitngo_ui.py`, `sitngo_points.py`) with its own persistence and tests. New events default to 30,000 tournament chips and a 10-minute-level big-blind-ante structure; administrators may configure the starting stack, blinds, ante and level durations before play begins. Tournament chips remain isolated from Ring settlement.
 
-Current committed gameplay documentation describes a scheduled 2–6 player freezeout using 10,000 tournament chips, 10-minute blind levels and big-blind ante. Tournament chips are isolated from Ring settlement.
+Official JJ points are integrated as the tournament entry/prize accounting domain:
 
-**Important implementation-status distinction:** the current committed implementation still reports `entry_fee=0` and `prize_points=0`. Point-funded Sit&Go entry/prizes are therefore a **pending product change, not current production truth**.
+- the administrator sets an `entry_fee` and payout percentages for each actual field size from 2 through 6;
+- defaults are winner-takes-all for 2–5 entrants and 70% / 30% for 6 entrants;
+- registration debits the entrant through `point_ledger` and records the locked payment in `sitngo_payments`;
+- registration cancellation, administrator cancellation and minimum-player cancellation refund the recorded entry exactly once;
+- the first registration permanently locks the event's point terms;
+- tournament start fails closed if the registered field, locked fee, entry ledger rows or persisted payout configuration do not match exactly;
+- finished tournaments settle through `sitngo_settlements` and `sitngo_prize` ledger rows, preserving the complete pool to 0.01 pt and verifying persisted awards on replay;
+- manual admin reversal cannot independently reverse Sit&Go entry/refund/prize rows.
 
-The current product requirement to preserve for that future change is:
-
-- Admin chooses the JJ-point entry cost when creating/opening a Sit&Go.
-- With 2–5 entrants, the complete entry-point pool goes to 1st place.
-- With 6 entrants, 70% goes to 1st and 30% to 2nd.
-- Entry/prize settlement must use the official point ledger rather than ad-hoc balance mutation.
-
-Before implementing this pending requirement, verify cancellation/refund, rounding, insufficient-balance, duplicate-settlement and partial-start semantics and add them to the decision log.
+Paid end-to-end regression completes real 2-, 3-, 4-, 5- and 6-player tournaments. The 6-player path explicitly verifies each entry debit, escrow row, 70/30 winner/runner-up award, settlement record and prize-ledger row. PostgreSQL and SQLite Sit&Go CI both exercise the point integration.
 
 ## 11. Test ownership and release safety
 
