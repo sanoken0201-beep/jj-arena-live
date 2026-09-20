@@ -1,64 +1,29 @@
-"""Dependency-free browser transforms for configurable Sit&Go tournaments.
+"""Dependency-free browser contracts layered onto the canonical Sit&Go UI.
 
-This module intentionally imports only ``sitngo_ui`` so the production asset
-compiler remains usable in lightweight CI jobs that do not install FastAPI.
+`sitngo_ui.py` now contains the current 12-hand lobby/table presentation
+directly. This module owns only cross-cutting browser contracts that must be
+installed before the production asset compiler binds Sit&Go transforms:
+tournament chip-unit behavior, action identity payloads, and the dedicated
+cache token. Historical timed-level copy is not used as a transform anchor.
 """
 from __future__ import annotations
 
-CACHE_QUERY = "sngcfg=contract-consolidated-20260921-1"
+CACHE_QUERY = "sngcfg=legacy-source-cleanup-20260921-1"
 CHIP_UI_MARKER = "jj sitngo chip unit ui 2026-09-18"
 HAND_LEVEL_UI_MARKER = "jj sng 12-hand levels 2026-09-18"
 TURN_UI_MARKER = "jj sng turn safety 2026-09-18"
 
 
-def _replace_once(source: str, old: str, new: str, label: str) -> str:
-    if source.count(old) != 1:
-        raise RuntimeError(f"Sit&Go configurable UI drift: {label}")
-    return source.replace(old, new, 1)
-
-
-def _replace_prefixed_line(source: str, prefix: str, replacement: str, label: str) -> str:
-    lines = source.splitlines(keepends=True)
-    matches = [i for i, line in enumerate(lines) if line.startswith(prefix)]
-    if len(matches) != 1:
-        raise RuntimeError(f"Sit&Go configurable UI drift: {label}")
-    newline = "\n" if lines[matches[0]].endswith("\n") else ""
-    lines[matches[0]] = replacement.rstrip("\n") + newline
-    return "".join(lines)
-
-
 def install() -> None:
     import sitngo_ui as ui
 
-    if not getattr(ui, "_JJ_ADMIN_STRUCTURE_PATCHED", False):
-        ui._SITNGO_PANEL = _replace_once(
-            ui._SITNGO_PANEL,
-            "6-MAX · 10 MIN LEVELS · BB ANTE",
-            "6-MAX · ADMIN STRUCTURE · BB ANTE",
-            "panel rule copy",
-        )
+    # Keep these compatibility flags for runtime delegates that still call this
+    # installer. The actual 12-hand presentation is canonical in sitngo_ui.
+    ui._JJ_ADMIN_STRUCTURE_PATCHED = True
+    ui._JJ_HAND_LEVELS_BUILD_PATCHED = True
+
+    if CHIP_UI_MARKER not in ui._APP_PATCH:
         source = ui._APP_PATCH
-        old_function = """  function jjSngStructureHtml(levels){return `<details class=\"jj-sng-structure\"><summary>ブラインドストラクチャーを見る</summary><div class=\"jj-sng-levels\">${(levels||[]).map(x=>`<div class=\"jj-sng-level ${Number(x.level)===9?'target':''}\"><span>Lv.${x.level}</span><b>${fmt(x.small_blind)} / ${fmt(x.big_blind)}</b><small>BBA ${fmt(x.bb_ante)} · ${x.minutes}分${Number(x.level)===9?' · 90分':''}</small></div>`).join('')}</div></details>`}\n"""
-        new_function = """  const jjSngLevelSummary=levels=>{const values=[...new Set((levels||[]).map(x=>Number(x.minutes)||0).filter(Boolean))];return values.length===1?`${values[0]}分レベル`:'可変レベル'};\n  function jjSngStructureHtml(levels,targetMinutes){let elapsed=0;return `<details class=\"jj-sng-structure\"><summary>ブラインドストラクチャーを見る</summary><div class=\"jj-sng-levels\">${(levels||[]).map(x=>{const start=elapsed;elapsed+=Number(x.minutes)||0;const target=Number(targetMinutes||0),hit=target>0&&start<target&&elapsed>=target;return `<div class=\"jj-sng-level ${hit?'target':''}\"><span>Lv.${x.level}</span><b>${fmt(x.small_blind)} / ${fmt(x.big_blind)}</b><small>BBA ${fmt(x.bb_ante)} · ${x.minutes}分 · ${start}–${elapsed}分${hit?` · ${target}分目標`:''}</small></div>`}).join('')}</div></details>`}\n"""
-        source = _replace_once(source, old_function, new_function, "structure renderer")
-        source = _replace_once(
-            source,
-            "    const status=event.status||'scheduled',registered=!!event.is_registered,full=!!event.full;\n",
-            "    const status=event.status||'scheduled',registered=!!event.is_registered,full=!!event.full,eventLevels=event.structure||levels||[];\n",
-            "event structure binding",
-        )
-        source = _replace_once(
-            source,
-            "<div class=\"jj-sng-rules\"><span>6-max</span><span>10,000点</span><span>10分レベル</span><span>BB Ante</span><span>無料 · 賞品なし</span><span>再参加なし</span></div>",
-            "<div class=\"jj-sng-rules\"><span>6-max</span><span>${fmt(event.starting_stack)}点</span><span>${jjSngLevelSummary(eventLevels)}</span><span>BB Ante</span><span>無料 · 賞品なし</span><span>再参加なし</span></div>",
-            "event rules",
-        )
-        source = _replace_once(
-            source,
-            "${jjSngStructureHtml(levels||event.structure)}",
-            "${jjSngStructureHtml(eventLevels,event.target_minutes)}",
-            "event structure call",
-        )
         source += r'''
 
   // jj sitngo chip unit ui 2026-09-18
@@ -122,54 +87,7 @@ def install() -> None:
     const meta=$('#roomMeta');if(meta)meta.textContent=`Sit&Go · Freezeout · ${fmt(unit)}点単位`;
   };
 '''
-        source = source.replace('無料 · 賞品なし','参加費 ${fmt(event.entry_fee)} pt · 賞金 ${fmt(event.prize_points)} pt')
-        source = source.replace('${action}${participants}', '<details><summary>プライズ配分</summary>${Object.entries(event.payout_percentages||{}).map(([n,r])=>`<p>${safe(n)}人：${r.map((v,i)=>`${i+1}位 ${safe(v)}%`).join(" / ")}</p>`).join("")}<p>登録時に参加費を徴収します。開始前の取消・中止で返却。同順位は該当順位分を均等分配し、0.01pt単位で端数調整します。</p></details>${action}${participants}')
         ui._APP_PATCH = source
-        ui._JJ_ADMIN_STRUCTURE_PATCHED = True
-
-    # The production browser bundle is compiled before the FastAPI runtime is
-    # imported, so the 12-hand labels must be applied in this dependency-free
-    # build path rather than only in the runtime integration module. The source
-    # strings themselves are the durable idempotency signal because build/test
-    # code may reload this installer while retaining the already-patched UI module.
-    if HAND_LEVEL_UI_MARKER in ui._APP_PATCH and "hand_in_level" in ui._GAMEPLAY_PATCH:
-        ui._JJ_HAND_LEVELS_BUILD_PATCHED = True
-
-    if not getattr(ui, "_JJ_HAND_LEVELS_BUILD_PATCHED", False):
-        ui._SITNGO_PANEL = ui._SITNGO_PANEL.replace(
-            "6-MAX · ADMIN STRUCTURE · BB ANTE",
-            "6-MAX · 12 HAND LEVELS · BB ANTE",
-        ).replace(
-            "6-MAX · 10 MIN LEVELS · BB ANTE",
-            "6-MAX · 12 HAND LEVELS · BB ANTE",
-        )
-
-        source = ui._APP_PATCH
-        source = _replace_prefixed_line(
-            source,
-            "  const jjSngLevelSummary=",
-            "  const jjSngLevelSummary=levels=>'12ハンド/レベル';",
-            "12-hand level summary",
-        )
-        source = _replace_prefixed_line(
-            source,
-            "  function jjSngStructureHtml(",
-            "  function jjSngStructureHtml(levels,targetMinutes){return `<details class=\"jj-sng-structure\"><summary>ブラインドストラクチャーを見る</summary><div class=\"jj-sng-levels\">${(levels||[]).map(x=>`<div class=\"jj-sng-level\"><span>Lv.${x.level}</span><b>${fmt(x.small_blind)} / ${fmt(x.big_blind)}</b><small>BBA ${fmt(x.bb_ante)} · 12ハンド</small></div>`).join('')}</div></details>`}",
-            "12-hand structure renderer",
-        )
-        source = source.replace(
-            "jjSngStructureHtml(eventLevels,event.target_minutes)",
-            "jjSngStructureHtml(eventLevels)",
-        )
-        source += f"\n  // {HAND_LEVEL_UI_MARKER}\n"
-        ui._APP_PATCH = source
-
-        gameplay = ui._GAMEPLAY_PATCH
-        old_clock = "    el.innerHTML=`<span>Lv.${Number(t.level)} · ${fmt(tableState.small_blind)}/${fmt(tableState.big_blind)} · BBA ${fmt(t.bb_ante)}</span><span>残り${Number(t.remaining)}/${Number(t.entrants)}人${t.status==='finished'?' · 終了':t.next_level_at?` · 次 ${jjSngCountdown(t.next_level_at)}`:''}</span>`;"
-        new_clock = "    el.innerHTML=`<span>Lv.${Number(t.level)} · ${fmt(tableState.small_blind)}/${fmt(tableState.big_blind)} · BBA ${fmt(t.bb_ante)}</span><span>${t.status==='finished'?'終了':`${Number(t.hand_in_level||0)}/${Number(t.hands_per_level||12)}ハンド`} · 残り${Number(t.remaining)}/${Number(t.entrants)}人</span>`;"
-        gameplay = _replace_once(gameplay, old_clock, new_clock, "12-hand table clock")
-        ui._GAMEPLAY_PATCH = gameplay
-        ui._JJ_HAND_LEVELS_BUILD_PATCHED = True
 
     if not getattr(ui, "_JJ_TURN_PAYLOAD_PATCHED", False):
         original_transform_app_js = ui.transform_app_js
