@@ -32,6 +32,14 @@ Admin endpoints:
 
 On application startup, invalid/unparseable current table JSON is automatically replaced by the latest valid snapshot when one exists. A normal server restart does not require restoration because `tables.state_json` is already written after each accepted action.
 
+## Sit&Go state recovery
+
+Sit&Go authoritative game state lives in `sitngo_games.state_json` rather than the Ring `tables` row. The runtime therefore maintains its own `sitngo_state_backups` generations. Up to 40 meaningful snapshots are retained per event. The five-second lifecycle heartbeat does not consume generations when only revision/elapsed-clock fields changed.
+
+A normal restart resumes the persisted current state. If the current Sit&Go JSON cannot be parsed or fails the event/revision structure check, the runtime automatically selects the newest valid snapshot for that same event and atomically restores both `state_json` and its matching revision. Recovery is recorded as `sitngo_state_auto_restore` in the operations error log. If no valid same-event snapshot exists, recovery fails closed instead of creating a new tournament state.
+
+Snapshots contain private cards/deck state and are server-only data. They are not exposed through player APIs.
+
 ## WebSocket / action recovery
 
 The browser keeps the existing WebSocket reconnect loop and HTTP polling fallback. v1.21 adds a client `action_id`; accepted IDs are stored with the persisted table state. A retry with the same ID returns the current state without applying the poker action twice. Recent IDs are not included in `public_state`.
