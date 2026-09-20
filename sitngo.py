@@ -606,14 +606,18 @@ def install(app, db, server) -> SitNGoService:
         async with original_lifespan(app_instance):
             service.reconcile()
             task = asyncio.create_task(service.lifecycle_loop(), name="jj-sitngo-lifecycle")
+            import sitngo_alerting
+            alert_task = asyncio.create_task(sitngo_alerting.alert_loop(service.db), name="jj-sitngo-alerts")
             try:
                 yield
             finally:
+                alert_task.cancel()
                 task.cancel()
-                try:
-                    await task
-                except asyncio.CancelledError:
-                    pass
+                for background in (alert_task, task):
+                    try:
+                        await background
+                    except asyncio.CancelledError:
+                        pass
 
     app.router.lifespan_context = sitngo_lifespan
     return service
