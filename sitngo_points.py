@@ -18,9 +18,10 @@ def validate_payouts(value):
         raise ValueError('2〜6人それぞれの配当率を設定してください')
     for n, rates in value.items():
         if len(rates) != int(n):raise ValueError('順位数が不正です')
-        if any(not Decimal(str(x)).is_finite() or x < 0 or x > 100 or Decimal(str(x))*100 != int(Decimal(str(x))*100) for x in rates):
+        decimals=[Decimal(str(x)) for x in rates]
+        if any(not x.is_finite() or x < 0 or x > 100 or x*100 != int(x*100) for x in decimals):
             raise ValueError('配当率は0〜100%、小数2桁までです')
-        if sum(Decimal(str(x)) for x in rates) != 100:raise ValueError('配当率の合計を100%にしてください')
+        if sum(decimals) != 100:raise ValueError('配当率の合計を100%にしてください')
     return value
 
 
@@ -52,6 +53,7 @@ class TournamentPoints:
         return json.loads(row['payouts_json']) if row else default_payouts()
 
     def configure(self,con,eid,fee,payouts):
+        validate_payouts(payouts)
         rates={n:[str(v) for v in r] for n,r in payouts.items()}
         con.execute('INSERT INTO sitngo_terms(event_id,fee_cents) VALUES (?,?) ON CONFLICT(event_id) DO UPDATE SET fee_cents=excluded.fee_cents',(eid,cents(fee)))
         con.execute('INSERT INTO sitngo_payout_settings(event_id,payouts_json) VALUES (?,?) ON CONFLICT(event_id) DO UPDATE SET payouts_json=excluded.payouts_json',(eid,json.dumps(rates)))
@@ -95,14 +97,37 @@ class TournamentPoints:
         query='SELECT * FROM sitngo_payments WHERE event_id=? AND refunded=0';args=[eid]
         if uid is not None:query+=' AND user_id=?';args.append(uid)
         for row in con.execute(query,args).fetchall():
+            # Database-level claim: exactly-once refunds must not depend on a
+            # process-local/event lock being the only serialization boundary.
+            claimed=con.execute(
+                'UPDATE sitngo_payments SET refunded=1 WHERE event_id=? AND user_id=? AND refunded=0',
+                (eid,row['user_id']),
+            )
+            if int(getattr(claimed,'rowcount',0) or 0)!=1:
+                continue
             self.write(con,eid,row['user_id'],int(row['fee_cents']),'sitngo_refund','sng-refund-'+row['entry_tx'],row['entry_tx'])
-            con.execute('UPDATE sitngo_payments SET refunded=1 WHERE event_id=? AND user_id=?',(eid,row['user_id']))
+
+    def _verify_settlement(self,con,eid,awards):
+        rows=con.execute('SELECT user_id,fee_cents FROM sitngo_payments WHERE event_id=? AND refunded=0',(eid,)).fetchall()
+        pool=sum(int(r['fee_cents']) for r in rows)
+        if sum(int(v) for v in awards.values())!=pool:
+            raise RuntimeError('Persisted tournament settlement does not match escrow')
+        ledger=con.execute(
+            "SELECT user_id,amount FROM point_ledger WHERE kind='sitngo_prize' AND id LIKE ?",
+            (f'sng-prize-{eid}-%',),
+        ).fetchall()
+        actual={str(r['user_id']):cents(r['amount']) for r in ledger}
+        expected={str(uid):int(amount) for uid,amount in awards.items() if int(amount)}
+        if actual!=expected:
+            raise RuntimeError('Persisted tournament settlement does not match prize ledger')
 
     def settle(self,con,state):
         t=state['tournament'];eid=state['id']
         if t['status']!='finished':return
         prior=con.execute('SELECT awards_json FROM sitngo_settlements WHERE event_id=?',(eid,)).fetchone()
-        if prior:awards=json.loads(prior['awards_json'])
+        if prior:
+            awards=json.loads(prior['awards_json'])
+            self._verify_settlement(con,eid,awards)
         else:
             fee=self.fee(con,eid)
             rows=con.execute('SELECT user_id,fee_cents FROM sitngo_payments WHERE event_id=? AND refunded=0',(eid,)).fetchall()
@@ -113,13 +138,18 @@ class TournamentPoints:
                 raise RuntimeError('Tournament escrow mismatch; settlement refused')
             pool=sum(int(r['fee_cents']) for r in rows);schedule=prize_schedule(pool,t['entrants'],self.payouts(con,eid))
             awards={str(r['user_id']):0 for r in results}
+            seat_order={int(p['user_id']):int(p.get('seat',999)) for p in state.get('seats',[])}
             for place in sorted({r['place'] for r in results}):
-                tied=sorted((r for r in results if r['place']==place),key=lambda r:r['user_id'])
+                tied=sorted(
+                    (r for r in results if r['place']==place),
+                    key=lambda r:(seat_order.get(int(r['user_id']),999),int(r['user_id'])),
+                )
                 total=sum(schedule[place-1:place-1+len(tied)]);share,remainder=divmod(total,len(tied))
                 for i,r in enumerate(tied):awards[str(r['user_id'])]=share+int(i<remainder)
             if sum(awards.values())!=pool:raise RuntimeError('Tournament awards do not conserve points')
             for uid,amount in awards.items():
                 if amount:self.write(con,eid,int(uid),amount,'sitngo_prize',f'sng-prize-{eid}-{uid}')
             con.execute('INSERT INTO sitngo_settlements(event_id,awards_json,created_at) VALUES (?,?,?)',(eid,json.dumps(awards),self.db.utcnow()))
+            self._verify_settlement(con,eid,awards)
         for result in t['results']:result['prize_points']=awards[str(result['user_id'])]/100
         t['prize_points']=sum(awards.values())/100;t['points_settled']=True
