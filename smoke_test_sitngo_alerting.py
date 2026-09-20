@@ -9,10 +9,11 @@ from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
-os.environ.pop("DATABASE_URL", None)
 os.environ.pop("JJ_SITNGO_ALERT_WEBHOOK_URL", None)
-_tmp = tempfile.TemporaryDirectory(prefix="jj-sng-alert-")
-os.environ["JJ_DB_PATH"] = str(Path(_tmp.name) / "alerts.sqlite3")
+_tmp = None
+if not os.environ.get("DATABASE_URL"):
+    _tmp = tempfile.TemporaryDirectory(prefix="jj-sng-alert-")
+    os.environ["JJ_DB_PATH"] = str(Path(_tmp.name) / "alerts.sqlite3")
 
 from fastapi.testclient import TestClient
 from smoke_test_sitngo_phase1 import production_app as prod
@@ -85,7 +86,12 @@ def main() -> None:
         require(len(Receiver.payloads) == 1, "webhook received wrong number of payloads")
         payload = Receiver.payloads[0]
         require(payload["metric"] == "stale_turn" and payload["observed_count"] == threshold + 1, "wrong alert payload")
-        forbidden = ("user", "event", "table", "hand", "card", "chip", "session", "ip", "webhook")
+        require(payload["alert_key"] == f"{now.date().isoformat()}:stale_turn:{threshold}", "alert dedupe key mismatch")
+        require(
+            set(payload) == {"type","source","alert_key","severity","metric","day","observed_count","threshold","text"},
+            f"alert payload grew an unreviewed field: {payload}",
+        )
+        forbidden = ("user_id","event_id","table_id","hand_id","cards","chip_amount","session_id","ip_address","webhook_url")
         serialized = json.dumps(payload, sort_keys=True).lower()
         require(all(word not in serialized for word in forbidden), f"alert payload leaked identifier category: {payload}")
 
