@@ -1,7 +1,7 @@
 # JJ Arena — Canonical Project State
 
 Updated: 2026-09-21
-Snapshot basis: Sit&Go backlog-completion work based on `main` at `da77bf561c4fae78e2e581f5d77fc3755e9bb45f`
+Snapshot basis: UX recovery telemetry completion based on `main` at `59c9242051a6824c3aebe767ab7fc6e1b3c0b188`
 
 This file is the **human/AI handoff source of truth for the current project state**. It exists so long ChatGPT development chats can be replaced without losing critical context.
 
@@ -117,6 +117,8 @@ Operational timing that must not be casually changed:
 - WebSocket-first synchronization with HTTP fallback/recovery.
 
 Performance work must not trade away action correctness, timing correctness, card privacy, ranking precision or user-visible immediacy.
+
+Ring UX telemetry remains privacy-preserving and low overhead. The existing batched client now distinguishes WebSocket-open events from actual recovery to a fresh authoritative state, measures same-page seat-to-READY latency, counts final action submission failures, and counts table-to-review opens plus review-later bookmarks. It adds no polling loop or background database reader and stores no user/account identity, table/hand ID, cards, chip/bet amount, chat, IP, user agent, session ID or free text. Raw UX events retain the existing 30-day limit. The admin UX dashboard exposes these aggregate KPIs.
 
 ## 10. Sit&Go current implementation
 

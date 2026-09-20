@@ -26,6 +26,8 @@ def main() -> None:
         expected = {
             "smoke_test_prebuilt_assets.py",
             "smoke_test_pwa_update.py",
+            "smoke_test_ux_telemetry.py",
+            "smoke_test_ux_telemetry_followup.py",
             "smoke_test_public_proxy_security.py",
             "smoke_test_structure_consolidation.py",
             "smoke_test_admin_reversal_safety.py",
@@ -74,6 +76,7 @@ def main() -> None:
         from non_sng_safety import MARKER as non_sng_marker
         from poker_connection_fix import MARKER as connection_marker
         from poker_control_safety import MARKER as controls_marker
+        from ux_telemetry_followup import MARKER as telemetry_followup_marker
         with tempfile.TemporaryDirectory(prefix="jj-final-assets-") as directory:
             root = Path(directory)
             def overwrite(_filename, *, group="adhoc"):
@@ -87,14 +90,16 @@ def main() -> None:
             assert non_sng_marker in js
             assert structure_marker in js
             assert runtime_browser_marker in js
+            assert telemetry_followup_marker in js
             manifest = served_assets.validate_built_assets(root)
-            assert manifest.get("pipeline_version") == 3
+            assert manifest.get("pipeline_version") == 4
             assert manifest.get("pipeline_stages") == [
                 "oop_check_freshness",
                 "poker_control_safety",
                 "non_sng_safety",
                 "structure_consolidation",
                 "runtime_browser_consolidation",
+                "ux_telemetry_followup",
             ]
             assert manifest.get("browser_output_contract") == "canonical-prebuilt-v1"
         print("JJ_PRODUCTION_RELEASE_GATE_CONTRACT_OK")

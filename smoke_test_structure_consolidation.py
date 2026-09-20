@@ -47,10 +47,10 @@ def main() -> None:
 
     build_assets()
     manifest = validate_built_assets(BUILD_ROOT)
-    assert manifest.get("pipeline_version") == PIPELINE_VERSION == 3
+    assert manifest.get("pipeline_version") == PIPELINE_VERSION == 4
     expected = [name for name, _ in POST_BUILD_STAGES]
     assert manifest.get("pipeline_stages") == expected
-    assert expected[-1] == "runtime_browser_consolidation"
+    assert expected[-2:] == ["runtime_browser_consolidation", "ux_telemetry_followup"]
     assert manifest.get("browser_output_contract") == "canonical-prebuilt-v1"
 
     js = (BUILD_ROOT / "static/app.js").read_text(encoding="utf-8")
@@ -69,6 +69,7 @@ def main() -> None:
     # Preserve the exact cache-busting URLs that the former request-time patch
     # produced, including both JavaScript and CSS.
     assert f"/static/app.js?v={ASSET_VERSION}&{CACHE_QUERY}" in index
+    assert "uxf=followup-20260920-1" in index
     assert f"/static/styles.css?v={ASSET_VERSION}&{CACHE_QUERY}" in index
 
     # app.py must now serve the validated build byte-for-byte. Compatibility
