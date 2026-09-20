@@ -182,49 +182,10 @@ def _structure_metrics(levels: list[dict[str, int]]) -> tuple[int, int, int]:
 
 
 def _patch_player_ui() -> None:
-    import sitngo_ui as ui
+    """Compatibility delegate; browser behavior is owned by sitngo_browser_config."""
+    import sitngo_browser_config
 
-    if getattr(ui, "_JJ_ADMIN_STRUCTURE_PATCHED", False):
-        return
-
-    def replace_once(source: str, old: str, new: str, label: str) -> str:
-        if source.count(old) != 1:
-            raise RuntimeError(f"Sit&Go configurable UI drift: {label}")
-        return source.replace(old, new, 1)
-
-    ui._SITNGO_PANEL = replace_once(
-        ui._SITNGO_PANEL,
-        "6-MAX · 10 MIN LEVELS · BB ANTE",
-        "6-MAX · ADMIN STRUCTURE · BB ANTE",
-        "panel rule copy",
-    )
-    source = ui._APP_PATCH
-    old_function = """  function jjSngStructureHtml(levels){return `<details class=\"jj-sng-structure\"><summary>ブラインドストラクチャーを見る</summary><div class=\"jj-sng-levels\">${(levels||[]).map(x=>`<div class=\"jj-sng-level ${Number(x.level)===9?'target':''}\"><span>Lv.${x.level}</span><b>${fmt(x.small_blind)} / ${fmt(x.big_blind)}</b><small>BBA ${fmt(x.bb_ante)} · ${x.minutes}分${Number(x.level)===9?' · 90分':''}</small></div>`).join('')}</div></details>`}\n"""
-    new_function = """  const jjSngLevelSummary=levels=>{const values=[...new Set((levels||[]).map(x=>Number(x.minutes)||0).filter(Boolean))];return values.length===1?`${values[0]}分レベル`:'可変レベル'};\n  function jjSngStructureHtml(levels,targetMinutes){let elapsed=0;return `<details class=\"jj-sng-structure\"><summary>ブラインドストラクチャーを見る</summary><div class=\"jj-sng-levels\">${(levels||[]).map(x=>{const start=elapsed;elapsed+=Number(x.minutes)||0;const target=Number(targetMinutes||0),hit=target>0&&start<target&&elapsed>=target;return `<div class=\"jj-sng-level ${hit?'target':''}\"><span>Lv.${x.level}</span><b>${fmt(x.small_blind)} / ${fmt(x.big_blind)}</b><small>BBA ${fmt(x.bb_ante)} · ${x.minutes}分 · ${start}–${elapsed}分${hit?` · ${target}分目標`:''}</small></div>`}).join('')}</div></details>`}\n"""
-    source = replace_once(source, old_function, new_function, "structure renderer")
-    source = replace_once(
-        source,
-        "    const status=event.status||'scheduled',registered=!!event.is_registered,full=!!event.full;\n",
-        "    const status=event.status||'scheduled',registered=!!event.is_registered,full=!!event.full,eventLevels=event.structure||levels||[];\n",
-        "event structure binding",
-    )
-    source = replace_once(
-        source,
-        "<div class=\"jj-sng-rules\"><span>6-max</span><span>10,000点</span><span>10分レベル</span><span>BB Ante</span><span>無料 · 賞品なし</span><span>再参加なし</span></div>",
-        "<div class=\"jj-sng-rules\"><span>6-max</span><span>${fmt(event.starting_stack)}点</span><span>${jjSngLevelSummary(eventLevels)}</span><span>BB Ante</span><span>無料 · 賞品なし</span><span>再参加なし</span></div>",
-        "event rules",
-    )
-    source = replace_once(
-        source,
-        "${jjSngStructureHtml(levels||event.structure)}",
-        "${jjSngStructureHtml(eventLevels,event.target_minutes)}",
-        "event structure call",
-    )
-    source = source.replace('無料 · 賞品なし','参加費 ${fmt(event.entry_fee)} pt · 賞金 ${fmt(event.prize_points)} pt')
-    source = source.replace('${action}${participants}', '<details><summary>プライズ配分</summary>${Object.entries(event.payout_percentages||{}).map(([n,r])=>`<p>${safe(n)}人：${r.map((v,i)=>`${i+1}位 ${safe(v)}%`).join(" / ")}</p>`).join("")}<p>参加登録時点で着席確定です。残高不足でも登録でき、参加費分だけ公式ポイントがマイナスになる場合があります。開始時に画面を開いていなくてもブラインド・BBAは進行します。開始前の取消・中止では参加費を返却します。同順位は該当順位分を均等分配し、0.01pt単位で端数調整します。</p></details>${action}${participants}')
-    ui._APP_PATCH = source
-    ui._JJ_ADMIN_STRUCTURE_PATCHED = True
-
+    sitngo_browser_config.install()
 
 def install(sitngo_module) -> None:
     """Install the configurable event contract before ``sitngo.install()``."""
