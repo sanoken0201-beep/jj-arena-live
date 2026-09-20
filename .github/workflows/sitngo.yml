@@ -26,6 +26,7 @@ jobs:
       - run: python smoke_test_sitngo_elimination_ranking.py
       - run: python smoke_test_sitngo_hand_levels.py
       - run: python smoke_test_sitngo_action_safety.py
+      - run: python smoke_test_sitngo_alerting.py
       - run: python smoke_test_sitngo_freezeout_contract.py
       - run: python -c "from production_release_gate import _run_test; _run_test('smoke_test_sitngo_gameplay.py')"
       - run: python smoke_test_sitngo_api.py
@@ -68,6 +69,7 @@ jobs:
       - run: python smoke_test_sitngo_elimination_ranking.py
       - run: python smoke_test_sitngo_hand_levels.py
       - run: python smoke_test_sitngo_action_safety.py
+      - run: python smoke_test_sitngo_alerting.py
       - run: python smoke_test_sitngo_freezeout_contract.py
       - run: python smoke_test_sitngo_points.py
       - run: python smoke_test_sitngo_multi_session.py
