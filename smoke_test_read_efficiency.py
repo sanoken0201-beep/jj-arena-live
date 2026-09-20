@@ -22,7 +22,6 @@ def main():
         os.environ["JJ_DB_PATH"] = str(Path(tempfile.mkdtemp(prefix="jj-reads-")) / "test.db")
     import app
     import runtime_performance
-    from fastapi.testclient import TestClient
     db, server, engine = app.db, app.runtime_server, app.runtime_poker_engine
     original_connect = db.connect
     queries, connections = [], []
@@ -55,7 +54,56 @@ def main():
                  "admin" if i == 0 else "member", i, f"Rank-{suffix}-{i}" if i < 3 else None, db.utcnow()))
             users.append(uid)
     token, member_token = db.create_session(users[0]), db.create_session(users[1])
-    client = TestClient(app.app)
+    class Response:
+        def __init__(self, status_code, body):
+            self.status_code, self.content = status_code, body
+            self.text = body.decode("utf-8", errors="replace")
+
+        def json(self):
+            return json.loads(self.content)
+
+    class LocalClient:
+        """Dependency-free ASGI caller for the Render release image."""
+        def request(self, method, target, *, headers=None, json_body=None):
+            from urllib.parse import urlsplit
+            parsed = urlsplit(target)
+            body = json.dumps(json_body).encode() if json_body is not None else b""
+            raw_headers = [(str(k).lower().encode(), str(v).encode()) for k, v in (headers or {}).items()]
+            if json_body is not None:
+                raw_headers.append((b"content-type", b"application/json"))
+
+            async def call():
+                sent, delivered = [], False
+
+                async def receive():
+                    nonlocal delivered
+                    if delivered:
+                        return {"type": "http.disconnect"}
+                    delivered = True
+                    return {"type": "http.request", "body": body, "more_body": False}
+
+                async def send(message):
+                    sent.append(message)
+
+                scope = {"type": "http", "asgi": {"version": "3.0"}, "http_version": "1.1",
+                         "method": method, "scheme": "http", "path": parsed.path,
+                         "raw_path": parsed.path.encode(), "query_string": parsed.query.encode(),
+                         "headers": raw_headers, "client": ("test", 1), "server": ("test", 80),
+                         "root_path": ""}
+                await app.app(scope, receive, send)
+                status = next(message["status"] for message in sent if message["type"] == "http.response.start")
+                payload = b"".join(message.get("body", b"") for message in sent if message["type"] == "http.response.body")
+                return Response(status, payload)
+
+            return asyncio.run(call())
+
+        def get(self, target, *, headers=None):
+            return self.request("GET", target, headers=headers)
+
+        def post(self, target, *, headers=None, json=None):
+            return self.request("POST", target, headers=headers, json_body=json)
+
+    client = LocalClient()
     headers = {"Authorization": "Bearer " + token}
 
     def get(path, auth=headers):
