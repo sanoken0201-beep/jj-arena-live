@@ -15,7 +15,7 @@
     {level:13,small_blind:20000,big_blind:40000,bb_ante:40000,minutes:10},{level:14,small_blind:30000,big_blind:60000,bb_ante:60000,minutes:10},
     {level:15,small_blind:40000,big_blind:80000,bb_ante:80000,minutes:10}
   ];
-  let data={events:[],defaults:null},telemetry=null,poll=null,toastTimer=null,editingId=null,editorInitialized=false;
+  let data={events:[],defaults:null},telemetry=null,alerts=null,poll=null,toastTimer=null,editingId=null,editorInitialized=false;
   function toast(msg){const el=$('#toast');if(!el)return;el.textContent=msg;el.classList.add('show');clearTimeout(toastTimer);toastTimer=setTimeout(()=>el.classList.remove('show'),2800)}
   async function api(path,options={}){const opts={credentials:'include',...options,headers:{...(options.body?{'Content-Type':'application/json'}:{}),...(options.headers||{})}};const res=await fetch('/api'+path,opts);let body=null;try{body=await res.json()}catch{}if(!res.ok){if(res.status===401){location.href='/';throw new Error('ログインが必要です')}throw new Error(Array.isArray(body?.detail)?body.detail.map(x=>x.msg).join(' / '):(body?.detail||`HTTP ${res.status}`))}return body}
   const post=(p,b)=>api(p,{method:'POST',body:JSON.stringify(b??{})}),patch=(p,b)=>api(p,{method:'PATCH',body:JSON.stringify(b??{})});
@@ -78,11 +78,18 @@
   const telemetryLabels={missing_tokens:'token不足',duplicate_action:'重複action',stale_hand:'古いhand',stale_turn:'古いturn',late_action:'deadline超過',timeout_boundary_protected:'境界競合を保護',timeout_auto_action:'自動timeout',restart_recovery:'再起動復旧'};
   function renderTelemetry(){
     const host=$('#sngTelemetry');if(!host)return;
-    if(!telemetry){host.innerHTML='<div class="empty-state">安全イベントを読み込めませんでした。</div>';return}
-    const totals=telemetry.totals||{},days=Number(telemetry.window_days||7);
-    host.innerHTML='<div class="sng-telemetry-grid">'+Object.entries(telemetryLabels).map(([key,label])=>'<div><span>'+safe(label)+'</span><b>'+fmt(totals[key]||0)+'</b><small>件 / '+days+'日</small></div>').join('')+'</div><p class="field-note compact">個人ID・大会ID・hand ID・カード・チップ量・IP・session・自由記述は保存しません。</p>';
+    if(!telemetry&&!alerts){host.innerHTML='<div class="empty-state">安全イベントを読み込めませんでした。</div>';return}
+    const totals=telemetry?.totals||{},days=Number(telemetry?.window_days||alerts?.window_days||7);
+    const webhook=alerts?.webhook_configured?'外部通知 有効':alerts?.webhook_configuration_error?'外部通知 設定エラー':'外部通知 未設定';
+    const recent=(alerts?.recent||[]).slice(0,5);
+    const alertHtml='<div class="sng-alert-summary"><div><span>通知状態</span><b>'+safe(webhook)+'</b><small>保留 '+fmt(alerts?.pending_count||0)+'件</small></div><div><span>通知ポリシー</span><b>異常のみ</b><small>通常timeoutは通知対象外</small></div></div>'+(recent.length?'<div class="sng-alert-list">'+recent.map(x=>'<div><span class="sng-alert-severity '+safe(x.severity)+'">'+safe(x.severity)+'</span><b>'+safe(telemetryLabels[x.metric]||x.metric)+'</b><span>'+fmt(x.observed_count)+' / 閾値 '+fmt(x.threshold)+'</span><small>'+safe(x.status==='sent'?'送信済み':'送信待ち')+'</small></div>').join('')+'</div>':'<p class="field-note compact">直近の通知対象異常はありません。</p>');
+    const metrics=telemetry?'<div class="sng-telemetry-grid">'+Object.entries(telemetryLabels).map(([key,label])=>'<div><span>'+safe(label)+'</span><b>'+fmt(totals[key]||0)+'</b><small>件 / '+days+'日</small></div>').join('')+'</div>':'';
+    host.innerHTML=alertHtml+metrics+'<p class="field-note compact">個人ID・大会ID・hand ID・カード・チップ量・IP・session・自由記述は保存しません。Webhook URL自体も画面には表示しません。</p>';
   }
-  async function loadTelemetry(){try{telemetry=await api('/admin/sitngo/telemetry?days=7')}catch{telemetry=null}renderTelemetry()}
+  async function loadTelemetry(){
+    const [t,a]=await Promise.allSettled([api('/admin/sitngo/telemetry?days=7'),api('/admin/sitngo/alerts?days=7')]);
+    telemetry=t.status==='fulfilled'?t.value:null;alerts=a.status==='fulfilled'?a.value:null;renderTelemetry()
+  }
   function render(){
     ensureEditor();
     const host=$('#sngEventList');if(!host)return;
