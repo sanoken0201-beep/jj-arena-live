@@ -29,6 +29,14 @@ def main() -> None:
     legacy = admin_config.normalize_structure(raw, 30_000, preserve_legacy_minutes=True)
     require([level["minutes"] for level in legacy] == [1, 60], "legacy stored minute metadata lost read compatibility")
 
+    ui_source = (ROOT / "sitngo_ui.py").read_text(encoding="utf-8")
+    browser_source = (ROOT / "sitngo_browser_config.py").read_text(encoding="utf-8")
+    for obsolete in ("10 MIN LEVELS", "10分レベル", "10,000点", "無料 · 賞品なし"):
+        require(obsolete not in ui_source, f"obsolete Sit&Go player copy remains in canonical source: {obsolete}")
+        require(obsolete not in browser_source, f"obsolete Sit&Go migration anchor remains: {obsolete}")
+    require("12 HAND LEVELS" in ui_source and "12ハンド/レベル" in ui_source, "canonical 12-hand player source missing")
+    require("_replace_prefixed_line" not in browser_source, "legacy two-stage Sit&Go browser migration helper remains")
+
     hand_source = (ROOT / "sitngo_hand_levels.py").read_text(encoding="utf-8")
     require(".write_text(" not in hand_source, "Sit&Go hand-level install still mutates admin files at runtime")
     asset_source = (ROOT / "sitngo_asset_cache.py").read_text(encoding="utf-8")
