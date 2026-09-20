@@ -118,6 +118,8 @@ Operational timing that must not be casually changed:
 
 Performance work must not trade away action correctness, timing correctness, card privacy, ranking precision or user-visible immediacy.
 
+Production rake integrity auditing retains all-time anomaly counters for forensic investigation but separates corrected-period `current_*` counters from legacy findings. The top-level audit `status` and `current_anomaly_total` are based on current/structural checks rather than known historical defects, so legacy anomalies remain visible without making a corrected current system appear unhealthy.
+
 Ring UX telemetry remains privacy-preserving and low overhead. The existing batched client now distinguishes WebSocket-open events from actual recovery to a fresh authoritative state, measures same-page seat-to-READY latency, counts final action submission failures, and counts table-to-review opens plus review-later bookmarks. It adds no polling loop or background database reader and stores no user/account identity, table/hand ID, cards, chip/bet amount, chat, IP, user agent, session ID or free text. Raw UX events retain the existing 30-day limit. The admin UX dashboard exposes these aggregate KPIs.
 
 ## 10. Sit&Go current implementation

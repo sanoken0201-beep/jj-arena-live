@@ -153,3 +153,12 @@ Operational UX measurement may distinguish a WebSocket connection opening from s
 
 These measurements must reuse the existing batched telemetry sender. They must not introduce polling or a background database reader, and must not persist user/account identity, table or hand IDs, cards, chip/bet amounts, chat, IP address, user agent, session ID or free text. Raw UX-event retention remains 30 days. Browser instrumentation is compiled as the final append-only stage after runtime browser consolidation.
 
+## D-016 — Rake audit health separates current integrity from historical defects
+
+**Date:** 2026-09-21  
+**Status:** Accepted
+
+The production rake audit keeps all-time `hand_conservation_or_completeness` and `rake_formula_violation` counters for compatibility and forensic investigation. It also classifies those findings into `current_*` and `legacy_*` buckets using the corrected-policy boundary.
+
+The operational `status` and `current_anomaly_total` must be computed from current-period and structural checks only. Known legacy defects remain visible in the report but must not independently mark the corrected current system unhealthy. The audit remains read-only and does not rewrite historical data.
+

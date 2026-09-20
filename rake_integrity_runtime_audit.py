@@ -25,8 +25,8 @@ CURRENT_ANOMALY_KEYS = (
     "hand_result_metadata_mismatch",
     "duplicate_user_result",
     "points_mismatch",
-    "hand_conservation_or_completeness",
-    "rake_formula_violation",
+    "current_hand_conservation_or_completeness",
+    "current_rake_formula_violation",
     "current_rake_bound_violation",
     "current_missing_analytics_history",
     "current_noflop_violation",
@@ -168,11 +168,19 @@ def audit_rows(
         )
         if completeness_bad:
             flag("hand_conservation_or_completeness", hid)
+            if played_at >= NOFLOP_FIX_AT:
+                flag("current_hand_conservation_or_completeness", hid)
+            else:
+                flag("legacy_hand_conservation_or_completeness", hid)
 
         if hist:
             expected = _expected_rake_bb(gross, played_at, reached)
             if abs(rake - expected) > 0.001:
                 flag("rake_formula_violation", hid)
+                if played_at >= NOFLOP_FIX_AT:
+                    flag("current_rake_formula_violation", hid)
+                else:
+                    flag("legacy_rake_formula_violation", hid)
         elif played_at >= NOFLOP_FIX_AT:
             flag("current_missing_analytics_history", hid)
 
@@ -195,8 +203,17 @@ def audit_rows(
     # Ensure stable zero-valued keys for operational parsing.
     for key in CURRENT_ANOMALY_KEYS:
         counts.setdefault(key, 0)
-    counts.setdefault("legacy_noflop_metadata_gap", 0)
-    counts.setdefault("legacy_uncalled_risk_window_hands", 0)
+    # Preserve the historical/all-time keys for log consumers while current
+    # health is computed only from the corrected-policy period.
+    for key in (
+        "hand_conservation_or_completeness",
+        "rake_formula_violation",
+        "legacy_hand_conservation_or_completeness",
+        "legacy_rake_formula_violation",
+        "legacy_noflop_metadata_gap",
+        "legacy_uncalled_risk_window_hands",
+    ):
+        counts.setdefault(key, 0)
 
     current_total = sum(int(counts[key]) for key in CURRENT_ANOMALY_KEYS)
     return {
