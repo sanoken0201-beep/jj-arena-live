@@ -23,27 +23,29 @@ def main():
         except ValidationError: pass
         else: raise AssertionError('Invalid fee accepted')
     eid=event()
-    try:service.register(eid,uid)
-    except HTTPException as e:assert e.status_code==400
-    else:raise AssertionError('Insufficient points accepted')
-    with db.connect() as con:
-        assert con.execute('SELECT COUNT(*) n FROM sitngo_registrations WHERE event_id=?',(eid,)).fetchone()['n']==0
-        service.points.write(con,eid,uid,1001,'credit','test-sng-funding')
+    # Registration is allowed even with a zero/insufficient balance. The entry
+    # debit is authoritative and may take the season point balance negative.
     def attempt(_):
         try:service.register(eid,uid);return True
         except HTTPException as e:assert e.status_code==409;return False
     with ThreadPoolExecutor(max_workers=4) as pool:assert sum(pool.map(attempt,range(4)))==1
-    with db.connect() as con:assert service.points.balance(con,uid)==0
+    with db.connect() as con:
+        assert con.execute('SELECT COUNT(*) n FROM sitngo_registrations WHERE event_id=?',(eid,)).fetchone()['n']==1
+        assert service.points.balance(con,uid)==-1001
+        assert con.execute("SELECT COUNT(*) n FROM point_ledger WHERE user_id=? AND kind='sitngo_entry'",(uid,)).fetchone()['n']==1
+    assert service.server.seated_table_for_user(uid)==eid
     service.cancel_registration(eid,uid)
-    with db.connect() as con:assert service.points.balance(con,uid)==1001
+    with db.connect() as con:assert service.points.balance(con,uid)==0
     service.register(eid,uid)
+    with db.connect() as con:assert service.points.balance(con,uid)==-1001
     service.cancel_event(eid,'test',admin);service.cancel_event(eid,'duplicate',admin)
     with db.connect() as con:
-        assert service.points.balance(con,uid)==1001
+        assert service.points.balance(con,uid)==0
         assert con.execute("SELECT COUNT(*) n FROM point_ledger WHERE user_id=? AND kind='sitngo_refund'",(uid,)).fetchone()['n']==2
     short=event();service.register(short,uid)
+    with db.connect() as con:assert service.points.balance(con,uid)==-1001
     service.reconcile(datetime.now(timezone.utc)+timedelta(minutes=21))
-    with db.connect() as con:assert service.points.balance(con,uid)==1001
+    with db.connect() as con:assert service.points.balance(con,uid)==0
     # Transaction rollback after ledger insertion must also roll back registration.
     rollback=event(); original=service.points.write
     def failure(*a,**kw):original(*a,**kw);raise RuntimeError('injected write failure')
@@ -52,7 +54,7 @@ def main():
         except RuntimeError:pass
         else:raise AssertionError('failure not propagated')
     with db.connect() as con:
-        assert service.points.balance(con,uid)==1001
+        assert service.points.balance(con,uid)==0
         assert con.execute('SELECT COUNT(*) n FROM sitngo_registrations WHERE event_id=?',(rollback,)).fetchone()['n']==0
     service.cancel_event(rollback,'test',admin)
 

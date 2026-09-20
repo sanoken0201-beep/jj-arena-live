@@ -125,9 +125,10 @@ class TournamentPoints:
     def charge(self,con,eid,uid):
         fee=self.fee(con,eid)
         if not fee:return
-        # Lock the account across balance check and debit; event is already locked.
+        # Entry is a commitment, not a balance-gated purchase. The official
+        # ledger may therefore become negative; keep the account lock so
+        # concurrent registration/account writes remain serialized.
         con.execute('UPDATE users SET id=id WHERE id=?',(uid,))
-        if self.balance(con,uid)<fee:raise HTTPException(400,'参加費に必要なシーズンポイントが不足しています')
         tx='sng-entry-'+uuid.uuid4().hex
         self.write(con,eid,uid,-fee,'sitngo_entry',tx)
         con.execute('''INSERT INTO sitngo_payments(event_id,user_id,entry_tx,fee_cents,refunded) VALUES (?,?,?,?,0) ON CONFLICT(event_id,user_id) DO UPDATE SET entry_tx=excluded.entry_tx,fee_cents=excluded.fee_cents,refunded=0''',(eid,uid,tx,fee))
