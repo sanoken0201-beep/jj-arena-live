@@ -40,14 +40,22 @@ def record(db, metric: str, now: datetime | None = None) -> bool:
     if metric not in METRICS:
         raise ValueError(f"unknown Sit&Go runtime metric: {metric}")
     try:
+        day=_day(now)
         with db.connect() as con:
             con.execute(
                 """INSERT INTO sitngo_runtime_metrics(day,metric,count)
                    VALUES (?,?,1)
                    ON CONFLICT(day,metric) DO UPDATE
                    SET count=sitngo_runtime_metrics.count+1""",
-                (_day(now), metric),
+                (day, metric),
             )
+            import sitngo_alerting
+            if metric in sitngo_alerting.ALERT_THRESHOLDS:
+                row=con.execute(
+                    "SELECT count FROM sitngo_runtime_metrics WHERE day=? AND metric=?",
+                    (day,metric),
+                ).fetchone()
+                sitngo_alerting.consider(con,day,metric,int(row["count"] or 0),now=now)
         return True
     except Exception:
         # Observability must never break tournament actions or timeout progress.
@@ -91,6 +99,8 @@ def install(service) -> None:
     if getattr(app.state,"jj_sitngo_observability_installed",False):
         return
     ensure_schema(db)
+    import sitngo_alerting
+    sitngo_alerting.install(service)
     app.state.jj_sitngo_observability_installed=True
 
     @app.get("/api/admin/sitngo/telemetry")
