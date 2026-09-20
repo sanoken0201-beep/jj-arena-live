@@ -7,6 +7,7 @@ from datetime import datetime, timedelta, timezone
 from unittest.mock import patch
 
 import sitngo_action_safety
+import sitngo_observability
 from smoke_test_sitngo_phase1 import add_member, production_app, registration_moment, sitngo
 from fastapi.testclient import TestClient
 
@@ -23,6 +24,7 @@ def main() -> None:
 
     with db.connect() as con:
         con.execute("UPDATE sitngo_events SET status='finished',updated_at=? WHERE status='running'", (db.utcnow(),))
+        con.execute("DELETE FROM sitngo_runtime_metrics")
         admin = con.execute("SELECT id FROM users WHERE role='admin' ORDER BY id LIMIT 1").fetchone()
     require(admin is not None, "test admin missing")
     admin_id = int(admin["id"])
@@ -142,6 +144,20 @@ def main() -> None:
         timed_out.get("status") != "playing" or timed_out["hand"].get("turn_id") != current_turn,
         "timeout did not consume the expired turn",
     )
+
+    metrics=sitngo_observability.summary(db,days=7)["totals"]
+    require(metrics["missing_tokens"] >= 1, "missing-token rejection was not observed")
+    require(metrics["duplicate_action"] >= 1, "idempotent duplicate action was not observed")
+    require(metrics["stale_turn"] >= 1, "stale turn rejection was not observed")
+    require(metrics["late_action"] >= 1, "late action rejection was not observed")
+    require(metrics["timeout_boundary_protected"] >= 1, "timeout boundary protection was not observed")
+    require(metrics["timeout_auto_action"] >= 1, "automatic timeout action was not observed")
+
+    login(admin_id)
+    telemetry=client.get("/api/admin/sitngo/telemetry?days=7")
+    require(telemetry.status_code == 200, "admin Sit&Go telemetry endpoint failed")
+    require(telemetry.json()["privacy"]["stores_user_identity"] is False, "telemetry privacy contract drift")
+    require(telemetry.json()["totals"]["duplicate_action"] >= 1, "admin telemetry lost aggregate metrics")
 
     # Ring action payloads and materialized core remain untouched; the safety
     # contract is selected only by the Sit&Go table id/state.
