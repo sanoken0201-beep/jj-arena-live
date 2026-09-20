@@ -141,10 +141,11 @@ excluded because registered-but-absent players timing out is valid tournament be
 
 External delivery is optional through `JJ_SITNGO_ALERT_WEBHOOK_URL`. Delivery runs
 on a separate background loop, never on the player action path. Webhook failures keep
-the alert pending and retry with bounded exponential backoff. The payload contains
-only source/type/severity/metric/day/count/threshold plus generated alert text; no
-player/tournament/hand/card/chip/network/session identifiers or user-entered text are
-included. The webhook URL itself is never returned by the administrator API.
+the alert pending and retry with bounded exponential backoff. The payload contains only source/type, a deterministic non-sensitive `alert_key`,
+severity/metric/day/count/threshold and generated alert text; no player/tournament/
+hand/card/chip/network/session identifiers or user-entered text are included. The
+`alert_key` lets a relay deduplicate the rare case where delivery succeeds but the
+local sent-state commit is interrupted. The webhook URL itself is never returned by the administrator API.
 
 
 ## Operational acceptance
