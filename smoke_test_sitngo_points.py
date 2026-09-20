@@ -5,7 +5,7 @@ from concurrent.futures import ThreadPoolExecutor
 from pydantic import ValidationError
 from fastapi import HTTPException
 from smoke_test_sitngo_phase1 import production_app, add_member, sitngo
-from sitngo_points import cents, prize_schedule
+from sitngo_points import cents, prize_schedule, default_payouts
 import smoke_test_sitngo_gameplay as gameplay
 
 
@@ -55,6 +55,56 @@ def main():
         assert service.points.balance(con,uid)==1001
         assert con.execute('SELECT COUNT(*) n FROM sitngo_registrations WHERE event_id=?',(rollback,)).fetchone()['n']==0
     service.cancel_event(rollback,'test',admin)
+
+    # Paid events fail closed before the first card if the registered field and
+    # locked entry escrow do not match exactly.
+    guard_users=[add_member(91200+i) for i in range(2)]
+    guard_start=datetime.now(timezone.utc)+timedelta(minutes=2)
+    guarded=service.create_event(sitngo.SitNGoCreateIn(
+        name='Escrow guard',entry_fee='10.01',starts_at=guard_start.isoformat()),admin)['id']
+    with db.connect() as con:
+        for i,u in enumerate(guard_users):
+            service.points.write(con,guarded,u,1001,'credit',f'guard-funding-{i}')
+    for u in guard_users:service.register(guarded,u)
+    with db.connect() as con:
+        con.execute('UPDATE sitngo_payments SET fee_cents=1000 WHERE event_id=? AND user_id=?',(guarded,guard_users[1]))
+    try:
+        service.reconcile(guard_start+timedelta(seconds=1))
+    except RuntimeError as exc:
+        assert 'escrow' in str(exc).lower()
+    else:
+        raise AssertionError('tournament started with corrupt entry escrow')
+    assert service._row(guarded)['status']!='running'
+    with db.connect() as con:
+        con.execute('UPDATE sitngo_payments SET fee_cents=1001 WHERE event_id=? AND user_id=?',(guarded,guard_users[1]))
+    service.reconcile(guard_start+timedelta(seconds=2))
+    assert service._row(guarded)['status']=='running'
+    guard_state={'id':guarded,'tournament':{'status':'finished','entrants':2,'results':[
+        {'user_id':guard_users[0],'place':1},{'user_id':guard_users[1],'place':2}]}}
+    with db.connect() as con:service.points.settle(con,guard_state)
+    with db.connect() as con:
+        con.execute("UPDATE sitngo_events SET status='finished',updated_at=? WHERE id=?",(db.utcnow(),guarded))
+
+    # Persisted payout terms are revalidated at read/start time. Corrupt JSON
+    # cannot silently launch a tournament that would become unpayable later.
+    config_users=[add_member(91300+i) for i in range(2)]
+    config_start=datetime.now(timezone.utc)+timedelta(minutes=3)
+    corrupt=service.create_event(sitngo.SitNGoCreateIn(
+        name='Payout config guard',entry_fee='0',starts_at=config_start.isoformat()),admin)['id']
+    for u in config_users:service.register(corrupt,u)
+    with db.connect() as con:
+        con.execute("UPDATE sitngo_payout_settings SET payouts_json=? WHERE event_id=?",('{"6":[70,30]}',corrupt))
+    try:
+        service.reconcile(config_start+timedelta(seconds=1))
+    except RuntimeError as exc:
+        assert 'payout configuration' in str(exc)
+    else:
+        raise AssertionError('tournament started with corrupt payout configuration')
+    assert service._row(corrupt)['status']!='running'
+    with db.connect() as con:
+        service.points.configure(con,corrupt,0,default_payouts())
+    service.cancel_event(corrupt,'test cleanup',admin)
+
     assert prize_schedule(6006,6)==[4204,1802,0,0,0,0]
     assert prize_schedule(5005,5)==[5005,0,0,0,0]
     # Equal-stack double elimination for second splits 2nd+3rd prizes.
@@ -97,7 +147,6 @@ def main():
     tiny_awards={r['user_id']:cents(r['prize_points']) for r in tiny_state['tournament']['results']}
     assert tiny_awards[tiny_ids[2]]==5 and tiny_awards[tiny_ids[1]]==4,tiny_awards
 
-    from sitngo_points import default_payouts
     rates=default_payouts();rates['6']=[0,0,0,0,0,100]
     eid=event('0')
     service.update_event(eid,sitngo.SitNGoUpdateIn(entry_fee='10.01',payout_percentages=rates),admin)
