@@ -103,6 +103,19 @@ JJ_ADMIN_NAME=<管理者のカタカナ名>
 JJ_ENABLE_DEMO_MEMBER=0
 ```
 
+Sit&Go異常の外部push通知を有効にする場合だけ、次をRender Environmentへ追加します。URLはGitHubへcommitしません。
+
+```text
+JJ_SITNGO_ALERT_WEBHOOK_URL=<HTTPS webhook / relay endpoint>
+```
+
+- 未設定でもSit&Goは通常動作し、閾値到達alertはDB outboxと管理画面に保持されます。
+- 設定時は30秒間隔の独立background loopがpending alertを送信します。player action / timeout / settlement処理から外部通信は行いません。
+- webhook failureはalertを失わず、最大1時間までの指数backoffで再試行します。
+- 外部payloadはaggregate metric/day/count/thresholdだけで、player/event/hand/card/chip/IP/session/free textを含みません。
+- 通常の不在者timeout（`timeout_auto_action`）は正常動作なので通知対象外です。
+- productionではHTTPSのみを使用します。localhost HTTPはCI専用です。
+
 通常運用では次を設定しません。
 
 ```text
@@ -244,6 +257,8 @@ runtime performance変更では、少なくとも以下の意味を変えない�
 [ ] next-hand delay / forced runout timing remain correct
 [ ] no new ERROR logs
 [ ] no JJ_TIMEOUT_LOOP_ERROR / JJ_WS_CONNECTION_ERROR during normal play
+[ ] Sit&Go admin alert panel shows expected webhook state and no unexpected pending alert surge
+[ ] no JJ_SITNGO_ALERT_LOOP_ERROR during normal play
 ```
 
 ## 12. Learning content sharing rules
