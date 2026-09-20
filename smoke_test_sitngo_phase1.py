@@ -133,6 +133,13 @@ def main() -> None:
     with patch.object(sitngo, "_utcnow", return_value=registration_moment(queued)):
         service.register(queued["id"], members[2])
         service.register(queued["id"], members[7])
+        lobby = service.next_event(members[0])
+    require(lobby["event"]["id"] == event["id"], "running Sit&Go must remain the primary lobby event")
+    require(
+        lobby["upcoming"] and lobby["upcoming"]["id"] == queued["id"],
+        "running Sit&Go hid the next registration event",
+    )
+    require(lobby["upcoming"]["can_register"], "next event must remain actionable while another Sit&Go runs")
     service.reconcile(queued_start + timedelta(seconds=1))
     queued_row = service._row(queued["id"])
     require(queued_row["status"] == "starting", "busy Sit&Go must move due event to starting")
@@ -143,6 +150,15 @@ def main() -> None:
     require(
         service.next_event(members[2])["event"]["status"] == "starting",
         "queued Sit&Go visibility lost starting status",
+    )
+    running_lobby = service.next_event(members[0])
+    require(
+        running_lobby["event"]["id"] == event["id"] and running_lobby["upcoming"]["id"] == queued["id"],
+        "starting handoff must keep both running and queued Sit&Go visible",
+    )
+    require(
+        running_lobby["upcoming"]["status"] == "starting",
+        "upcoming card must expose explicit starting status after scheduled time",
     )
 
     # This test intentionally launches several events in one isolated database.

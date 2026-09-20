@@ -215,6 +215,8 @@ class TournamentRuntime:
         t['remaining'] = sum(p['stack'] > 0 or p.get('in_hand',False) and not p.get('folded',False) for p in state['seats'])
         t['results'] = sorted(t['results'], key=lambda x:(x['place'], x['user_id']))
         t['ante_paid'] = state.get('_ante_paid', 0)
+        if t['status'] == 'finished' and viewer is not None:
+            t['point_statement'] = self.service.points.statement(state['id'], int(viewer))
         value['tournament'] = t
         if t['status'] == 'finished':
             value['legal'] = {'can_act':False}

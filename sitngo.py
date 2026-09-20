@@ -321,8 +321,25 @@ class SitNGoService:
                 ).fetchone()
         with self.db.connect() as con:
             recent = con.execute("SELECT * FROM sitngo_events WHERE status='finished' ORDER BY updated_at DESC LIMIT 5").fetchall()
-        return {"event": self._event_payload(dict(row), user_id) if row else None, "structure": BLIND_STRUCTURE,
-                "recent": [self._event_payload(dict(r), user_id) for r in recent]}
+        event = self._event_payload(dict(row), user_id) if row else None
+        upcoming = None
+        if event and event.get("status") == "running":
+            with self.db.connect() as con:
+                next_row = con.execute(
+                    """SELECT * FROM sitngo_events
+                       WHERE status IN ('scheduled','registration_open','starting')
+                         AND id<>?
+                       ORDER BY starts_at ASC,id ASC LIMIT 1""",
+                    (event["id"],),
+                ).fetchone()
+            if next_row:
+                upcoming = self._event_payload(dict(next_row), user_id)
+        return {
+            "event": event,
+            "upcoming": upcoming,
+            "structure": BLIND_STRUCTURE,
+            "recent": [self._event_payload(dict(r), user_id) for r in recent],
+        }
 
     def admin_events(self, actor_id: int) -> dict:
         self.reconcile()
@@ -546,6 +563,8 @@ def install(app, db, server) -> SitNGoService:
     import sys
     service.runtime = TournamentRuntime(service, sys.modules["poker_engine"])
     app.state.jj_sitngo = service
+    import sitngo_observability
+    sitngo_observability.install(service)
 
     @app.get("/api/sitngo/next")
     def sitngo_next(user=Depends(server.current_user)):

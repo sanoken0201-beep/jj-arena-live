@@ -119,6 +119,9 @@ def main():
         {'user_id':u,'place':p} for u,p in zip(ids,[1,2,2,4,5,6])]}}
     with db.connect() as con:service.points.settle(con,state)
     assert [cents(r['prize_points']) for r in state['tournament']['results']]==[4204,901,901,0,0,0]
+    statement=service.points.statement(tied,ids[0])
+    assert statement['entry_points']==-10.01 and statement['refund_points']==0
+    assert statement['prize_points']==42.04 and statement['net_points']==32.03 and statement['settled']
     # Replaying a persisted settlement must verify that the prize ledger still
     # matches escrow, not merely trust awards_json.
     with db.connect() as con:

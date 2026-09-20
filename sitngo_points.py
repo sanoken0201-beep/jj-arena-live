@@ -104,6 +104,50 @@ class TournamentPoints:
         pool=fee*count
         return dict(entry_fee=fee/100,prize_points=pool/100,prizes=[v/100 for v in prize_schedule(pool,count,rates)],payout_percentages=rates,points_editable=not locked,reentry=False)
 
+    def statement(self,eid,uid):
+        """Return the viewer's ledger-backed Sit&Go accounting summary."""
+        with self.db.connect() as con:
+            payment=con.execute(
+                'SELECT entry_tx,fee_cents,refunded FROM sitngo_payments WHERE event_id=? AND user_id=?',
+                (eid,uid),
+            ).fetchone()
+            prize=con.execute(
+                "SELECT amount FROM point_ledger WHERE id=? AND user_id=? AND kind='sitngo_prize'",
+                (f'sng-prize-{eid}-{uid}',uid),
+            ).fetchone()
+            if not payment and not prize:
+                return None
+            entry=0
+            refund=0
+            fee=int(payment['fee_cents']) if payment else 0
+            if payment:
+                row=con.execute(
+                    "SELECT amount FROM point_ledger WHERE id=? AND user_id=? AND kind='sitngo_entry'",
+                    (payment['entry_tx'],uid),
+                ).fetchone()
+                if row:
+                    entry=cents(row['amount'])
+                row=con.execute(
+                    "SELECT amount FROM point_ledger WHERE id=? AND user_id=? AND kind='sitngo_refund'",
+                    ('sng-refund-'+str(payment['entry_tx']),uid),
+                ).fetchone()
+                if row:
+                    refund=cents(row['amount'])
+            award=cents(prize['amount']) if prize else 0
+            settled=con.execute(
+                'SELECT 1 FROM sitngo_settlements WHERE event_id=?',
+                (eid,),
+            ).fetchone() is not None
+        return dict(
+            entry_fee=fee/100,
+            entry_points=entry/100,
+            refund_points=refund/100,
+            prize_points=award/100,
+            net_points=(entry+refund+award)/100,
+            refunded=bool(payment and int(payment['refunded'])),
+            settled=settled,
+        )
+
     def balance(self,con,uid):
         user=con.execute("SELECT COALESCE(NULLIF(ranking_name,''),name) name FROM users WHERE id=?",(uid,)).fetchone()
         if not user:raise HTTPException(404,'アカウントが見つかりません')

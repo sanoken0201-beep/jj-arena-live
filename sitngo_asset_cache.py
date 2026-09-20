@@ -12,7 +12,7 @@ browser-only build jobs stay dependency-free.
 """
 from __future__ import annotations
 
-CACHE_QUERY = "sngcfg=admin-prizes-20260920-1"
+CACHE_QUERY = "sngcfg=backlog-complete-20260921-1"
 
 
 def install() -> None:

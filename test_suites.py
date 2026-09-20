@@ -56,6 +56,14 @@ TEST_SUITES: dict[str, tuple[str, ...]] = {
         "smoke_test_sitngo_phase1.py",
         "smoke_test_sitngo_gameplay.py",
         "smoke_test_sitngo_points.py",
+        "smoke_test_sitngo_chip_rules.py",
+        "smoke_test_sitngo_tournament_rules.py",
+        "smoke_test_sitngo_elimination_ranking.py",
+        "smoke_test_sitngo_hand_levels.py",
+        "smoke_test_sitngo_action_safety.py",
+        "smoke_test_sitngo_freezeout_contract.py",
+        "smoke_test_sitngo_api.py",
+        "smoke_test_sitngo_browser.py",
     ),
 }
 
@@ -80,6 +88,7 @@ BROWSER_ONLY_TESTS = frozenset(
         "smoke_test_poker_simple.py",
         "smoke_test_oop_check_browser.py",
         "smoke_test_poker_control_audit.py",
+        "smoke_test_sitngo_browser.py",
     }
 )
 
