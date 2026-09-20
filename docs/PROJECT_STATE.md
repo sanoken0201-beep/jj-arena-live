@@ -67,7 +67,7 @@ Normal product changes belong in root-level extensions, integration shims, brows
 
 `app_materialized.py` loads the materialized core and applies root-level extensions. `app.py` is the stable Render-facing entrypoint.
 
-`app_legacy.py` remains an isolated parity/emergency-rollback oracle rather than a production import path. `runtime_builder.py` now constructs that compatibility runtime by copying only files recorded in `materialized_v1244.manifest.json` and verifying their size/hash. The historical `release_v14/` bundle and v15–v55 patch replay are no longer runtime inputs for compatibility construction; they are historical/forensic artifacts, not the preferred place to add behavior.
+`app_legacy.py` remains an isolated parity/emergency-rollback oracle rather than a production import path. `runtime_builder.py` constructs that compatibility runtime by copying only files recorded in `materialized_v1244.manifest.json` and verifying their size/hash. Stage 7B.2 removes the unused `release_v14/`, `v18_assets/`, and `v54_patch.py` working-tree artifacts; historical reconstruction remains available through Git history and is not a runtime dependency.
 
 Do not mix poker game-rule changes and UI-only changes in one patch unless the coupling is unavoidable and explicitly justified.
 
