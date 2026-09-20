@@ -80,12 +80,13 @@ Register after leaving a ring seat; a registered/active tournament reserves tabl
 membership until cancellation/elimination. Existing Phase 1 events marked running
 without games resume by creating their first real hand with the assigned seats.
 
-Validation covers complete 2/4/6-player tournaments; total-chip conservation;
-zero cash-ledger effects; short BBA; split/odd chips; main/side pots; BBA main-pot
-integration; denomination-aware raises; scheduled and custom color-ups; micro-stack
-survival; restart; timeouts; blind changes; authenticated HTTP/WebSocket; stale
-hand and duplicate action handling; cash-only endpoint rejection; chat/history
-privacy; and phone/desktop ring UI actions.
+Validation covers complete free 2/4/6-player tournaments and paid 2/3/4/5/6-player
+tournaments; total-chip conservation; exact entry escrow and prize-ledger
+conservation; the default six-player 70/30 award; short BBA; split/odd chips;
+main/side pots; BBA main-pot integration; denomination-aware raises; scheduled and
+custom color-ups; micro-stack survival; restart; timeouts; blind changes;
+authenticated HTTP/WebSocket; stale hand and duplicate action handling; cash-only
+endpoint rejection; chat/history privacy; and phone/desktop ring UI actions.
 
 ## Point entry and administrator-defined prizes
 
@@ -106,6 +107,13 @@ a recorded escrow payment, and a unique settlement prevent duplicate charges,
 refunds, and awards. Completed-game persistence and prizes commit together.
 Integer hundredths preserve the entire pool; largest fractional remainders
 receive residual cents in place order. Tied places split the sum of occupied
-prize slots, with residual cents assigned by user ID. Tournament chips and
-ring settlement remain separate. The general manual reversal endpoint cannot
-reverse tournament entries independently.
+prize slots, with any indivisible residual cent assigned by randomized seat
+order (user ID is only a deterministic fallback). Tournament chips and ring
+settlement remain separate. The general manual reversal endpoint cannot reverse
+tournament entries independently.
+
+Immediately before the first hand, the service revalidates the persisted payout
+configuration and requires the registered field to match unrefunded escrow exactly.
+Each paid escrow row must match the locked fee and reference the corresponding
+`sitngo_entry` ledger debit for the same user and amount; a free event must have
+no active escrow. Any mismatch fails closed before table creation.
