@@ -63,6 +63,7 @@ def install(runtime_module) -> None:
     original_install_routes = runtime_cls.install_routes
     original_public = runtime_cls.public
     legacy_tick = runtime_cls.tick
+    import sitngo_observability
 
     def init(self, service, ring_engine):
         self._pending_action_arrivals = {}
@@ -109,6 +110,7 @@ def install(runtime_module) -> None:
             hand_id = str(payload.hand_id or "").strip()
             turn_id = str(payload.turn_id or "").strip()
             if not receipt or not hand_id or not turn_id:
+                sitngo_observability.record(self.db, "missing_tokens")
                 raise HTTPException(409, "画面を再読み込みしてから操作してください")
 
             pending_key = _pending_enter(self, table_id, turn_id, received_at)
@@ -118,16 +120,20 @@ def install(runtime_module) -> None:
                     processed = list(state.get("_processed_action_ids") or [])
                     receipt_key = f"{user['id']}:{receipt}"
                     if receipt_key in processed:
+                        sitngo_observability.record(self.db, "duplicate_action")
                         return self.public(state, user["id"])
 
                     hand = state.get("hand") or {}
                     if hand_id != str(hand.get("id") or ""):
+                        sitngo_observability.record(self.db, "stale_hand")
                         raise HTTPException(409, "次のハンドに進みました。現在の手札を確認してください")
                     if turn_id != str(hand.get("turn_id") or ""):
+                        sitngo_observability.record(self.db, "stale_turn")
                         raise HTTPException(409, "操作順が更新されました。現在のアクションを確認してください")
 
                     deadline = _deadline_epoch(hand)
                     if deadline is None or received_at > deadline:
+                        sitngo_observability.record(self.db, "late_action")
                         self.signal()
                         raise HTTPException(409, "操作時間を過ぎました。最新の状態を確認してください")
 
@@ -176,6 +182,7 @@ def install(runtime_module) -> None:
 
             previous = float(tournament.get("clock_at_epoch") or now)
             if recover:
+                sitngo_observability.record(self.db, "restart_recovery")
                 delta = max(0.0, now - previous)
                 hand = state.get("hand") or {}
                 if hand.get("action_deadline"):
@@ -202,12 +209,14 @@ def install(runtime_module) -> None:
                         turn_id = str(hand.get("turn_id") or "")
                         pending = self._pending_action_arrivals.get((eid, turn_id)) if turn_id else None
                         if pending and float(pending["earliest"]) <= deadline:
+                            sitngo_observability.record(self.db, "timeout_boundary_protected")
                             protected_timeout = True
                         else:
                             player = next((p for p in state["seats"] if p["seat"] == hand.get("action_seat")), None)
                             if player:
                                 legal = self.engine.legal_actions(state, player["user_id"])
                                 if legal.get("can_act"):
+                                    sitngo_observability.record(self.db, "timeout_auto_action")
                                     self.engine.apply_action(
                                         state,
                                         player["user_id"],
