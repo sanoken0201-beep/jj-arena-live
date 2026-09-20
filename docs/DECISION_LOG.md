@@ -144,3 +144,12 @@ Runtime observability for Sit&Go action safety stores only daily aggregate count
 
 Observability failure must never block or alter tournament actions, timeout progression or settlement.
 
+## D-015 — Ring UX recovery telemetry stays batched, aggregate and identity-free
+
+**Date:** 2026-09-21  
+**Status:** Accepted
+
+Operational UX measurement may distinguish a WebSocket connection opening from successful recovery to a fresh authoritative table state, measure same-page seat-to-READY latency, count final action submission failures, and count table-to-review opens plus review-later bookmarks.
+
+These measurements must reuse the existing batched telemetry sender. They must not introduce polling or a background database reader, and must not persist user/account identity, table or hand IDs, cards, chip/bet amounts, chat, IP address, user agent, session ID or free text. Raw UX-event retention remains 30 days. Browser instrumentation is compiled as the final append-only stage after runtime browser consolidation.
+
