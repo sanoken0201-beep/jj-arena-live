@@ -33,8 +33,10 @@ NETWORK_HOOKS = r'''
     fresh(){return !!jjV2Connection.fresh},
     mode(){return String(jjV2Connection.mode||'')},
     disconnect(){
-      jjV6ConnectionClosed();
+      // Mirror the fail-closed boundary used by the production recovery path:
+      // connection freshness is revoked before recovery telemetry is emitted.
       jjV2SetConnection('reconnecting',false);
+      jjV6ConnectionClosed();
       renderPokerRoom();
     },
     socketOpen(){
