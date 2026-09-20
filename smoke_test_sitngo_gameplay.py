@@ -65,9 +65,13 @@ def main(paid=False):
             # scheduler times out the action, starts the next hand, rotates the
             # blinds, and posts them again without any connection/presence event.
             first_sb=recovered['hand']['small_blind_seat'];first_bb=recovered['hand']['big_blind_seat']
-            clock=datetime.fromisoformat(recovered['hand']['action_deadline']).timestamp()+.1
-            with patch('time.time',return_value=clock):asyncio.run(rt.tick(eid,now=clock))
-            waiting=rt.load(eid)
+            waiting=recovered
+            for _ in range(6):
+                if waiting['status']=='waiting':break
+                deadline=datetime.fromisoformat(waiting['hand']['action_deadline']).timestamp()
+                clock=max(clock,deadline+.1)
+                with patch('time.time',return_value=clock):asyncio.run(rt.tick(eid,now=clock))
+                waiting=rt.load(eid)
             assert waiting['status']=='waiting' and waiting.get('next_hand_at_epoch')
             clock=float(waiting['next_hand_at_epoch'])+.1
             with patch('time.time',return_value=clock):asyncio.run(rt.tick(eid,now=clock))
