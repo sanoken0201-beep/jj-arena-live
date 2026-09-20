@@ -186,6 +186,11 @@ def main():
         js = built.read_text(encoding="utf-8")
         require("jj sitngo chip unit ui 2026-09-18" in js, "chip-unit browser patch missing")
         require("tournament.ante_paid" in js, "BBA is still omitted from displayed pot")
+        require("const jjSngRingPot=totalPot" not in js, "legacy BBA POT wrapper still double-counts ante")
+        require(
+            js.count("return base+(tableState?.tournament?Number(tableState.tournament.ante_paid||0):0)") == 1,
+            "BBA must be added to browser POT exactly once",
+        )
         require("input.step=String(step)" in js, "raise input is not denomination-aware")
 
     print("JJ_SITNGO_CHIP_RULES_OK")
