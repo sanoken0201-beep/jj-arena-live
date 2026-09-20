@@ -1,14 +1,25 @@
 from __future__ import annotations
 
+import importlib.util
 import os
 from contextlib import contextmanager
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 
 import psycopg
 from psycopg.rows import dict_row
 
-from db import PgConnection
 from ux_telemetry import TelemetryEvent, ensure_schema, prune, record, summary
+
+
+ROOT = Path(__file__).resolve().parent
+MATERIALIZED_DB = ROOT / "materialized_v1244" / "db.py"
+_spec = importlib.util.spec_from_file_location("_jj_materialized_db_for_telemetry_test", MATERIALIZED_DB)
+if _spec is None or _spec.loader is None:
+    raise RuntimeError(f"cannot load canonical materialized DB adapter: {MATERIALIZED_DB}")
+_materialized_db = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(_materialized_db)
+PgConnection = _materialized_db.PgConnection
 
 
 DATABASE_URL = os.environ.get("JJ_TEST_DATABASE_URL", "").strip()
