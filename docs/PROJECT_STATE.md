@@ -159,7 +159,7 @@ Important regression domains include:
 
 Historical one-off tests may remain for forensic value but are not automatically active release owners.
 
-The compatibility-runtime snapshot contract is now covered by `smoke_test_runtime_builder_snapshot.py` and the production release gate. A future change must not silently reintroduce runtime patch-chain replay.
+The compatibility-runtime snapshot contract is now covered by `smoke_test_runtime_builder_snapshot.py` and the production release gate. A future change must not silently reintroduce runtime patch-chain replay. Active product regressions also validate canonical materialized/runtime behavior directly; they do not retain a source-level dependency on `v54_patch.py` or the old release reconstruction chain.
 
 ## 12. Current development philosophy
 

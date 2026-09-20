@@ -76,4 +76,4 @@ Every test listed in an active suite has exactly one owner. Every test selected 
 
 `smoke_test_test_ownership.py` validates those contracts and is itself part of `runtime_release`, so ownership drift fails before deployment. `production_release_gate.py` continues to consume `production_release_tests()` instead of maintaining a second executable list.
 
-Historical one-off regression files may remain in the repository for forensic or compatibility purposes, but they are not considered active suite members until deliberately assigned in `test_suites.py`.
+Historical one-off regression files may remain in the repository for forensic or compatibility purposes, but they are not considered active suite members until deliberately assigned in `test_suites.py`. Active regression coverage validates the canonical materialized/runtime output directly and no longer reads historical patch source merely to prove current product behavior.
