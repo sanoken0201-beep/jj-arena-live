@@ -47,9 +47,11 @@ def main() -> None:
 
     clients = {uid: client_for(uid) for uid in users}
     snapshots = {uid: clients[uid].get(f"/api/tables/{eid}").json()["state"] for uid in users}
-    revisions = {int(s["_revision"]) for s in snapshots.values()}
+    initial_revision = int(service.runtime.load(eid)["_revision"])
     turns = {s["turn_id"] for s in snapshots.values()}
-    require(len(revisions) == 1 and len(turns) == 1, "independent sessions did not converge on one authoritative state")
+    hands = {s["hand"]["id"] for s in snapshots.values()}
+    stacks = {tuple(p["stack"] for p in s["seats"]) for s in snapshots.values()}
+    require(len(turns) == 1 and len(hands) == 1 and len(stacks) == 1, "independent sessions did not converge on one authoritative state")
 
     state = snapshots[users[0]]
     actor = next(p for p in state["seats"] if p["seat"] == state["hand"]["action_seat"])
@@ -64,17 +66,18 @@ def main() -> None:
     require(acted.status_code == 200, f"first device action failed: {acted.text}")
 
     after = {uid: clients[uid].get(f"/api/tables/{eid}").json()["state"] for uid in users}
-    after_revisions = {int(s["_revision"]) for s in after.values()}
     after_turns = {s["turn_id"] for s in after.values()}
-    require(len(after_revisions) == 1, "sessions observed different revisions after action")
+    after_hands = {s["hand"]["id"] for s in after.values()}
+    after_stacks = {tuple(p["stack"] for p in s["seats"]) for s in after.values()}
+    after_revision = int(service.runtime.load(eid)["_revision"])
     require(len(after_turns) == 1 and next(iter(after_turns)), "sessions observed different turns after action")
-    require(next(iter(after_revisions)) > next(iter(revisions)), "authoritative revision did not advance")
+    require(len(after_hands) == 1 and len(after_stacks) == 1, "sessions diverged after action")
+    require(after_revision > initial_revision, "authoritative revision did not advance")
     require(next(iter(after_turns)) != state["turn_id"], "turn token did not advance after action")
 
     replay = actor_client.post(f"/api/tables/{eid}/action", json=body)
     require(replay.status_code == 200, "same-device retry must remain idempotent")
-    replay_state = replay.json()
-    require(int(replay_state["_revision"]) == next(iter(after_revisions)), "idempotent replay changed revision")
+    require(int(service.runtime.load(eid)["_revision"]) == after_revision, "idempotent replay changed revision")
 
     current = after[users[0]]
     next_actor = next(p for p in current["seats"] if p["seat"] == current["hand"]["action_seat"])
@@ -89,7 +92,7 @@ def main() -> None:
     require(second.status_code == 200, f"second device action failed: {second.text}")
 
     finals = [clients[uid].get(f"/api/tables/{eid}").json()["state"] for uid in users]
-    require(len({int(s["_revision"]) for s in finals}) == 1, "sessions diverged after second device action")
+    require(int(service.runtime.load(eid)["_revision"]) > after_revision, "second device action did not advance revision")
     require(len({s["hand"]["id"] for s in finals}) == 1, "sessions disagree on current hand")
     require(
         len({tuple(p["stack"] for p in s["seats"]) for s in finals}) == 1,
