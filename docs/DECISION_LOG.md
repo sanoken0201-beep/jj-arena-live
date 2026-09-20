@@ -91,7 +91,9 @@ Sit&Go entry fees and prizes are part of the official JJ-point ledger, while tou
 
 The administrator chooses the entry fee and field-size payout percentages before registration. Defaults are winner-takes-all for 2–5 entrants and 70% / 30% for 6 entrants. The first registration locks the point terms so participants cannot be charged under one rule and paid under another.
 
-The entry fee is debited at registration as `sitngo_entry` and paired with a `sitngo_payments` escrow record. A pre-start cancellation, administrator cancellation, or minimum-player cancellation returns that exact recorded amount once as `sitngo_refund`; refunds reference the original debit and use a database-level claim for idempotency. Insufficient balances fail before registration commits.
+The entry fee is debited at registration as `sitngo_entry` and paired with a `sitngo_payments` escrow record. Registration is allowed even when the current official point balance is lower than the fee, so a member's season balance may become negative. A pre-start cancellation, administrator cancellation, or minimum-player cancellation returns that exact recorded amount once as `sitngo_refund`; refunds reference the original debit and use a database-level claim for idempotency.
+
+Registration is also the seating commitment. Once registered, the entrant is reserved against other poker-table membership and is seated into the Sit&Go at start whether or not they reconnect or open the tournament table. While absent, scheduled blinds/BBA continue to post and unattended actions use the normal tournament timeout check/fold behavior.
 
 Before the first hand, paid events fail closed unless the registered participant set exactly matches unrefunded escrow, each payment uses the locked fee, and its referenced `sitngo_entry` ledger row matches user and amount. Persisted payout JSON is revalidated at read/start/settlement time. Free events likewise refuse to start if unexpected active escrow exists.
 
