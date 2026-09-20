@@ -188,3 +188,10 @@ The authoritative Sit&Go state remains `sitngo_games.state_json`. In addition to
 Sit&Go blind progression is determined only by completed hand count. The per-level `minutes` field remains in persisted/API structures for schema and rollback compatibility, but new create/update writes canonicalize it to 10 so direct or stale clients cannot create a second ineffective timing contract. Historical stored minute values remain readable and do not affect blind selection.
 
 Player Sit&Go browser transforms are owned by the dependency-free `sitngo_browser_config.py` and installed explicitly by the production asset compiler before transform aliases are bound. Runtime extension modules may delegate to that owner but must not carry parallel UI mutation implementations. The committed `admin_static` files are the administrator UI source of truth and must not be rewritten at application startup.
+
+## D-020 — Sit&Go adopted contracts require explicit regression traceability
+
+**Date:** 2026-09-21  
+**Status:** Accepted
+
+The production Sit&Go contract is broader than any single smoke test. `sitngo_acceptance.py` is the machine-readable traceability map from each adopted contract area to active Sit&Go regression evidence. The manifest does not replace behavioral tests; it prevents coverage ownership from drifting silently as tests are consolidated, renamed, added, or retired. A release-gated regression requires every active Sit&Go behavioral test to appear in that map, while browser-only evidence remains GitHub-only rather than entering Render's dependency-light release gate.
