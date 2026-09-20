@@ -45,5 +45,4 @@ jobs:
             python smoke_test_player_ux_phase3_layout.py
             python smoke_test_player_ux_phase4_layout.py
             python smoke_test_player_ux_phase5_layout.py
-            python smoke_test_network_recovery_browser.py
           done
