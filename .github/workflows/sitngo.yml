@@ -30,7 +30,6 @@ jobs:
       - run: python -c "from production_release_gate import _run_test; _run_test('smoke_test_sitngo_gameplay.py')"
       - run: python smoke_test_sitngo_api.py
       - run: python smoke_test_sitngo_multi_session.py
-      - run: python smoke_test_sitngo_resilience.py
       - run: python smoke_test_sitngo_process_model.py
       - run: python smoke_test_sitngo_resilience.py
       - run: python smoke_test_sitngo_browser.py
@@ -74,3 +73,4 @@ jobs:
       - run: python smoke_test_sitngo_freezeout_contract.py
       - run: python smoke_test_sitngo_points.py
       - run: python smoke_test_sitngo_multi_session.py
+      - run: python smoke_test_sitngo_resilience.py
