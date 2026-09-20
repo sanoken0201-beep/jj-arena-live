@@ -17,6 +17,8 @@ METRICS = frozenset({
     "timeout_boundary_protected",
     "timeout_auto_action",
     "restart_recovery",
+    "reconcile_error",
+    "tick_error",
 })
 
 
