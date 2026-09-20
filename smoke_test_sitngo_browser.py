@@ -66,6 +66,8 @@ def main():
             url=route.request.url
             if '/api/admin/sitngo/telemetry' in url:
                 return route.fulfill(json={'window_days':7,'privacy':{'stores_user_identity':False},'totals':{'missing_tokens':1,'duplicate_action':2,'stale_hand':3,'stale_turn':4,'late_action':5,'timeout_boundary_protected':6,'timeout_auto_action':7,'restart_recovery':8},'trend':[]})
+            if '/api/admin/sitngo/alerts' in url:
+                return route.fulfill(json={'window_days':7,'webhook_configured':True,'webhook_configuration_error':None,'pending_count':1,'thresholds':{'stale_turn':5},'privacy':{'exposes_webhook_url':False},'recent':[{'day':'2026-09-21','metric':'stale_turn','severity':'warning','threshold':5,'observed_count':6,'status':'pending','attempts':0,'created_at':'2026-09-21T00:00:00+00:00','updated_at':'2026-09-21T00:00:00+00:00','sent_at':None,'last_error_code':''}]})
             if '/api/admin/sitngo' in url:
                 if route.request.method=='POST':
                     captured.append(route.request.post_data_json)
@@ -81,7 +83,10 @@ def main():
         page.wait_for_selector('#sngTelemetry .sng-telemetry-grid')
         telemetry=page.locator('#sngTelemetry').inner_text()
         assert '重複action' in telemetry and '2' in telemetry and '再起動復旧' in telemetry and '8' in telemetry
-        assert '個人ID・大会ID・hand ID' in telemetry
+        assert '外部通知 有効' in telemetry and '保留 1件' in telemetry
+        assert '古いturn' in telemetry and '6 / 閾値 5' in telemetry and '送信待ち' in telemetry
+        assert '通常timeoutは通知対象外' in telemetry
+        assert '個人ID・大会ID・hand ID' in telemetry and 'Webhook URL自体も画面には表示しません' in telemetry
         page.fill('#sngEntryFee','25.50')
         page.locator('#sngPointSettings summary').click()
         rates=page.locator('[data-sng-payout="6"]')
