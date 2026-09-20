@@ -53,6 +53,10 @@ from subtractive_redesign import (
     transform_index as transform_subtractive_index,
     transform_styles as transform_subtractive_styles,
 )
+
+import sitngo_browser_config
+sitngo_browser_config.install()
+
 from sitngo_ui import (
     SITNGO_UI_MARKER,
     transform_app_js as transform_sitngo_app_js,
