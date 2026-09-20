@@ -76,9 +76,13 @@ Deploy one application worker, as required by the existing in-process ring locks
 
 Only one new tournament starts while another is running. A due event waits for
 that event to finish; the blind clock starts when its actual table is created.
-Register after leaving a ring seat; a registered/active tournament reserves table
-membership until cancellation/elimination. Existing Phase 1 events marked running
-without games resume by creating their first real hand with the assigned seats.
+Register after leaving a ring seat. Registration itself is the tournament seating
+commitment: a registered/active tournament reserves table membership until
+cancellation/elimination, and the player does not need to reconnect or open the
+table at start. Every registered entrant is dealt into the tournament and posts
+SB/BB/BBA as scheduled while absent; unattended actions time out to check/fold.
+Existing Phase 1 events marked running without games resume by creating their first
+real hand with the assigned seats.
 
 Validation covers complete free 2/4/6-player tournaments and paid 2/3/4/5/6-player
 tournaments; total-chip conservation; exact entry escrow and prize-ledger
@@ -96,11 +100,12 @@ array contains one percentage per place and must total exactly 100%; 0% is
 valid for any place. Defaults are winner-takes-all for 2–5 players and 70/30
 for 6 players, and administrators can replace every percentage.
 
-Registration debits the current season balance; insufficient balances are
-rejected. Cancellation before the start, administrator cancellation, and
-minimum-player cancellation refund the recorded entry. The first registration
-locks point terms, including after cancellation, so published terms cannot
-change beneath participants. Existing events with no terms remain free.
+Registration debits the current season balance even when that balance is below
+the entry fee; the official point balance may therefore become negative.
+Cancellation before the start, administrator cancellation, and minimum-player
+cancellation refund the recorded entry. The first registration locks point terms,
+including after cancellation, so published terms cannot change beneath
+participants. Existing events with no terms remain free.
 
 Ledger changes share the registration/game transaction. Account/event locks,
 a recorded escrow payment, and a unique settlement prevent duplicate charges,
