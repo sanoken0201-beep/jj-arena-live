@@ -162,3 +162,11 @@ The production rake audit keeps all-time `hand_conservation_or_completeness` and
 
 The operational `status` and `current_anomaly_total` must be computed from current-period and structural checks only. Known legacy defects remain visible in the report but must not independently mark the corrected current system unhealthy. The audit remains read-only and does not rewrite historical data.
 
+## D-015 — Sit&Go operator alerts are conservative and local
+
+**Date:** 2026-09-21  
+**Status:** Accepted
+
+Sit&Go runtime safety counters may produce administrator warnings, but alerting must not treat normal poker behavior as an incident. Player action deadline expiry and the resulting automatic check/fold are excluded from operator alerts. Missing action tokens, repeated stale hand/turn submissions and tournament restart recovery are actionable signals; duplicate retries and protected timeout-boundary races are informational unless future evidence justifies stronger treatment.
+
+Alert derivation is server-owned so browser and future notification channels share one policy. The current notification surface is the authenticated administrator console only. No external provider receives telemetry until a separate integration is explicitly selected and reviewed.
