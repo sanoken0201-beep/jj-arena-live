@@ -158,6 +158,8 @@ def main() -> None:
     require(telemetry.status_code == 200, "admin Sit&Go telemetry endpoint failed")
     require(telemetry.json()["privacy"]["stores_user_identity"] is False, "telemetry privacy contract drift")
     require(telemetry.json()["totals"]["duplicate_action"] >= 1, "admin telemetry lost aggregate metrics")
+    require(telemetry.json()["alert_status"] in {"warning","critical","info"}, "admin telemetry alert status missing")
+    require(isinstance(telemetry.json()["alerts"], list), "admin telemetry alert list missing")
     quiet=sitngo_observability.classify_alerts(
         {"missing_tokens":0,"stale_hand":0,"stale_turn":0,"restart_recovery":0,"duplicate_action":0,"timeout_boundary_protected":0},
         7,
