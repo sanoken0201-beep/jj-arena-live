@@ -30,6 +30,7 @@ import operations_learning_hardening
 import point_ledger_precision
 import poker_lifecycle_fix
 import rake_settlement_fix
+import rake_integrity_runtime_audit
 import ranking_mapping_guard
 import resilience
 import runtime_performance
@@ -161,6 +162,10 @@ admin_api_consolidation.install(app, runtime_server)
 learning_content.install(app)
 daily_quiz.install(app, runtime_server, db)
 hand_analytics.install(app, runtime_server, db)
+if bool(getattr(db, "IS_POSTGRES", False)) and os.environ.get("RENDER") == "1":
+    # Production-only, SELECT-only persisted-rake audit. It runs after the
+    # analytics tables exist and logs only aggregate anomaly counts/hand IDs.
+    rake_integrity_runtime_audit.run(db)
 hand_analytics_hardening.install(hand_analytics, runtime_server)
 hand_history_visibility.install(hand_analytics)
 operations_learning.install(app, runtime_server, db, hand_analytics, daily_quiz, learning_content, admin_console)
