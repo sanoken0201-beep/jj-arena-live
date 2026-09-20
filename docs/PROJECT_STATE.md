@@ -48,10 +48,12 @@ Primary Render web service: `jj-arena-live`, Singapore region, 0.5 CPU / 512 MB 
 Production ASGI entrypoint:
 
 ```bash
-python -m uvicorn app:app --host 0.0.0.0 --port $PORT
+python -m uvicorn app:app --host 0.0.0.0 --port $PORT --workers 1
 ```
 
 Health check: `/api/health`.
+
+Production is intentionally single-worker. `render.yaml` pins both `--workers 1` and `WEB_CONCURRENCY=1`, and startup rejects an explicitly conflicting worker-count environment. The in-process table locks, WebSocket hub and Sit&Go lifecycle owner must not be split across ASGI workers.
 
 Production database: the existing Render PostgreSQL database `jj-arena-db`. Do not create a replacement database during ordinary releases and do not perform destructive migration casually.
 
@@ -141,6 +143,7 @@ Official JJ points are integrated as the tournament entry/prize accounting domai
 - finished participants can see a ledger-backed point statement showing entry debit, refund, prize and net tournament point change;
 - privacy-preserving Sit&Go runtime observability stores only aggregate counts for stale/duplicate/late actions, timeout boundary protection, automatic timeout actions and restart recovery; it stores no user, event, hand, card, chip, network or free-text identifiers; the admin Sit&Go view exposes the rolling seven-day aggregate counters and automatically surfaces conservative warning/critical banners for token-protocol mismatches, repeated stale actions and tournament restart recovery. Normal player timeout/check-fold activity is never an operator alert.
 - CI includes a multi-session operational-acceptance regression in which independent member sessions act on one tournament and must converge on the same authoritative revision, turn, hand and stacks.
+- `sitngo_games.state_json` is protected by up to 40 meaningful generations in `sitngo_state_backups`. Heartbeat-only clock/revision changes do not consume generations. If the authoritative JSON is malformed or structurally invalid, the runtime restores the newest validated same-event snapshot atomically before resuming.
 
 Paid end-to-end regression completes real 2-, 3-, 4-, 5- and 6-player tournaments. The 6-player path explicitly verifies each entry debit, escrow row, 70/30 winner/runner-up award, settlement record and prize-ledger row. PostgreSQL and SQLite Sit&Go CI both exercise the point integration.
 
