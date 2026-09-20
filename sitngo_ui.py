@@ -11,22 +11,24 @@ _PLAY_SWITCH = r'''
 
 _SITNGO_PANEL = r'''
         <div id="sitngoPanel" class="hidden">
-          <div class="section-head"><div><div class="eyebrow">SIT &amp; GO</div><h3>次回大会</h3></div><span class="table-rule">6-MAX · 10 MIN LEVELS · BB ANTE</span></div>
+          <div class="section-head"><div><div class="eyebrow">SIT &amp; GO</div><h3>次回大会</h3></div><span class="table-rule">6-MAX · 12 HAND LEVELS · BB ANTE</span></div>
           <div id="sitngoNext"></div>
         </div>
 '''
 
 _APP_PATCH = r'''
   // jj sitngo phase1 ui 2026-09-15
+  // jj sng 12-hand levels 2026-09-18
   let jjPlayMode='ring',jjSngPoll=null,jjSngClock=null;
   const jjSngStatusLabel={scheduled:'受付前',registration_open:'受付中',starting:'開始処理中',running:'開催中',finished:'終了',cancelled:'中止'};
   const jjSngLocal=v=>{const d=new Date(v);if(Number.isNaN(d.getTime()))return String(v||'—');return new Intl.DateTimeFormat('ja-JP',{month:'numeric',day:'numeric',weekday:'short',hour:'2-digit',minute:'2-digit'}).format(d)};
   const jjSngCountdown=deadline=>{const ms=new Date(deadline).getTime()-Date.now();if(!Number.isFinite(ms)||ms<=0)return '00:00';const sec=Math.floor(ms/1000),h=Math.floor(sec/3600),m=Math.floor((sec%3600)/60),s=sec%60;return h>0?`${h}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`:`${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`};
   function jjSngRefreshClocks(){document.querySelectorAll('[data-jj-sng-deadline]').forEach(el=>{el.textContent=jjSngCountdown(el.dataset.jjSngDeadline)})}
-  function jjSngStructureHtml(levels){return `<details class="jj-sng-structure"><summary>ブラインドストラクチャーを見る</summary><div class="jj-sng-levels">${(levels||[]).map(x=>`<div class="jj-sng-level ${Number(x.level)===9?'target':''}"><span>Lv.${x.level}</span><b>${fmt(x.small_blind)} / ${fmt(x.big_blind)}</b><small>BBA ${fmt(x.bb_ante)} · ${x.minutes}分${Number(x.level)===9?' · 90分':''}</small></div>`).join('')}</div></details>`}
+  const jjSngLevelSummary=levels=>'12ハンド/レベル';
+  function jjSngStructureHtml(levels){return `<details class="jj-sng-structure"><summary>ブラインドストラクチャーを見る</summary><div class="jj-sng-levels">${(levels||[]).map(x=>`<div class="jj-sng-level"><span>Lv.${x.level}</span><b>${fmt(x.small_blind)} / ${fmt(x.big_blind)}</b><small>BBA ${fmt(x.bb_ante)} · 12ハンド</small></div>`).join('')}</div></details>`}
   function jjSngEmpty(){return `<article class="card jj-sng-empty"><div class="eyebrow">NO EVENT</div><h4>現在、開催予定はありません</h4><p class="hint">Sit&Goは定期開催ではありません。管理者が大会を設定すると、開始1時間前から先着順で参加受付が始まります。</p></article>`}
   function jjSngEventHtml(event,levels){
-    const status=event.status||'scheduled',registered=!!event.is_registered,full=!!event.full;
+    const status=event.status||'scheduled',registered=!!event.is_registered,full=!!event.full,eventLevels=event.structure||levels||[];
     const registrationOpen=new Date(event.registration_opens_at).getTime(),starts=new Date(event.starts_at).getTime(),now=Date.now();
     const untilOpen=now<registrationOpen,untilStart=now<starts;
     let action='';
@@ -39,7 +41,7 @@ _APP_PATCH = r'''
     else if(!untilStart)action='<button type="button" class="soft jj-sng-register" disabled>受付終了</button>';
     const timer=status==='starting'?'前のSit&Go終了後に開始':untilOpen?`受付開始まで <b data-jj-sng-deadline="${safe(event.registration_opens_at)}">${jjSngCountdown(event.registration_opens_at)}</b>`:untilStart&&status!=='running'?`開始まで <b data-jj-sng-deadline="${safe(event.starts_at)}">${jjSngCountdown(event.starts_at)}</b>`:'定刻開始済み';
     const participants=status==='running'&&Array.isArray(event.participants)?`<div class="jj-sng-seats">${event.participants.filter(x=>x.status!=='cancelled').sort((a,b)=>Number(a.seat)-Number(b.seat)).map(x=>`<span>Seat ${Number(x.seat)+1} · ${safe(x.name)}</span>`).join('')}</div>`:'';
-    return `<article class="card jj-sng-card"><div class="jj-sng-head"><div><div class="eyebrow">${safe(jjSngStatusLabel[status]||status)}</div><h4>${safe(event.name||'JJ Sit&Go')}</h4></div><span class="jj-sng-count">${event.participant_count}/${event.max_players}</span></div><div class="jj-sng-datetime">${safe(jjSngLocal(event.starts_at))}</div><div class="jj-sng-timer">${timer}</div><div class="jj-sng-rules"><span>6-max</span><span>10,000点</span><span>10分レベル</span><span>BB Ante</span><span>無料 · 賞品なし</span><span>再参加なし</span></div><p class="hint">受付は当日の開始1時間前から先着順。定刻になれば2〜6人で開始し、1人以下の場合は自動中止します。席は抽選で決定します。通信切断中もブラインドは発生します。</p>${action}${participants}${jjSngStructureHtml(levels||event.structure)}</article>`;
+    return `<article class="card jj-sng-card"><div class="jj-sng-head"><div><div class="eyebrow">${safe(jjSngStatusLabel[status]||status)}</div><h4>${safe(event.name||'JJ Sit&Go')}</h4></div><span class="jj-sng-count">${event.participant_count}/${event.max_players}</span></div><div class="jj-sng-datetime">${safe(jjSngLocal(event.starts_at))}</div><div class="jj-sng-timer">${timer}</div><div class="jj-sng-rules"><span>6-max</span><span>${fmt(event.starting_stack)}点</span><span>${jjSngLevelSummary(eventLevels)}</span><span>BB Ante</span><span>参加費 ${fmt(event.entry_fee)} pt · 賞金 ${fmt(event.prize_points)} pt</span><span>再参加なし</span></div><p class="hint">受付は当日の開始1時間前から先着順。定刻になれば2〜6人で開始し、1人以下の場合は自動中止します。席は抽選で決定します。通信切断中もブラインドは発生します。</p><details><summary>プライズ配分</summary>${Object.entries(event.payout_percentages||{}).map(([n,r])=>`<p>${safe(n)}人：${r.map((v,i)=>`${i+1}位 ${safe(v)}%`).join(" / ")}</p>`).join("")}<p>登録時に参加費を徴収します。開始前の取消・中止で返却。同順位は該当順位分を均等分配し、0.01pt単位で端数調整します。</p></details>${action}${participants}${jjSngStructureHtml(eventLevels)}</article>`;
   }
   async function renderSitNGo(){
     const host=$('#sitngoNext');if(!host)return;
@@ -179,7 +181,7 @@ _GAMEPLAY_PATCH = r'''
   };
   function jjSngTableClock(){
     const el=$('#jjSngTableInfo'),t=tableState?.tournament;if(!el||!t)return;
-    el.innerHTML=`<span>Lv.${Number(t.level)} · ${fmt(tableState.small_blind)}/${fmt(tableState.big_blind)} · BBA ${fmt(t.bb_ante)}</span><span>残り${Number(t.remaining)}/${Number(t.entrants)}人${t.status==='finished'?' · 終了':t.next_level_at?` · 次 ${jjSngCountdown(t.next_level_at)}`:''}</span>`;
+    el.innerHTML=`<span>Lv.${Number(t.level)} · ${fmt(tableState.small_blind)}/${fmt(tableState.big_blind)} · BBA ${fmt(t.bb_ante)}</span><span>${t.status==='finished'?'終了':`${Number(t.hand_in_level||0)}/${Number(t.hands_per_level||12)}ハンド`} · 残り${Number(t.remaining)}/${Number(t.entrants)}人</span>`;
   }
   const jjSngRingRoom=renderPokerRoom;
   renderPokerRoom=function(){
