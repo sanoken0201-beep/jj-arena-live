@@ -69,7 +69,7 @@ The canonical committed core is `materialized_v1244/`; the canonical served brow
 
 `smoke_test_root_core_pruned.py` is owned by `runtime_release` and selected by the production release gate. It fails if a stale root core/static copy reappears, if the canonical materialized files disappear, or if the production runtime/browser pointers move away from `materialized_v1244` without an explicit architecture change.
 
-Rollback/parity artifacts such as `app_legacy.py`, `runtime_builder.py`, `release_v14/`, `v18_assets/`, and `v54_patch.py` are intentionally outside this Stage 6 guard. Their remaining lifecycle is reviewed separately in Stage 7B.2 rather than being made a permanent dependency of the pruned architecture.
+Stage 7B.2 removes the final unreferenced archive payloads `release_v14/`, `v18_assets/`, and `v54_patch.py`. They are no longer runtime, compatibility-builder, rollback, or active-test inputs; forensic reconstruction remains available through Git history. `app_legacy.py` and `runtime_builder.py` remain because the parity/emergency-rollback path still uses the verified `materialized_v1244` snapshot.
 
 ## Test ownership
 
