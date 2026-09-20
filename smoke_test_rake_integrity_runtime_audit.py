@@ -105,6 +105,8 @@ def main():
     assert report["status"] == "ok"
     assert report["current_anomaly_total"] == 0
     assert report["checks"]["rake_formula_violation"] == 0
+    assert report["checks"]["current_rake_formula_violation"] == 0
+    assert report["checks"]["current_hand_conservation_or_completeness"] == 0
     assert report["checks"]["current_rake_bound_violation"] == 0
     assert report["checks"]["current_noflop_violation"] == 0
     assert report["checks"]["points_mismatch"] == 0
@@ -118,9 +120,45 @@ def main():
     broken = audit.audit_rows([_table()], broken_hands, broken_results, _history())
     assert broken["status"] == "warning"
     assert broken["checks"]["rake_formula_violation"] == 1
+    assert broken["checks"]["current_rake_formula_violation"] == 1
+    assert broken["checks"]["current_hand_conservation_or_completeness"] == 1
     assert broken["checks"]["current_rake_bound_violation"] == 1
     assert broken["checks"]["points_mismatch"] == 1
     assert "current-flop" in broken["samples"]["rake_formula_violation"]
+
+    legacy_hand = {
+        "hand_id": "legacy-formula",
+        "table_id": "jj-table-a",
+        "gross_pot_bb": 10.0,
+        "rake_bb": 2.0,
+        "played_at": "2026-09-14T15:00:00+00:00",
+        "month": "2026-09",
+        "voided": 0,
+    }
+    legacy_results = [
+        {
+            "id": "legacy-formula:1", "hand_id": "legacy-formula",
+            "table_id": "jj-table-a", "user_id": 1,
+            "result_bb": 3.0, "points": 9.0, "month": "2026-09",
+        },
+        {
+            "id": "legacy-formula:2", "hand_id": "legacy-formula",
+            "table_id": "jj-table-a", "user_id": 2,
+            "result_bb": -5.0, "points": -15.0, "month": "2026-09",
+        },
+    ]
+    legacy_history = [{"hand_id": "legacy-formula", "reached_street": "flop", "player_count": 2}]
+    legacy = audit.audit_rows(
+        [_table()],
+        _hands() + [legacy_hand],
+        _results() + legacy_results,
+        _history() + legacy_history,
+    )
+    assert legacy["current_anomaly_total"] == 0
+    assert legacy["status"] == "ok"
+    assert legacy["checks"]["rake_formula_violation"] == 1
+    assert legacy["checks"]["legacy_rake_formula_violation"] == 1
+    assert legacy["checks"]["current_rake_formula_violation"] == 0
 
     bad_table = _table()
     bad_table["state_json"] = json.dumps({
