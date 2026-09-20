@@ -54,6 +54,7 @@ def main() -> None:
             "smoke_test_sitngo_gameplay.py",
             "smoke_test_sitngo_process_model.py",
             "smoke_test_sitngo_resilience.py",
+            "smoke_test_sitngo_contract_consolidation.py",
             "audit_ui_labels.py",
         }
         assert gate.RELEASE_TESTS == production_release_tests()
