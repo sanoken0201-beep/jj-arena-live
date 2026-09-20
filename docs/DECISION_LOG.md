@@ -162,7 +162,7 @@ The production rake audit keeps all-time `hand_conservation_or_completeness` and
 
 The operational `status` and `current_anomaly_total` must be computed from current-period and structural checks only. Known legacy defects remain visible in the report but must not independently mark the corrected current system unhealthy. The audit remains read-only and does not rewrite historical data.
 
-## D-015 — Sit&Go operator alerts are conservative and local
+## D-017 — Sit&Go operator alerts are conservative and local
 
 **Date:** 2026-09-21  
 **Status:** Accepted
@@ -170,3 +170,12 @@ The operational `status` and `current_anomaly_total` must be computed from curre
 Sit&Go runtime safety counters may produce administrator warnings, but alerting must not treat normal poker behavior as an incident. Player action deadline expiry and the resulting automatic check/fold are excluded from operator alerts. Missing action tokens, repeated stale hand/turn submissions and tournament restart recovery are actionable signals; duplicate retries and protected timeout-boundary races are informational unless future evidence justifies stronger treatment.
 
 Alert derivation is server-owned so browser and future notification channels share one policy. The current notification surface is the authenticated administrator console only. No external provider receives telemetry until a separate integration is explicitly selected and reviewed.
+
+## D-018 — Sit&Go production is single-worker and snapshot-backed
+
+**Date:** 2026-09-21  
+**Status:** Accepted
+
+JJ Arena's table locks, WebSocket connection hub and Sit&Go scheduler ownership are process-local. Production therefore runs exactly one ASGI worker. The Render start command and `WEB_CONCURRENCY` both pin one worker, while startup rejects an explicitly conflicting worker-count environment rather than silently running an unsafe multi-process topology.
+
+The authoritative Sit&Go state remains `sitngo_games.state_json`. In addition to normal persisted restart recovery, the runtime keeps up to 40 meaningful same-event generations in `sitngo_state_backups`. Revision and elapsed-clock heartbeat changes alone do not create new generations. Backup writes are fail-open so observability/recovery storage cannot block poker actions. If the current state is malformed or structurally invalid, restoration is fail-closed and may use only a validated same-event snapshot with a matching stored revision.
