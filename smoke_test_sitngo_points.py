@@ -5,12 +5,14 @@ from concurrent.futures import ThreadPoolExecutor
 from pydantic import ValidationError
 from fastapi import HTTPException
 from smoke_test_sitngo_phase1 import production_app, add_member, sitngo
-from sitngo_points import cents, prize_schedule
+from sitngo_points import cents, prize_schedule, validate_payouts
 import smoke_test_sitngo_gameplay as gameplay
 
 
 def main():
     gameplay.main(paid=True)
+    normalized=validate_payouts({str(n):(['100']+['0']*(n-1) if n<6 else ['70','30','0','0','0','0']) for n in range(2,7)})
+    assert normalized['6'][0].as_tuple().exponent == 0 and normalized['6'][0] == 70
     db=production_app.db; service=production_app.app.state.jj_sitngo
     with db.connect() as con:
         admin=con.execute("SELECT id FROM users WHERE role='admin' LIMIT 1").fetchone()['id']
@@ -55,6 +57,33 @@ def main():
         assert service.points.balance(con,uid)==1001
         assert con.execute('SELECT COUNT(*) n FROM sitngo_registrations WHERE event_id=?',(rollback,)).fetchone()['n']==0
     service.cancel_event(rollback,'test',admin)
+
+    # A paid tournament must never deal a hand unless every registered entrant
+    # has an exact, unrefunded entry debit matching the locked tournament fee.
+    guard_users=[add_member(1200+i) for i in range(2)]
+    guard_start=datetime.now(timezone.utc)+timedelta(minutes=2)
+    guarded=service.create_event(sitngo.SitNGoCreateIn(
+        name='Escrow guard',entry_fee='10.01',starts_at=guard_start.isoformat()),admin)['id']
+    with db.connect() as con:
+        for i,u in enumerate(guard_users):
+            service.points.write(con,guarded,u,1001,'credit',f'guard-funding-{i}')
+    for u in guard_users:service.register(guarded,u)
+    with db.connect() as con:
+        con.execute('UPDATE sitngo_payments SET fee_cents=1000 WHERE event_id=? AND user_id=?',(guarded,guard_users[1]))
+    try:
+        service.reconcile(guard_start+timedelta(seconds=1))
+    except RuntimeError as exc:
+        assert 'escrow' in str(exc).lower()
+    else:
+        raise AssertionError('tournament started with corrupt entry escrow')
+    assert service._row(guarded)['status']!='running'
+    with db.connect() as con:
+        con.execute('UPDATE sitngo_payments SET fee_cents=1001 WHERE event_id=? AND user_id=?',(guarded,guard_users[1]))
+    service.reconcile(guard_start+timedelta(seconds=2))
+    assert service._row(guarded)['status']=='running'
+    with db.connect() as con:
+        con.execute("UPDATE sitngo_events SET status='finished',updated_at=? WHERE id=?",(db.utcnow(),guarded))
+
     assert prize_schedule(6006,6)==[4204,1802,0,0,0,0]
     assert prize_schedule(5005,5)==[5005,0,0,0,0]
     # Equal-stack double elimination for second splits 2nd+3rd prizes.
@@ -67,6 +96,31 @@ def main():
         {'user_id':u,'place':p} for u,p in zip(ids,[1,2,2,4,5,6])]}}
     with db.connect() as con:service.points.settle(con,state)
     assert [cents(r['prize_points']) for r in state['tournament']['results']]==[4204,901,901,0,0,0]
+
+    # If an indivisible 0.01pt remains inside a tied prize block, use the
+    # tournament's randomized seat order rather than account/user-id order.
+    odd_rates={
+        '2':['100','0'],'3':['100','0','0'],'4':['100','0','0','0'],'5':['100','0','0','0','0'],
+        '6':['50','25','25','0','0','0'],
+    }
+    odd=service.create_event(sitngo.SitNGoCreateIn(
+        entry_fee='10.01',payout_percentages=odd_rates,
+        starts_at=(datetime.now(timezone.utc)+timedelta(minutes=20)).isoformat()),admin)['id']
+    with db.connect() as con:
+        for i,u in enumerate(ids):service.points.write(con,odd,u,1001,'credit',f'odd-funding-{i}')
+    for u in ids:service.register(odd,u)
+    with db.connect() as con:
+        # Tied players are ids[1] and ids[2]. Give ids[2] the earlier random seat.
+        for seat,u in enumerate(ids):
+            con.execute('UPDATE sitngo_registrations SET seat=? WHERE event_id=? AND user_id=?',(seat,odd,u))
+        con.execute('UPDATE sitngo_registrations SET seat=5 WHERE event_id=? AND user_id=?',(odd,ids[1]))
+        con.execute('UPDATE sitngo_registrations SET seat=1 WHERE event_id=? AND user_id=?',(odd,ids[2]))
+    odd_state={'id':odd,'tournament':{'status':'finished','entrants':6,'results':[
+        {'user_id':u,'place':p} for u,p in zip(ids,[1,2,2,4,5,6])]}}
+    with db.connect() as con:service.points.settle(con,odd_state)
+    odd_awards={r['user_id']:cents(r['prize_points']) for r in odd_state['tournament']['results']}
+    assert odd_awards[ids[2]]==1502 and odd_awards[ids[1]]==1501,odd_awards
+
     with db.connect() as con:service.points.settle(con,state)
     with db.connect() as con:
         total=con.execute("SELECT SUM(amount) n FROM point_ledger WHERE kind IN ('sitngo_entry','sitngo_refund','sitngo_prize')").fetchone()['n']
