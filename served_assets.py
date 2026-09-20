@@ -61,11 +61,12 @@ from sitngo_ui import (
 )
 
 from poker_simple import transform_app_js as simple_app_js, transform_styles as simple_styles
+from read_efficiency import transform_app_js as transform_read_efficiency_app_js
 
 ROOT = Path(__file__).resolve().parent
 MATERIALIZED_STATIC = ROOT / "materialized_v1244" / "static"
 BUILD_ROOT = ROOT / ".jj_build"
-ASSET_VERSION = 70
+ASSET_VERSION = 71
 BUILD_FORMAT = 1
 
 _TODAYS_JJ_MARKER = "v2 today's-jj contrast hardening 2026-09-12"
@@ -280,6 +281,7 @@ def build_app_js() -> str:
     if SITNGO_UI_MARKER not in js:
         raise RuntimeError("Sit&Go app transform marker missing")
     js = simple_app_js(js)
+    js = transform_read_efficiency_app_js(js)
     if js.count(_PWA_REGISTRATION) != 1:
         raise RuntimeError("service worker registration drift: expected one canonical registration")
     return js.replace(_PWA_REGISTRATION, _PWA_REGISTRATION_REPLACEMENT, 1)

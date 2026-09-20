@@ -14,11 +14,11 @@ and the public API remain unchanged.
 
 import asyncio
 import atexit
-import json
 import os
 import threading
 import time
 from contextlib import contextmanager
+from copy import deepcopy
 from datetime import datetime, timezone
 from typing import Any
 
@@ -29,7 +29,7 @@ _STATE_EVENT: asyncio.Event | None = None
 _STATE_EVENT_LOOP: asyncio.AbstractEventLoop | None = None
 _TIMEOUT_EVENT: asyncio.Event | None = None
 _TIMEOUT_EVENT_LOOP: asyncio.AbstractEventLoop | None = None
-_LAST_BROADCAST_STATE: dict[str, str] = {}
+_LAST_BROADCAST_STATE: dict[str, tuple[int, Any]] = {}
 
 
 def _database_url(db) -> str:
@@ -406,12 +406,12 @@ def _install_event_driven_timeout_loop(db, server) -> None:
     server.timeout_loop = timeout_loop
 
 
-def _state_fingerprint(state: Any) -> str:
-    return json.dumps(state, sort_keys=True, separators=(",", ":"), ensure_ascii=False, default=str)
-
-
 def _install_broadcast_coalescing(server, poker_engine) -> None:
     """Send state and chat independently while keeping personalized table state."""
+    from broadcast_snapshots import BroadcastSnapshots, same_state
+
+    snapshots = BroadcastSnapshots(server)
+    server._jj_broadcast_snapshots = snapshots
 
     async def broadcast(self, table_id: str):
         connections = list(self.connections.get(table_id, []))
@@ -419,14 +419,16 @@ def _install_broadcast_coalescing(server, poker_engine) -> None:
             return
 
         try:
-            state = server.load_table(table_id)
-            fingerprint = _state_fingerprint(state)
+            state, generation = snapshots.for_broadcast(table_id)
         except Exception:
             return
 
         previous = _LAST_BROADCAST_STATE.get(table_id)
-        state_changed = previous != fingerprint
-        _LAST_BROADCAST_STATE[table_id] = fingerprint
+        state_changed = previous is None or (
+            previous[0] != generation and not same_state(previous[1], state)
+        )
+        if previous is None or previous[0] != generation:
+            _LAST_BROADCAST_STATE[table_id] = (generation, deepcopy(state))
 
         # The first broadcast remains backward-compatible and includes chat.
         # Afterwards a state transition does not read/send chat, while a

@@ -28,6 +28,7 @@ import sitngo_asset_cache
 import sitngo_chip_rules
 import sitngo_runtime
 import sitngo_tournament_rules
+import read_efficiency
 
 # Configure the root-level Sit&Go extension before browser transforms bind the
 # Sit&Go UI functions and before the service installs its FastAPI routes. The
@@ -237,6 +238,13 @@ _sitngo_service = sitngo.install(app, db, runtime_server)
 # the stricter duplicate-route ordering required for GET /api/tables.
 _materialized._prioritize_extension_routes(app, _materialized._CORE_ROUTE_IDS)
 _prioritize_single_public_table_route()
+read_efficiency.install(
+    app,
+    runtime_server,
+    db,
+    public_table_limit=1,
+)
+_materialized._prioritize_extension_routes(app, _materialized._CORE_ROUTE_IDS)
 
 
 __all__ = [
