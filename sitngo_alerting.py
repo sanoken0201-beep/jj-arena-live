@@ -121,11 +121,12 @@ def _payload(row: dict) -> dict:
     day = str(row["day"])
     text = (
         f"[JJ Arena Sit&Go] {severity.upper()} {metric}: "
-        f"{observed} events on {day} UTC (threshold {threshold})"
+        f"count {observed} on {day} UTC (threshold {threshold})"
     )
     return {
         "type": "sitngo_runtime_alert",
         "source": "jj-arena",
+        "alert_key": f"{day}:{metric}:{threshold}",
         "severity": severity,
         "metric": metric,
         "day": day,
