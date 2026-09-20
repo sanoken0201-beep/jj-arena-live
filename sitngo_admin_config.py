@@ -20,6 +20,7 @@ DEFAULT_STARTING_STACK = 30_000
 DEFAULT_TARGET_MINUTES = 90
 MAX_LEVELS = 30
 MAX_PREPARED_MINUTES = 600
+LEGACY_LEVEL_MINUTES = 10
 
 DEFAULT_BLIND_STRUCTURE = [
     {"level": 1, "small_blind": 200, "big_blind": 400, "bb_ante": 400, "minutes": 10},
@@ -45,7 +46,14 @@ class BlindLevelIn(BaseModel):
     small_blind: int = Field(ge=100, le=100_000_000)
     big_blind: int = Field(ge=100, le=100_000_000)
     bb_ante: int = Field(ge=0, le=100_000_000)
-    minutes: int = Field(ge=1, le=60)
+    # Compatibility-only metadata. New API writes are canonicalized to 10 so
+    # stale/direct clients cannot create a second, ineffective timing contract.
+    minutes: int = Field(default=LEGACY_LEVEL_MINUTES, ge=1, le=60)
+
+    @field_validator("minutes")
+    @classmethod
+    def canonical_minutes(cls, _value):
+        return LEGACY_LEVEL_MINUTES
 
 
 class ConfiguredSitNGoCreateIn(BaseModel):
@@ -104,7 +112,7 @@ def _validate_stack(value: Any) -> int:
     return stack
 
 
-def normalize_structure(raw_levels: Any, starting_stack: int) -> list[dict[str, int]]:
+def normalize_structure(raw_levels: Any, starting_stack: int, *, preserve_legacy_minutes: bool = False) -> list[dict[str, int]]:
     stack = _validate_stack(starting_stack)
     levels = list(raw_levels or [])
     if not levels:
@@ -116,12 +124,12 @@ def normalize_structure(raw_levels: Any, starting_stack: int) -> list[dict[str, 
     prior: dict[str, int] | None = None
     for index, item in enumerate(levels, start=1):
         level = _level_dict(item)
-        sb, bb, ante, minutes = (
+        sb, bb, ante = (
             level["small_blind"],
             level["big_blind"],
             level["bb_ante"],
-            level["minutes"],
         )
+        minutes = int(level["minutes"]) if preserve_legacy_minutes else LEGACY_LEVEL_MINUTES
         if not (100 <= sb < bb <= 100_000_000):
             raise HTTPException(400, f"Lv.{index}: SBはBBより小さい正の値にしてください")
         if not 0 <= ante <= 100_000_000:
@@ -159,11 +167,11 @@ def _stored_structure(row: dict[str, Any]) -> list[dict[str, int]]:
     stack = int(row.get("starting_stack") or DEFAULT_STARTING_STACK)
     try:
         raw = json.loads(row.get("structure_json") or "[]")
-        return normalize_structure(raw, stack)
+        return normalize_structure(raw, stack, preserve_legacy_minutes=True)
     except (json.JSONDecodeError, HTTPException, TypeError, ValueError):
         # Legacy/corrupt rows should stay operable. This fallback is deliberately
         # not written back, so an administrator can inspect/correct the event.
-        return normalize_structure(DEFAULT_BLIND_STRUCTURE, DEFAULT_STARTING_STACK)
+        return normalize_structure(DEFAULT_BLIND_STRUCTURE, DEFAULT_STARTING_STACK, preserve_legacy_minutes=True)
 
 
 def _structure_metrics(levels: list[dict[str, int]]) -> tuple[int, int, int]:
