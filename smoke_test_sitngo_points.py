@@ -1,0 +1,114 @@
+"""Paid tournament integration: real games, refunds, atomicity, exact awards."""
+from datetime import datetime, timedelta, timezone
+from unittest.mock import patch
+from concurrent.futures import ThreadPoolExecutor
+from pydantic import ValidationError
+from fastapi import HTTPException
+from smoke_test_sitngo_phase1 import production_app, add_member, sitngo
+from sitngo_points import cents, prize_schedule
+import smoke_test_sitngo_gameplay as gameplay
+
+
+def main():
+    gameplay.main(paid=True)
+    db=production_app.db; service=production_app.app.state.jj_sitngo
+    with db.connect() as con:
+        admin=con.execute("SELECT id FROM users WHERE role='admin' LIMIT 1").fetchone()['id']
+    uid=add_member(999)
+    def event(fee='10.01'):
+        return service.create_event(sitngo.SitNGoCreateIn(name='Paid tests',entry_fee=fee,
+            starts_at=(datetime.now(timezone.utc)+timedelta(minutes=20)).isoformat()),admin)['id']
+    for invalid in ('-1','1.001','NaN','Infinity','1000000.01'):
+        try: event(invalid)
+        except ValidationError: pass
+        else: raise AssertionError('Invalid fee accepted')
+    eid=event()
+    try:service.register(eid,uid)
+    except HTTPException as e:assert e.status_code==400
+    else:raise AssertionError('Insufficient points accepted')
+    with db.connect() as con:
+        assert con.execute('SELECT COUNT(*) n FROM sitngo_registrations WHERE event_id=?',(eid,)).fetchone()['n']==0
+        service.points.write(con,eid,uid,1001,'credit','test-sng-funding')
+    def attempt(_):
+        try:service.register(eid,uid);return True
+        except HTTPException as e:assert e.status_code==409;return False
+    with ThreadPoolExecutor(max_workers=4) as pool:assert sum(pool.map(attempt,range(4)))==1
+    with db.connect() as con:assert service.points.balance(con,uid)==0
+    service.cancel_registration(eid,uid)
+    with db.connect() as con:assert service.points.balance(con,uid)==1001
+    service.register(eid,uid)
+    service.cancel_event(eid,'test',admin);service.cancel_event(eid,'duplicate',admin)
+    with db.connect() as con:
+        assert service.points.balance(con,uid)==1001
+        assert con.execute("SELECT COUNT(*) n FROM point_ledger WHERE user_id=? AND kind='sitngo_refund'",(uid,)).fetchone()['n']==2
+    short=event();service.register(short,uid)
+    service.reconcile(datetime.now(timezone.utc)+timedelta(minutes=21))
+    with db.connect() as con:assert service.points.balance(con,uid)==1001
+    # Transaction rollback after ledger insertion must also roll back registration.
+    rollback=event(); original=service.points.write
+    def failure(*a,**kw):original(*a,**kw);raise RuntimeError('injected write failure')
+    with patch.object(service.points,'write',side_effect=failure):
+        try:service.register(rollback,uid)
+        except RuntimeError:pass
+        else:raise AssertionError('failure not propagated')
+    with db.connect() as con:
+        assert service.points.balance(con,uid)==1001
+        assert con.execute('SELECT COUNT(*) n FROM sitngo_registrations WHERE event_id=?',(rollback,)).fetchone()['n']==0
+    service.cancel_event(rollback,'test',admin)
+    assert prize_schedule(6006,6)==[4204,1802,0,0,0,0]
+    assert prize_schedule(5005,5)==[5005,0,0,0,0]
+    # Equal-stack double elimination for second splits 2nd+3rd prizes.
+    tied=event(); ids=[add_member(1100+i) for i in range(6)]
+    with db.connect() as con:
+        for i,u in enumerate(ids):
+            service.points.write(con,tied,u,1001,'credit',f'tie-funding-{i}')
+    for u in ids:service.register(tied,u)
+    state={'id':tied,'tournament':{'status':'finished','entrants':6,'results':[
+        {'user_id':u,'place':p} for u,p in zip(ids,[1,2,2,4,5,6])]}}
+    with db.connect() as con:service.points.settle(con,state)
+    assert [cents(r['prize_points']) for r in state['tournament']['results']]==[4204,901,901,0,0,0]
+    with db.connect() as con:service.points.settle(con,state)
+    with db.connect() as con:
+        total=con.execute("SELECT SUM(amount) n FROM point_ledger WHERE kind IN ('sitngo_entry','sitngo_refund','sitngo_prize')").fetchone()['n']
+        assert cents(total)==0
+    from sitngo_points import default_payouts
+    rates=default_payouts();rates['6']=[0,0,0,0,0,100]
+    eid=event('0')
+    service.update_event(eid,sitngo.SitNGoUpdateIn(entry_fee='10.01',payout_percentages=rates),admin)
+    assert service._event_payload(service._row(eid))['payout_percentages']['6']==['0','0','0','0','0','100']
+    for bad in ([70,20,0,0,0,0],[-1,101,0,0,0,0],[100,0],[99.999,0.001,0,0,0,0]):
+        invalid=default_payouts();invalid['6']=bad
+        try:sitngo.SitNGoCreateIn(starts_at='2026-10-01T00:00:00Z',payout_percentages=invalid)
+        except ValidationError:pass
+        else:raise AssertionError('Invalid payouts accepted')
+    assert prize_schedule(6006,6,rates)==[0,0,0,0,0,6006]
+    service.register(eid,uid)
+    try:service.update_event(eid,sitngo.SitNGoUpdateIn(entry_fee='1'),admin)
+    except HTTPException as exc:assert exc.status_code==409
+    else:raise AssertionError('Terms changed after registration')
+    service.cancel_event(eid,'test',admin)
+    # Persisted custom rates, including a zero first prize, reach the ledger.
+    custom=service.create_event(sitngo.SitNGoCreateIn(entry_fee='10.01',payout_percentages=rates,
+        starts_at=(datetime.now(timezone.utc)+timedelta(minutes=20)).isoformat()),admin)['id']
+    with db.connect() as con:
+        for i,u in enumerate(ids):service.points.write(con,custom,u,1001,'credit',f'custom-funding-{i}')
+    for u in ids:service.register(custom,u)
+    final={'id':custom,'tournament':{'status':'finished','entrants':6,'results':[{'user_id':u,'place':i+1} for i,u in enumerate(ids)]}}
+    with db.connect() as con:service.points.settle(con,final)
+    with db.connect() as con:service.points.settle(con,final)
+    assert [cents(r['prize_points']) for r in final['tournament']['results']]==[0,0,0,0,0,6006]
+    with db.connect() as con:
+        assert cents(con.execute("SELECT SUM(amount) n FROM point_ledger WHERE kind IN ('sitngo_entry','sitngo_refund','sitngo_prize')").fetchone()['n'])==0
+    from fastapi.testclient import TestClient
+    client=TestClient(production_app.app,base_url='https://testserver')
+    body={'starts_at':(datetime.now(timezone.utc)+timedelta(minutes=20)).isoformat(),'entry_fee':'20.50','payout_percentages':rates}
+    assert client.post('/api/admin/sitngo',json=body).status_code==401
+    token=db.create_session(uid);client.headers['Authorization']='Bearer '+token
+    assert client.post('/api/admin/sitngo',json=body).status_code==403
+    token=db.create_session(admin);client.headers['Authorization']='Bearer '+token
+    response=client.post('/api/admin/sitngo',json=body)
+    assert response.status_code==200,response.text
+    assert response.json()['entry_fee']==20.5 and response.json()['payout_percentages']['6'][-1]=='100'
+    print('JJ_SITNGO_POINTS_OK')
+
+if __name__=='__main__':main()

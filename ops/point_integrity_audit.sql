@@ -14,13 +14,19 @@ SELECT id,kind,amount FROM point_ledger
 WHERE amount::text IN ('NaN','Infinity','-Infinity')
  OR (kind='quiz_reward' AND amount<>10)
  OR (kind='credit' AND amount<=0) OR (kind='collection' AND amount>=0)
- OR kind NOT IN ('quiz_reward','credit','collection','reversal');
+ OR (kind='sitngo_entry' AND amount>=0)
+ OR (kind IN ('sitngo_refund','sitngo_prize') AND amount<=0)
+ OR kind NOT IN ('quiz_reward','credit','collection','reversal','sitngo_entry','sitngo_refund','sitngo_prize');
 SELECT r.id,'invalid_reversal' AS anomaly FROM point_ledger r
 LEFT JOIN point_ledger original ON original.id=r.reversal_of
 WHERE r.kind='reversal' AND (original.id IS NULL
  OR original.kind NOT IN ('credit','collection')
  OR r.user_id<>original.user_id OR r.amount<>-original.amount
  OR r.effective_at<>original.effective_at);
+SELECT r.id,'invalid_sitngo_refund' AS anomaly FROM point_ledger r
+LEFT JOIN point_ledger original ON original.id=r.reversal_of
+WHERE r.kind='sitngo_refund' AND (original.id IS NULL OR original.kind<>'sitngo_entry'
+ OR r.user_id<>original.user_id OR r.amount<>-original.amount);
 SELECT reversal_of,count(*) FROM point_ledger WHERE reversal_of IS NOT NULL
 GROUP BY reversal_of HAVING count(*)>1;
 SELECT q.id,'quiz_ledger_mismatch' AS anomaly FROM quiz_daily_answers q

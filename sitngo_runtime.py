@@ -184,6 +184,10 @@ class TournamentRuntime:
                 (json.dumps(state, ensure_ascii=False), state['_revision'], self.db.utcnow(), state['id'], revision))
             if updated.rowcount != 1:
                 raise HTTPException(409, '大会の状態が更新されました。再接続してください')
+            self.service.points.settle(con, state)
+            if t['status'] == 'finished':
+                con.execute('UPDATE sitngo_games SET state_json=? WHERE event_id=?',
+                    (json.dumps(state, ensure_ascii=False), state['id']))
             if hand.get('phase') == 'complete':
                 # Private history is never returned without viewer-specific redaction.
                 con.execute('INSERT OR IGNORE INTO sitngo_hands(hand_id,event_id,state_json,created_at) VALUES (?,?,?,?)',

@@ -17,22 +17,33 @@
   ];
   let data={events:[],defaults:null},poll=null,toastTimer=null,editingId=null,editorInitialized=false;
   function toast(msg){const el=$('#toast');if(!el)return;el.textContent=msg;el.classList.add('show');clearTimeout(toastTimer);toastTimer=setTimeout(()=>el.classList.remove('show'),2800)}
-  async function api(path,options={}){const opts={credentials:'include',...options,headers:{...(options.body?{'Content-Type':'application/json'}:{}),...(options.headers||{})}};const res=await fetch('/api'+path,opts);let body=null;try{body=await res.json()}catch{}if(!res.ok){if(res.status===401){location.href='/';throw new Error('ログインが必要です')}throw new Error(body?.detail||`HTTP ${res.status}`)}return body}
+  async function api(path,options={}){const opts={credentials:'include',...options,headers:{...(options.body?{'Content-Type':'application/json'}:{}),...(options.headers||{})}};const res=await fetch('/api'+path,opts);let body=null;try{body=await res.json()}catch{}if(!res.ok){if(res.status===401){location.href='/';throw new Error('ログインが必要です')}throw new Error(Array.isArray(body?.detail)?body.detail.map(x=>x.msg).join(' / '):(body?.detail||`HTTP ${res.status}`))}return body}
   const post=(p,b)=>api(p,{method:'POST',body:JSON.stringify(b??{})}),patch=(p,b)=>api(p,{method:'PATCH',body:JSON.stringify(b??{})});
   function defaultStart(){const d=new Date(Date.now()+2*60*60*1000);d.setMinutes(Math.ceil(d.getMinutes()/10)*10,0,0);return localInput(d)}
   function cloneLevels(levels){return (levels||[]).map((x,i)=>({level:i+1,small_blind:Number(x.small_blind),big_blind:Number(x.big_blind),bb_ante:Number(x.bb_ante),minutes:Number(x.minutes)}))}
+  const defaultPayouts=()=>Object.fromEntries([2,3,4,5,6].map(n=>[String(n),Array.from({length:n},(_,i)=>n===6?(i===0?70:i===1?30:0):(i===0?100:0))]));
+  function renderPoints(fee=0,rates=defaultPayouts(),locked=false){
+    $('#sngPointSettings').innerHTML=`<label>参加費（pt）<input id="sngEntryFee" type="number" min="0" max="1000000" step="0.01" value="${Number(fee)}" ${locked?'disabled':''} required></label><details><summary>開催人数別のプライズ配分（%）</summary>${[2,3,4,5,6].map(n=>`<fieldset><legend>${n}人開催・合計100%</legend><div class="sng-payout-row">${rates[String(n)].map((v,i)=>`<label>${i+1}位<input data-sng-payout="${n}" type="number" min="0" max="100" step="0.01" value="${Number(v)}" ${locked?'disabled':''} required></label>`).join('')}</div></fieldset>`).join('')}</details><p class="field-note">0%は賞金なし。参加費全額を配分します。登録時に徴収、開始前の取消・中止で返却。${locked?'参加履歴があるため参加費・配当率は変更できません。':'参加登録後は参加費・配当率を変更できません。'}</p>`;
+  }
+  function readPoints(){
+    const payout_percentages=Object.fromEntries([2,3,4,5,6].map(n=>[String(n),$$(`[data-sng-payout="${n}"]`).map(x=>x.value)]));
+    for(const [n,rates] of Object.entries(payout_percentages))if(rates.some(x=>x===''||!Number.isFinite(Number(x))||Number(x)<0||Number(x)>100)||rates.reduce((a,v)=>a+Math.round(Number(v)*100),0)!==10000)throw new Error(`${n}人開催の配当率を合計100%にしてください`);
+    return {entry_fee:$('#sngEntryFee').value,payout_percentages};
+  }
+  function pointSummary(e){return `<p>参加費 ${fmt(e.entry_fee)} pt · 賞金総額 ${fmt(e.prize_points)} pt</p><details><summary>プライズ配分</summary>${Object.entries(e.payout_percentages||defaultPayouts()).map(([n,r])=>`<p>${safe(n)}人：${r.map((v,i)=>`${i+1}位 ${safe(v)}%`).join(' / ')}</p>`).join('')}</details>`}
   function ensureEditor(){
     const form=$('#sngCreateForm');if(!form||$('#sngStructureEditor'))return;
     const note=form.querySelector('.field-note');
-    note.insertAdjacentHTML('beforebegin',`<section class="sng-config-editor"><div class="sng-config-head"><div><b>トーナメント設定</b><small>大会開始後は変更できません</small></div></div><label>初期スタック<input id="sngStartingStack" type="number" min="1000" max="10000000" step="100" inputmode="numeric" value="30000" required></label><div class="sng-structure-head"><div><b>ブラインドストラクチャー</b><small>SB / BB / BBA / 各レベル時間を大会ごとに設定</small></div><button id="sngAddLevel" type="button" class="soft">＋ レベル追加</button></div><div class="sng-level-editor-head"><span>Lv</span><span>SB</span><span>BB</span><span>BBA</span><span>分</span><span></span></div><div id="sngStructureEditor" class="sng-level-editor"></div><p class="field-note compact">最終レベル到達後は、そのレベルを大会終了まで継続します。チップ値は100点単位です。</p></section>`);
+    note.insertAdjacentHTML('beforebegin',`<section class="sng-config-editor"><div class="sng-config-head"><div><b>トーナメント設定</b><small>大会開始後は変更できません</small></div></div><label>初期スタック<input id="sngStartingStack" type="number" min="1000" max="10000000" step="100" inputmode="numeric" value="30000" required></label><div class="sng-structure-head"><div><b>ブラインドストラクチャー</b><small>SB / BB / BBAを大会ごとに設定 · ブラインドは12ハンドごとに上昇</small></div><button id="sngAddLevel" type="button" class="soft">＋ レベル追加</button></div><div class="sng-level-editor-head"><span>Lv</span><span>SB</span><span>BB</span><span>BBA</span><span>進行</span><span></span></div><div id="sngStructureEditor" class="sng-level-editor"></div><p class="field-note compact">各レベル12ハンド固定です。最終レベル到達後は、そのレベルを大会終了まで継続します。チップ値は100点単位です。</p></section>`);
     note.textContent='受付は開始1時間前から自動で開きます。定刻時点で2〜6人なら開始、1人以下なら自動中止します。受付中でも設定変更は可能ですが、開始後は完全にロックされます。';
+    note.insertAdjacentHTML('beforebegin','<section id="sngPointSettings"></section>');renderPoints();
     const submit=form.querySelector('button[type="submit"]');submit.id='sngSubmit';
     submit.insertAdjacentHTML('afterend','<button id="sngCancelEdit" class="soft full" type="button" hidden>編集をやめる</button>');
   }
   function renderEditor(levels){
     ensureEditor();const host=$('#sngStructureEditor');if(!host)return;
     const list=cloneLevels(levels?.length?levels:fallbackStructure);
-    host.innerHTML=list.map((x,i)=>`<div class="sng-level-row" data-sng-level-row="${i}"><strong>Lv.${i+1}</strong><label><span>SB</span><input type="number" min="100" max="100000000" step="100" value="${x.small_blind}" data-sng-field="small_blind" required></label><label><span>BB</span><input type="number" min="100" max="100000000" step="100" value="${x.big_blind}" data-sng-field="big_blind" required></label><label><span>BBA</span><input type="number" min="0" max="100000000" step="100" value="${x.bb_ante}" data-sng-field="bb_ante" required></label><label><span>分</span><input type="number" min="1" max="60" step="1" value="${x.minutes}" data-sng-field="minutes" required></label><button type="button" class="sng-remove-level" data-sng-remove-level="${i}" aria-label="Lv.${i+1}を削除" ${list.length<=1?'disabled':''}>×</button></div>`).join('');
+    host.innerHTML=list.map((x,i)=>`<div class="sng-level-row" data-sng-level-row="${i}"><strong>Lv.${i+1}</strong><label><span>SB</span><input type="number" min="100" max="100000000" step="100" value="${x.small_blind}" data-sng-field="small_blind" required></label><label><span>BB</span><input type="number" min="100" max="100000000" step="100" value="${x.big_blind}" data-sng-field="big_blind" required></label><label><span>BBA</span><input type="number" min="0" max="100000000" step="100" value="${x.bb_ante}" data-sng-field="bb_ante" required></label><label><span>進行</span><input type="text" value="12ハンド" disabled aria-label="12ハンド固定"></label><input type="hidden" value="10" data-sng-field="minutes"><button type="button" class="sng-remove-level" data-sng-remove-level="${i}" aria-label="Lv.${i+1}を削除" ${list.length<=1?'disabled':''}>×</button></div>`).join('');
   }
   function addLevel(){
     const current=readEditor(false),last=current[current.length-1]||{small_blind:200,big_blind:400,bb_ante:400,minutes:10};
@@ -60,9 +71,9 @@
   function collectConfig(){
     const starting_stack=Number($('#sngStartingStack')?.value);if(!Number.isInteger(starting_stack)||starting_stack<1000||starting_stack>10000000||starting_stack%100!==0)throw new Error('初期スタックは1,000〜10,000,000点の100点単位で設定してください');
     const structure=readEditor(true);if(structure[0].big_blind>=starting_stack)throw new Error('Lv.1のBBは初期スタックより小さくしてください');
-    return {starting_stack,structure};
+    return {starting_stack,structure,...readPoints()};
   }
-  function renderStructure(levels,targetMinutes){let elapsed=0;return `<details class="sng-structure-admin"><summary>ブラインドストラクチャー</summary><div class="sng-structure-grid">${(levels||[]).map(x=>{const start=elapsed;elapsed+=Number(x.minutes)||0;const target=Number(targetMinutes||0),hit=target>0&&start<target&&elapsed>=target;return `<div class="${hit?'target':''}"><b>Lv.${x.level} · ${fmt(x.small_blind)}/${fmt(x.big_blind)}</b><small>BBA ${fmt(x.bb_ante)} · ${x.minutes}分 · ${start}–${elapsed}分${hit?` · ${target}分目標`:''}</small></div>`}).join('')}</div></details>`}
+  function renderStructure(levels,targetMinutes){return `<details class="sng-structure-admin"><summary>ブラインドストラクチャー</summary><div class="sng-structure-grid">${(levels||[]).map(x=>`<div><b>Lv.${x.level} · ${fmt(x.small_blind)}/${fmt(x.big_blind)}</b><small>BBA ${fmt(x.bb_ante)} · 12ハンド</small></div>`).join('')}</div></details>`}
   function statusClass(status){return status==='registration_open'?'open':status==='running'?'running':status==='cancelled'?'cancelled':''}
   function render(){
     ensureEditor();
@@ -71,10 +82,10 @@
     host.innerHTML=events.length?events.map(e=>{
       const editable=['scheduled','registration_open'].includes(e.status),deletable=['scheduled','cancelled'].includes(e.status)&&!(e.participants||[]).length;
       const participants=(e.participants||[]).filter(x=>x.status!=='cancelled');
-      return `<article class="sng-event ${editingId===e.id?'editing':''}"><div class="sng-event-head"><div><div class="eyebrow">${safe(e.id.slice(0,12))}</div><h4>${safe(e.name)}</h4></div><span class="sng-status ${statusClass(e.status)}">${safe(statusText[e.status]||e.status)}</span></div><div class="sng-event-meta"><span>開始 ${safe(dt(e.starts_at))}</span><span>受付 ${safe(dt(e.registration_opens_at))}</span><span>参加 ${e.participant_count}/${e.max_players}</span><span>初期 ${fmt(e.starting_stack)}点</span><span>準備 ${fmt(e.prepared_minutes)}分</span></div>${participants.length?`<div class="sng-participants">${participants.map(p=>`<span>${p.seat===null||p.seat===undefined?`#${p.registration_order}`:`Seat ${Number(p.seat)+1}`} · ${safe(p.name)}</span>`).join('')}</div>`:''}${renderStructure(e.structure,e.target_minutes)}<div class="sng-event-actions">${editable?`<button type="button" class="soft" data-sng-edit="${safe(e.id)}">大会設定を編集</button><button type="button" class="danger-btn" data-sng-admin-cancel="${safe(e.id)}">大会を中止</button>`:''}${deletable?`<button type="button" class="soft" data-sng-delete="${safe(e.id)}">削除</button>`:''}</div></article>`;
+      return `<article class="sng-event ${editingId===e.id?'editing':''}"><div class="sng-event-head"><div><div class="eyebrow">${safe(e.id.slice(0,12))}</div><h4>${safe(e.name)}</h4></div><span class="sng-status ${statusClass(e.status)}">${safe(statusText[e.status]||e.status)}</span></div><div class="sng-event-meta"><span>開始 ${safe(dt(e.starts_at))}</span><span>受付 ${safe(dt(e.registration_opens_at))}</span><span>参加 ${e.participant_count}/${e.max_players}</span><span>初期 ${fmt(e.starting_stack)}点</span><span>進行 12ハンド/Lv</span></div>${participants.length?`<div class="sng-participants">${participants.map(p=>`<span>${p.seat===null||p.seat===undefined?`#${p.registration_order}`:`Seat ${Number(p.seat)+1}`} · ${safe(p.name)}</span>`).join('')}</div>`:''}${pointSummary(e)}${renderStructure(e.structure,e.target_minutes)}<div class="sng-event-actions">${editable?`<button type="button" class="soft" data-sng-edit="${safe(e.id)}">大会設定を編集</button><button type="button" class="danger-btn" data-sng-admin-cancel="${safe(e.id)}">大会を中止</button>`:''}${deletable?`<button type="button" class="soft" data-sng-delete="${safe(e.id)}">削除</button>`:''}</div></article>`;
     }).join(''):'<div class="empty-state">まだSit&Goは設定されていません。</div>';
     const d=data.defaults;if(d){
-      const rules=$('#sngFixedRules');if(rules)rules.innerHTML=`<div><span>定員</span><b>${d.max_players}人 / 最少${d.min_players}人</b></div><div><span>新規初期値</span><b>${fmt(d.starting_stack)}点</b></div><div><span>構造</span><b>大会ごとに設定</b></div><div><span>受付</span><b>開始1時間前</b></div><div><span>標準目標</span><b>${d.target_minutes}分</b></div><div><span>開始後</span><b>設定ロック</b></div>`;
+      const rules=$('#sngFixedRules');if(rules)rules.innerHTML=`<div><span>定員</span><b>${d.max_players}人 / 最少${d.min_players}人</b></div><div><span>新規初期値</span><b>${fmt(d.starting_stack)}点</b></div><div><span>構造</span><b>大会ごとに設定</b></div><div><span>受付</span><b>開始1時間前</b></div><div><span>ブラインド上昇</span><b>12ハンドごと</b></div><div><span>開始後</span><b>設定ロック</b></div>`;
       const structure=$('#sngStructure');if(structure)structure.innerHTML=`<div class="sng-default-label">新規大会の標準ストラクチャー</div>${renderStructure(d.structure,d.target_minutes)}`;
       if(!editorInitialized&&!editingId){$('#sngStartingStack').value=d.starting_stack;renderEditor(d.structure);editorInitialized=true}
     }
@@ -82,10 +93,10 @@
   async function load(){data=await api('/admin/sitngo');render()}
   function beginEdit(id){
     const e=(data.events||[]).find(x=>x.id===id);if(!e)return;
-    editingId=id;ensureEditor();$('#sngName').value=e.name;$('#sngStartsAt').value=localInput(e.starts_at);$('#sngStartingStack').value=e.starting_stack;renderEditor(e.structure);$('#sngSubmit').textContent='変更を保存';$('#sngCancelEdit').hidden=false;render();$('#sngCreateForm').scrollIntoView({behavior:'smooth',block:'start'});
+    editingId=id;ensureEditor();renderPoints(e.entry_fee,e.payout_percentages,!e.points_editable);$('#sngName').value=e.name;$('#sngStartsAt').value=localInput(e.starts_at);$('#sngStartingStack').value=e.starting_stack;renderEditor(e.structure);$('#sngSubmit').textContent='変更を保存';$('#sngCancelEdit').hidden=false;render();$('#sngCreateForm').scrollIntoView({behavior:'smooth',block:'start'});
   }
   function endEdit(reset=true){
-    editingId=null;const form=$('#sngCreateForm');if(reset&&form){$('#sngName').value='JJ Sit&Go';$('#sngStartsAt').value=defaultStart();$('#sngStartingStack').value=data.defaults?.starting_stack||30000;renderEditor(data.defaults?.structure||fallbackStructure)}$('#sngSubmit').textContent='開催を設定';$('#sngCancelEdit').hidden=true;render();
+    editingId=null;renderPoints();const form=$('#sngCreateForm');if(reset&&form){$('#sngName').value='JJ Sit&Go';$('#sngStartsAt').value=defaultStart();$('#sngStartingStack').value=data.defaults?.starting_stack||30000;renderEditor(data.defaults?.structure||fallbackStructure)}$('#sngSubmit').textContent='開催を設定';$('#sngCancelEdit').hidden=true;render();
   }
   function activate(){
     $$('.view').forEach(v=>v.classList.toggle('active',v.id==='sitngoView'));
@@ -108,7 +119,9 @@
   document.addEventListener('DOMContentLoaded',()=>{
     const form=$('#sngCreateForm');if(!form)return;ensureEditor();
     const starts=$('#sngStartsAt');if(starts&&!starts.value)starts.value=defaultStart();
-    form.addEventListener('submit',async e=>{e.preventDefault();const name=$('#sngName').value.trim()||'JJ Sit&Go',raw=$('#sngStartsAt').value,d=new Date(raw);if(Number.isNaN(d.getTime()))return toast('開催日時を入力してください');let config;try{config=collectConfig()}catch(err){return toast(err.message)}const button=$('#sngSubmit');button.disabled=true;try{const payload={name,starts_at:d.toISOString(),...config};if(editingId){await patch(`/admin/sitngo/${encodeURIComponent(editingId)}`,payload);toast('大会設定を更新しました');endEdit(true)}else{await post('/admin/sitngo',payload);toast('Sit&Goを設定しました');$('#sngName').value='JJ Sit&Go';$('#sngStartsAt').value=defaultStart();$('#sngStartingStack').value=data.defaults?.starting_stack||30000;renderEditor(data.defaults?.structure||fallbackStructure)}await load()}catch(err){toast(err.message)}finally{button.disabled=false}});
+    form.addEventListener('submit',async e=>{e.preventDefault();const name=$('#sngName').value.trim()||'JJ Sit&Go',raw=$('#sngStartsAt').value,d=new Date(raw);if(Number.isNaN(d.getTime()))return toast('開催日時を入力してください');let config;try{config=collectConfig()}catch(err){return toast(err.message)}const button=$('#sngSubmit');button.disabled=true;try{const payload={name,starts_at:d.toISOString(),...config};if(editingId){await patch(`/admin/sitngo/${encodeURIComponent(editingId)}`,payload);toast('大会設定を更新しました');endEdit(true)}else{await post('/admin/sitngo',payload);toast('Sit&Goを設定しました');renderPoints();$('#sngName').value='JJ Sit&Go';$('#sngStartsAt').value=defaultStart();$('#sngStartingStack').value=data.defaults?.starting_stack||30000;renderEditor(data.defaults?.structure||fallbackStructure)}await load()}catch(err){toast(err.message)}finally{button.disabled=false}});
     if(location.hash==='#sitngo')activate();
   });
 })();
+
+// jj sng admin 12-hand levels 2026-09-18

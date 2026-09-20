@@ -9,24 +9,28 @@ from smoke_test_sitngo_phase1 import add_member, production_app, sitngo
 from fastapi import HTTPException
 
 
-def main():
+def main(paid=False):
     db=production_app.db
     service=production_app.app.state.jj_sitngo
     rt=service.runtime
     with db.connect() as con:
         admin=con.execute("SELECT id FROM users WHERE role='admin' LIMIT 1").fetchone()['id']
     users=[add_member(i+100) for i in range(6)]
+    if paid:
+        with db.connect() as con:
+            for uid in users:
+                con.execute("INSERT INTO point_ledger(id,user_id,amount,kind,reason,effective_at,created_by,created_at) VALUES (?,?,?,?,?,?,?,?)",(f'fund-{uid}',uid,'1000.00','credit','test',db.utcnow(),admin,db.utcnow()))
     clock=time.time()
     def launch(count):
         nonlocal clock
         clock+=300
         with patch.object(sitngo,'_utcnow',return_value=datetime.fromtimestamp(clock,timezone.utc)):
-            event=service.create_event(sitngo.SitNGoCreateIn(name='Gameplay',starts_at=datetime.fromtimestamp(clock+120,timezone.utc).isoformat()),admin)
+            event=service.create_event(sitngo.SitNGoCreateIn(name='Gameplay',entry_fee='10.01' if paid else '0',starts_at=datetime.fromtimestamp(clock+120,timezone.utc).isoformat()),admin)
             for uid in users[:count]: service.register(event['id'],uid)
             clock+=121
             with patch('time.time',return_value=clock): service.reconcile(datetime.fromtimestamp(clock,timezone.utc))
         return event['id']
-    for count in (2,4,6):
+    for count in ((2,3,4,5,6) if paid else (2,4,6)):
         eid=launch(count)
         state=rt.load(eid)
         assert state['status']=='playing'
@@ -68,6 +72,9 @@ def main():
         assert all(p['stack'] % state['chip_unit'] == 0 for p in state['seats'])
         assert len([x for x in state['tournament']['results'] if x['place']==1])==1
         assert service._row(eid)['status']=='finished'
+        if paid:
+            from sitngo_points import cents
+            assert sum(cents(r['prize_points']) for r in state['tournament']['results'])==count*1001
         old=list(state['tournament']['results'])
         rt.save(state)
         assert rt.load(eid)['tournament']['results']==old
@@ -79,7 +86,7 @@ def main():
     with db.connect() as con:
         assert con.execute('SELECT COUNT(*) n FROM online_hands').fetchone()['n']==0
         assert con.execute('SELECT COUNT(*) n FROM online_hand_results').fetchone()['n']==0
-        assert con.execute('SELECT COUNT(*) n FROM point_ledger').fetchone()['n']==0
+        if not paid:assert con.execute('SELECT COUNT(*) n FROM point_ledger').fetchone()['n']==0
         assert con.execute('SELECT COUNT(*) n FROM sitngo_hands').fetchone()['n']>0
     # Dead-ante short BB: blind first, then the remaining legal 100-point chip funds ante.
     e=rt.engine

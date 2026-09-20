@@ -171,7 +171,7 @@ _GAMEPLAY_PATCH = r'''
   renderTableControls=function(){
     if(!tableState?.tournament)return jjSngRingControls();
     const t=tableState.tournament,result=t.results?.find(x=>x.user_id===me?.id);
-    $('#tableControls').innerHTML=`<span class="hint">${result?`${result.place}位${t.status==='finished'?' · 大会終了':' · 観戦中'}`:'無料大会 · 再参加なし'}</span>`;
+    $('#tableControls').innerHTML=`<span class="hint">${result?`${result.place}位${t.status==='finished'?' · 大会終了':' · 観戦中'}`:`参加費 ${Number(t.entry_fee||0)} pt · 再参加なし`}</span>`;
   };
   const jjSngRingSeat=renderSeat;
   renderSeat=function(seat){
@@ -193,7 +193,7 @@ _GAMEPLAY_PATCH = r'''
     jjSngTableClock();
     $('#jjObserverJoin')?.remove();
     if(t.status==='finished'){
-      $('#actionBar').innerHTML=`<div class="jj-sng-finish"><strong>大会終了</strong>${t.results.map(x=>`<span>${x.place}位 · ${safe(x.name)}</span>`).join('')}<small>無料大会 · ポイントの増減なし</small></div>`;
+      $('#actionBar').innerHTML=`<div class="jj-sng-finish"><strong>大会終了</strong>${t.results.map(x=>`<span>${x.place}位 · ${safe(x.name)} · ${Number(x.prize_points||0)} pt</span>`).join('')}<small>賞金総額 ${Number(t.prize_points||0)} pt</small></div>`;
     }else if(t.results.some(x=>x.user_id===me?.id)){
       const r=t.results.find(x=>x.user_id===me.id);
       $('#actionBar').innerHTML=`<div class="jj-sng-finish"><strong>${r.place}位で終了しました</strong><span>このまま観戦できます</span></div>`;
