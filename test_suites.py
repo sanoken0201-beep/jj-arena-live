@@ -55,6 +55,7 @@ TEST_SUITES: dict[str, tuple[str, ...]] = {
     "sitngo": (
         "smoke_test_sitngo_phase1.py",
         "smoke_test_sitngo_gameplay.py",
+        "smoke_test_sitngo_points.py",
     ),
 }
 
