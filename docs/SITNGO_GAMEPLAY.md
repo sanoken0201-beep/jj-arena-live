@@ -131,3 +131,15 @@ timeout-boundary protection, automatic timeout actions and restart recovery. No 
 identity, tournament/event ID, hand ID, cards, chip amounts, network identifiers,
 session identifiers or free text are stored. Telemetry failure is non-blocking and
 cannot change gameplay or settlement.
+
+
+## Operational acceptance
+
+The administrator Sit&Go screen shows the rolling seven-day aggregate runtime safety
+counters from the privacy-preserving telemetry endpoint. This is an operational view
+only; it does not expose player, tournament or hand identifiers.
+
+CI also runs a multi-session acceptance scenario with independent authenticated member
+sessions on the same tournament. After actions from different sessions, every client
+must converge on the same authoritative revision, turn, hand and stack state, while
+replayed action IDs remain idempotent.
