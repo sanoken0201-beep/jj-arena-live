@@ -3,7 +3,7 @@ import re
 from pathlib import Path
 
 
-ADMIN_ASSET_VERSION = "125"
+ADMIN_ASSET_VERSION = "126"
 
 
 def apply(static_dir: Path) -> None:
