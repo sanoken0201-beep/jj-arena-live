@@ -110,6 +110,19 @@ def main(paid=False):
                     assert awards[int(winner['user_id'])]==4204
                     assert awards[int(runner_up['user_id'])]==1802
                     assert all(awards[int(r['user_id'])]==0 for r in results if r['place']>2)
+                    ranking_names={
+                        int(row['id']):str(row['ranking_name'] or row['name'])
+                        for row in con.execute(
+                            'SELECT id,name,ranking_name FROM users WHERE id IN (?,?,?,?,?,?)',
+                            tuple(int(r['user_id']) for r in results),
+                        ).fetchall()
+                    }
+                from admin_console import _rankings
+                official={row['name']:row for row in _rankings(db,production_app.runtime_server,season='fall')}
+                with db.connect() as con:
+                    for uid,name in ranking_names.items():
+                        assert name in official
+                        assert cents(official[name]['points'])==service.points.balance(con,uid)
         old=list(state['tournament']['results'])
         rt.save(state)
         assert rt.load(eid)['tournament']['results']==old
