@@ -29,6 +29,7 @@ jobs:
       - run: python smoke_test_sitngo_freezeout_contract.py
       - run: python -c "from production_release_gate import _run_test; _run_test('smoke_test_sitngo_gameplay.py')"
       - run: python smoke_test_sitngo_api.py
+      - run: python smoke_test_sitngo_multi_session.py
       - run: python smoke_test_sitngo_browser.py
       - uses: actions/upload-artifact@v4
         if: always()
@@ -69,3 +70,4 @@ jobs:
       - run: python smoke_test_sitngo_action_safety.py
       - run: python smoke_test_sitngo_freezeout_contract.py
       - run: python smoke_test_sitngo_points.py
+      - run: python smoke_test_sitngo_multi_session.py
