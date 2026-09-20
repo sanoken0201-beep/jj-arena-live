@@ -158,6 +158,25 @@ def main() -> None:
     require(telemetry.status_code == 200, "admin Sit&Go telemetry endpoint failed")
     require(telemetry.json()["privacy"]["stores_user_identity"] is False, "telemetry privacy contract drift")
     require(telemetry.json()["totals"]["duplicate_action"] >= 1, "admin telemetry lost aggregate metrics")
+    quiet=sitngo_observability.classify_alerts(
+        {"missing_tokens":0,"stale_hand":0,"stale_turn":0,"restart_recovery":0,"duplicate_action":0,"timeout_boundary_protected":0},
+        7,
+    )
+    require(quiet == [], "quiet telemetry produced an operator alert")
+    warning=sitngo_observability.classify_alerts(
+        {"missing_tokens":1,"stale_hand":2,"stale_turn":1,"restart_recovery":0,"duplicate_action":4,"timeout_boundary_protected":0},
+        7,
+    )
+    require({a["code"] for a in warning} == {"missing_tokens","stale_action"}, "warning thresholds drifted")
+    critical=sitngo_observability.classify_alerts(
+        {"missing_tokens":5,"stale_hand":5,"stale_turn":5,"restart_recovery":0,"duplicate_action":0,"timeout_boundary_protected":0},
+        7,
+    )
+    require(all(a["severity"]=="critical" for a in critical), "critical Sit&Go alert threshold drifted")
+    require(
+        not sitngo_observability.classify_alerts({"timeout_auto_action":999,"late_action":999},7),
+        "normal player timeouts must not page operators",
+    )
 
     # Ring action payloads and materialized core remain untouched; the safety
     # contract is selected only by the Sit&Go table id/state.
