@@ -2,7 +2,7 @@
   const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
   const safe=v=>String(v??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
   const fmt=n=>new Intl.NumberFormat('ja-JP',{maximumFractionDigits:1}).format(Number(n||0));
-  const labels={fold:'フォールド',check:'チェック',call:'コール',raise:'ベット/レイズ',allin:'オールイン',preset:'プリセット',slider:'スライダー',step:'±0.5BB',input:'直接入力',check_fold:'チェック/フォールド',settings:'設定',focus:'卓を広く表示',history:'ハンド履歴',chat:'チャット',mobile:'モバイル',tablet:'タブレット',desktop:'デスクトップ',unknown:'不明'};
+  const labels={fold:'フォールド',check:'チェック',call:'コール',raise:'ベット/レイズ',allin:'オールイン',preset:'プリセット',slider:'スライダー',step:'±0.5BB',input:'直接入力',check_fold:'チェック/フォールド',settings:'設定',focus:'卓を広く表示',history:'ハンド履歴',chat:'チャット',table_open:'卓からレビュー',bookmark:'あとで復習',rejected:'操作拒否',ws_open:'WS再接続',fresh_state:'状態復旧',submit:'準備OK',mobile:'モバイル',tablet:'タブレット',desktop:'デスクトップ',unknown:'不明'};
   let currentDays=7;
   async function fetchSummary(days){const res=await fetch(`/api/admin/console/ux-telemetry?days=${days}`,{credentials:'include'});if(res.status===401){location.href='/';throw new Error('ログインが必要です')}let data=null;try{data=await res.json()}catch{}if(!res.ok)throw new Error(data?.detail||`HTTP ${res.status}`);return data}
   function ensureUi(){
@@ -11,7 +11,7 @@
     if(side){const b=document.createElement('button');b.className='nav';b.dataset.view='telemetry';b.innerHTML='<span>⌁</span>UX計測';side.appendChild(b)}
     if(mobile){const b=document.createElement('button');b.dataset.view='telemetry';b.textContent='UX';mobile.appendChild(b)}
     const view=document.createElement('section');view.id='telemetryView';view.className='view';view.innerHTML=`
-      <div class="section-head"><div><div class="eyebrow">PLAYER EXPERIENCE</div><h2>オンラインポーカー UX計測</h2><p>操作の遅さ・時間切れ・接続復旧・UI利用状況を匿名集計します。</p></div><div class="ux-range"><button class="soft active" data-ux-days="7">7日</button><button class="soft" data-ux-days="30">30日</button><button class="soft" id="uxRefresh">更新</button></div></div>
+      <div class="section-head"><div><div class="eyebrow">PLAYER EXPERIENCE</div><h2>オンラインポーカー UX計測</h2><p>操作時間・READY導線・接続復旧・ハンド復習・操作拒否を匿名集計します。</p></div><div class="ux-range"><button class="soft active" data-ux-days="7">7日</button><button class="soft" data-ux-days="30">30日</button><button class="soft" id="uxRefresh">更新</button></div></div>
       <div class="ux-telemetry-note"><b>PRIVACY FIRST</b><span>ユーザーID・名前・ハンドID・カード・ベット額・チャット・自由入力文は保存しません。生イベントは30日で自動削除されます。</span></div>
       <div class="ux-kpi-grid">
         <article class="ux-kpi"><span>手動アクション選択</span><strong id="uxDecisions">—</strong><small>自分の手番→ボタン選択</small></article>
@@ -19,6 +19,9 @@
         <article class="ux-kpi"><span>P90選択時間</span><strong id="uxP90">—</strong><small>遅い10%の境界</small></article>
         <article class="ux-kpi"><span>時間切れ率</span><strong id="uxTimeoutRate">—</strong><small id="uxTimeoutCount">—</small></article>
         <article class="ux-kpi"><span>接続フォールバック</span><strong id="uxFallbacks">—</strong><small id="uxReconnects">—</small></article>
+        <article class="ux-kpi"><span>着席→準備OK</span><strong id="uxReadyP50">—</strong><small id="uxReadyCount">—</small></article>
+        <article class="ux-kpi"><span>卓→ハンド復習</span><strong id="uxReviewOpens">—</strong><small id="uxReviewBookmarks">—</small></article>
+        <article class="ux-kpi"><span>サーバー操作拒否</span><strong id="uxActionRejects">—</strong><small>bet/action request</small></article>
       </div>
       <div class="ux-grid">
         <article class="panel"><div class="panel-head"><div><div class="eyebrow">TREND</div><h3>日別プレイ状況</h3></div><span class="ux-live-dot">集計のみ</span></div><div id="uxTrend" class="ux-trend"></div></article>
@@ -33,7 +36,7 @@
   }
   function dist(el,rows){if(!el)return;const list=rows||[],max=Math.max(1,...list.map(x=>Number(x.count||0)));el.innerHTML=list.length?list.map(x=>`<div class="ux-dist-row"><span>${safe(labels[x.name]||x.name)}</span><span class="ux-dist-bar"><i style="width:${Math.max(4,Math.round(Number(x.count||0)/max*100))}%"></i></span><b>${fmt(x.count)}</b></div>`).join(''):'<div class="ux-empty">まだデータがありません。</div>'}
   function render(data){
-    $('#uxDecisions').textContent=fmt(data.totals?.decisions||0);$('#uxAverage').textContent=data.decision_ms?.average==null?'—':`${fmt(data.decision_ms.average/1000)}秒`;$('#uxMedian').textContent=data.decision_ms?.p50==null?'P50 —':`P50 ${fmt(data.decision_ms.p50/1000)}秒`;$('#uxP90').textContent=data.decision_ms?.p90==null?'—':`${fmt(data.decision_ms.p90/1000)}秒`;$('#uxTimeoutRate').textContent=`${fmt(data.totals?.timeout_rate_pct||0)}%`;$('#uxTimeoutCount').textContent=`時間切れ ${fmt(data.totals?.timeouts||0)}件`;$('#uxFallbacks').textContent=fmt(data.totals?.fallbacks||0);$('#uxReconnects').textContent=`復旧 ${fmt(data.totals?.reconnects||0)}回`;
+    $('#uxDecisions').textContent=fmt(data.totals?.decisions||0);$('#uxAverage').textContent=data.decision_ms?.average==null?'—':`${fmt(data.decision_ms.average/1000)}秒`;$('#uxMedian').textContent=data.decision_ms?.p50==null?'P50 —':`P50 ${fmt(data.decision_ms.p50/1000)}秒`;$('#uxP90').textContent=data.decision_ms?.p90==null?'—':`${fmt(data.decision_ms.p90/1000)}秒`;$('#uxTimeoutRate').textContent=`${fmt(data.totals?.timeout_rate_pct||0)}%`;$('#uxTimeoutCount').textContent=`時間切れ ${fmt(data.totals?.timeouts||0)}件`;$('#uxFallbacks').textContent=fmt(data.totals?.fallbacks||0);$('#uxReconnects').textContent=`WS ${fmt(data.totals?.reconnects||0)}回 · fresh ${fmt(data.totals?.reconnect_successes||0)}回`;$('#uxReadyP50').textContent=data.ready_ms?.p50==null?'—':`${fmt(data.ready_ms.p50/1000)}秒`;$('#uxReadyCount').textContent=`成功 ${fmt(data.totals?.ready_submits||0)}回 · 計測 ${fmt(data.ready_ms?.samples||0)}件`;$('#uxReviewOpens').textContent=fmt(data.totals?.review_opens||0);$('#uxReviewBookmarks').textContent=`あとで復習 ${fmt(data.totals?.review_bookmarks||0)}回`;$('#uxActionRejects').textContent=fmt(data.totals?.action_rejections||0);
     dist($('#uxActions'),data.actions);dist($('#uxSizing'),data.sizing);
     const tools=[...(data.preactions||[]).map(x=>({...x,name:`pre:${x.name}`})),...(data.ui||[])],toolLabels={...labels,'pre:check':'先行: チェックのみ','pre:check_fold':'先行: チェック/フォールド'},box=$('#uxTools'),maxTools=Math.max(1,...tools.map(x=>Number(x.count||0)));
     box.innerHTML=tools.length?tools.map(x=>`<div class="ux-dist-row"><span>${safe(toolLabels[x.name]||x.name)}</span><span class="ux-dist-bar"><i style="width:${Math.max(4,Math.round(Number(x.count||0)/maxTools*100))}%"></i></span><b>${fmt(x.count)}</b></div>`).join(''):'<div class="ux-empty">まだデータがありません。</div>';
