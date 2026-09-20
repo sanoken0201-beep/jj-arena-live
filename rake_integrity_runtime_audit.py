@@ -211,6 +211,13 @@ def audit_rows(
     }
 
 
+def should_run(db, environ: Any) -> bool:
+    return (
+        bool(getattr(db, "IS_POSTGRES", False))
+        and str(environ.get("RENDER", "")).strip().lower() in {"1", "true", "yes"}
+    )
+
+
 def run(db) -> dict[str, Any]:
     report = audit_rows(*_read_rows(db))
     print("JJ_RAKE_AUDIT " + json.dumps(report, ensure_ascii=False, sort_keys=True), flush=True)
@@ -224,4 +231,5 @@ __all__ = [
     "UNCALLED_FIX_AT",
     "audit_rows",
     "run",
+    "should_run",
 ]

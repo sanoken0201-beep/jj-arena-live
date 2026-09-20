@@ -89,6 +89,18 @@ def _history():
 
 
 def main():
+    class Pg:
+        IS_POSTGRES = True
+
+    class Sqlite:
+        IS_POSTGRES = False
+
+    assert audit.should_run(Pg(), {"RENDER": "true"})
+    assert audit.should_run(Pg(), {"RENDER": "1"})
+    assert audit.should_run(Pg(), {"RENDER": "YES"})
+    assert not audit.should_run(Pg(), {"RENDER": "false"})
+    assert not audit.should_run(Sqlite(), {"RENDER": "true"})
+
     report = audit.audit_rows([_table()], _hands(), _results(), _history())
     assert report["status"] == "ok"
     assert report["current_anomaly_total"] == 0
