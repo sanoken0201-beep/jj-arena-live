@@ -1,0 +1,108 @@
+"""Operational acceptance: independent member sessions share one Sit&Go safely."""
+from __future__ import annotations
+
+import os
+import tempfile
+from datetime import datetime, timedelta, timezone
+from pathlib import Path
+
+os.environ.pop("DATABASE_URL", None)
+_tmp = tempfile.TemporaryDirectory(prefix="jj-sng-multisession-")
+os.environ["JJ_DB_PATH"] = str(Path(_tmp.name) / "multi.sqlite3")
+
+from fastapi.testclient import TestClient
+from smoke_test_sitngo_phase1 import add_member, production_app as prod, registration_moment, sitngo
+from unittest.mock import patch
+
+
+def require(condition: bool, message: str) -> None:
+    if not condition:
+        raise AssertionError(message)
+
+
+def client_for(uid: int) -> TestClient:
+    client = TestClient(prod.app, base_url="https://testserver")
+    token = prod.db.create_session(uid)
+    client.headers["Authorization"] = "Bearer " + token
+    client.cookies.set("jj_session", token)
+    return client
+
+
+def main() -> None:
+    service = prod.app.state.jj_sitngo
+    with prod.db.connect() as con:
+        admin = int(con.execute("SELECT id FROM users WHERE role='admin' ORDER BY id LIMIT 1").fetchone()["id"])
+
+    users = [add_member(6100 + i) for i in range(3)]
+    starts = datetime.now(timezone.utc) + timedelta(minutes=10)
+    event = service.create_event(
+        sitngo.SitNGoCreateIn(name="multi-session acceptance", starts_at=starts.isoformat()),
+        admin,
+    )
+    with patch.object(sitngo, "_utcnow", return_value=registration_moment(event)):
+        for uid in users:
+            service.register(event["id"], uid)
+    service.reconcile(starts + timedelta(seconds=1))
+    eid = event["id"]
+
+    clients = {uid: client_for(uid) for uid in users}
+    snapshots = {uid: clients[uid].get(f"/api/tables/{eid}").json()["state"] for uid in users}
+    initial_revision = int(service.runtime.load(eid)["_revision"])
+    turns = {s["turn_id"] for s in snapshots.values()}
+    hands = {s["hand"]["id"] for s in snapshots.values()}
+    stacks = {tuple(p["stack"] for p in s["seats"]) for s in snapshots.values()}
+    require(len(turns) == 1 and len(hands) == 1 and len(stacks) == 1, "independent sessions did not converge on one authoritative state")
+
+    state = snapshots[users[0]]
+    actor = next(p for p in state["seats"] if p["seat"] == state["hand"]["action_seat"])
+    actor_client = clients[int(actor["user_id"])]
+    body = {
+        "action": "fold",
+        "action_id": "multi-device-action-1",
+        "hand_id": state["hand"]["id"],
+        "turn_id": state["turn_id"],
+    }
+    acted = actor_client.post(f"/api/tables/{eid}/action", json=body)
+    require(acted.status_code == 200, f"first device action failed: {acted.text}")
+
+    after = {uid: clients[uid].get(f"/api/tables/{eid}").json()["state"] for uid in users}
+    after_turns = {s["turn_id"] for s in after.values()}
+    after_hands = {s["hand"]["id"] for s in after.values()}
+    after_stacks = {tuple(p["stack"] for p in s["seats"]) for s in after.values()}
+    after_revision = int(service.runtime.load(eid)["_revision"])
+    require(len(after_turns) == 1 and next(iter(after_turns)), "sessions observed different turns after action")
+    require(len(after_hands) == 1 and len(after_stacks) == 1, "sessions diverged after action")
+    require(after_revision > initial_revision, "authoritative revision did not advance")
+    require(next(iter(after_turns)) != state["turn_id"], "turn token did not advance after action")
+
+    replay = actor_client.post(f"/api/tables/{eid}/action", json=body)
+    require(replay.status_code == 200, "same-device retry must remain idempotent")
+    require(int(service.runtime.load(eid)["_revision"]) == after_revision, "idempotent replay changed revision")
+
+    current = after[users[0]]
+    next_actor = next(p for p in current["seats"] if p["seat"] == current["hand"]["action_seat"])
+    second_client = clients[int(next_actor["user_id"])]
+    second_body = {
+        "action": "fold",
+        "action_id": "multi-device-action-2",
+        "hand_id": current["hand"]["id"],
+        "turn_id": current["turn_id"],
+    }
+    second = second_client.post(f"/api/tables/{eid}/action", json=second_body)
+    require(second.status_code == 200, f"second device action failed: {second.text}")
+
+    finals = [clients[uid].get(f"/api/tables/{eid}").json()["state"] for uid in users]
+    require(int(service.runtime.load(eid)["_revision"]) > after_revision, "second device action did not advance revision")
+    require(len({s["hand"]["id"] for s in finals}) == 1, "sessions disagree on current hand")
+    require(
+        len({tuple(p["stack"] for p in s["seats"]) for s in finals}) == 1,
+        "sessions disagree on tournament stacks",
+    )
+
+    for client in clients.values():
+        client.close()
+    print("JJ_SITNGO_MULTI_SESSION_OK")
+
+
+if __name__ == "__main__":
+    main()

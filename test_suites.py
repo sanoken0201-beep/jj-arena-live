@@ -65,6 +65,7 @@ TEST_SUITES: dict[str, tuple[str, ...]] = {
         "smoke_test_sitngo_action_safety.py",
         "smoke_test_sitngo_freezeout_contract.py",
         "smoke_test_sitngo_api.py",
+        "smoke_test_sitngo_multi_session.py",
         "smoke_test_sitngo_browser.py",
     ),
 }
