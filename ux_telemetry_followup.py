@@ -30,7 +30,7 @@ _HELPERS = r'''
     // success without a local start marker is still counted without duration.
     jjV6Emit('ready','submit',elapsed!=null&&elapsed>=0&&elapsed<=600000?elapsed:null);
   }
-  function jjV73ActionRejected(){jjV6Emit('action_result','rejected')}
+  function jjV73ActionFailed(){jjV6Emit('action_result','failed')}
   function jjV73Review(kind){jjV6Emit('review',kind)}
   function jjV73FreshState(){
     if(!jjV6Telemetry.awaitingFresh)return;
@@ -92,7 +92,7 @@ def transform_app_js(source: str) -> str:
       toast(err.message);
       if(currentTableId===tableId){""",
         """    }catch(err){
-      jjV73ActionRejected();
+      jjV73ActionFailed();
       toast(err.message);
       if(currentTableId===tableId){""",
         "betting rejection",
