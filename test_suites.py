@@ -64,6 +64,8 @@ RETIRED_TEST_FILES = frozenset(
         "smoke_test_mobile_poker_ux.py",
         "smoke_test_portrait_table.py",
         "smoke_test_clear_poker_copy.py",
+        "smoke_test_admin.py",
+        "smoke_test_ui_copy.py",
     }
 )
 
