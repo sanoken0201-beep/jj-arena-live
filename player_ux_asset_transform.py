@@ -27,6 +27,22 @@ def transform_app_js(source: str) -> str:
 
     source = _replace_once(
         source,
+        """  function jjV185FmtBb(v){
+    const n=Number(v||0);
+    return `${(Math.round(n*100)/100).toFixed(n%1?1:0)}bb`;
+  }
+""",
+        """  function jjV185FmtBb(v){
+    const raw=Number(v||0);
+    const n=typeof jjV124CeilRaiseBb==='function'?jjV124CeilRaiseBb(raw):Math.ceil((raw-1e-9)*10)/10;
+    return `${Number.isInteger(n)?String(n):n.toFixed(1)}bb`;
+  }
+""",
+        "one-decimal betting labels",
+    )
+
+    source = _replace_once(
+        source,
         """  function jjV123AllinKey(action,selected){
     const hand=tableState?.hand||{};
     return `${hand.id||''}:${hand.action_seat??''}:${action}:${Number(selected||0).toFixed(2)}`;
@@ -140,15 +156,19 @@ def transform_app_js(source: str) -> str:
       if(b.dataset.raiseBb!=null)target=jjClampRaiseBb(Number(b.dataset.raiseBb));
       else if(b.dataset.potPct!=null)target=jjPotPctBb(Number(b.dataset.potPct));
       else if(b.hasAttribute('data-allin-size'))target=jjRaiseBounds().max;
-      b.classList.toggle('is-selected',value!=null&&target!=null&&Math.abs(Number(target)-value)<0.011);
+      const displayTarget=target==null?null:(typeof jjV124CeilRaiseBb==='function'?jjV124CeilRaiseBb(target):Number(target));
+      b.classList.toggle('is-selected',value!=null&&displayTarget!=null&&Math.abs(Number(displayTarget)-value)<0.011);
     });
   }
 
   const jjV185SetRaiseBb=jjSetRaiseBb;
   jjSetRaiseBb=function(v){
-    const value=jjClampRaiseBb(v);
-    jjV185SetRaiseBb(value);
-    if(typeof jjV124RememberRaise==='function')jjV124RememberRaise(value);
+    const exact=jjClampRaiseBb(v);
+    jjV185SetRaiseBb(exact);
+    if(typeof jjV124RememberRaise==='function'){
+      const draft=jjV124RememberRaise(exact),input=$('#raiseTo');
+      if(input)input.value=draft.text;
+    }
     jjV185SyncRaiseUi();
   };
 """,
@@ -173,28 +193,37 @@ def transform_app_js(source: str) -> str:
     const hand=tableState?.hand||{};
     return `${currentTableId||''}:${hand.id||''}:${hand.action_seat??''}:${hand.action_deadline||''}`;
   }
+  function jjV124CeilRaiseBb(value){
+    const n=Number(value);
+    if(!Number.isFinite(n))return null;
+    return Math.ceil((n-1e-9)*10)/10;
+  }
   function jjV124ParseRaiseText(text){
     const raw=String(text??'').trim().replace(',','.');
     if(raw==='')return null;
     const value=Number(raw);
-    return Number.isFinite(value)?value:null;
+    return Number.isFinite(value)?jjV124CeilRaiseBb(value):null;
   }
   function jjV124EnsureRaiseDraft(bounds=jjRaiseBounds()){
     const key=jjV124DecisionKey(),min=Number(bounds.min||0),max=Number(bounds.max||0);
+    const displayMin=jjV124CeilRaiseBb(min)??min,displayMax=jjV124CeilRaiseBb(max)??max;
     if(jjV124RaiseDraft.key!==key){
-      jjV124RaiseDraft={key,text:jjV124FmtNumber(min,2),value:min,notice:''};
+      jjV124RaiseDraft={key,text:jjV124FmtNumber(displayMin,1),value:displayMin,notice:''};
     }else if(jjV124RaiseDraft.value!=null){
-      const clamped=Math.max(min,Math.min(max,Number(jjV124RaiseDraft.value)));
+      const normalized=jjV124CeilRaiseBb(jjV124RaiseDraft.value);
+      const clamped=Math.max(displayMin,Math.min(displayMax,Number(normalized??displayMin)));
       if(Math.abs(clamped-Number(jjV124RaiseDraft.value))>0.001){
-        jjV124RaiseDraft.value=clamped;jjV124RaiseDraft.text=jjV124FmtNumber(clamped,2);
+        jjV124RaiseDraft.value=clamped;jjV124RaiseDraft.text=jjV124FmtNumber(clamped,1);
         jjV124RaiseDraft.notice='利用可能額が変わったため、現在の上限／下限に合わせました';
       }
     }
     return jjV124RaiseDraft;
   }
   function jjV124RememberRaise(value){
-    const bounds=jjRaiseBounds(),draft=jjV124EnsureRaiseDraft(bounds),clamped=Math.max(Number(bounds.min||0),Math.min(Number(bounds.max||0),Number(value)));
-    draft.value=clamped;draft.text=jjV124FmtNumber(clamped,2);draft.notice='';
+    const bounds=jjRaiseBounds(),draft=jjV124EnsureRaiseDraft(bounds);
+    const min=jjV124CeilRaiseBb(bounds.min)??Number(bounds.min||0),max=jjV124CeilRaiseBb(bounds.max)??Number(bounds.max||0);
+    const normalized=jjV124CeilRaiseBb(value)??min,clamped=Math.max(min,Math.min(max,normalized));
+    draft.value=clamped;draft.text=jjV124FmtNumber(clamped,1);draft.notice='';
     return draft;
   }
   function jjV124RaiseAdditionalBb(totalBb,hero=jjV124Hero()){
@@ -405,11 +434,11 @@ def transform_app_js(source: str) -> str:
       return;
     }
     draft.text=String(el.value??'');draft.notice='';
-    const value=jjV124ParseRaiseText(draft.text),min=Number(bounds.min||0),max=Number(bounds.max||0);
+    const value=jjV124ParseRaiseText(draft.text),min=jjV124CeilRaiseBb(bounds.min),max=jjV124CeilRaiseBb(bounds.max);
     if(value==null){if(error)error.textContent=draft.text.trim()===''?'金額を入力してください':'数値を確認してください';if(typeof jjV185SyncRaiseUi==='function')jjV185SyncRaiseUi();return}
-    if(value<min-0.001||value>max+0.001){if(error)error.textContent=`${jjV185FmtBb(min)}〜${jjV185FmtBb(max)} の範囲で入力してください`;if(typeof jjV185SyncRaiseUi==='function')jjV185SyncRaiseUi();return}
+    if(value<Number(min)-0.001||value>Number(max)+0.001){if(error)error.textContent=`${jjV185FmtBb(min)}〜${jjV185FmtBb(max)} の範囲で入力してください`;if(typeof jjV185SyncRaiseUi==='function')jjV185SyncRaiseUi();return}
     draft.value=value;
-    const slider=$('#raiseSlider');if(slider)slider.value=value;
+    const slider=$('#raiseSlider');if(slider)slider.value=Math.min(Number(bounds.max||value),value);
     if(error)error.textContent='';
     if(typeof jjV185SyncRaiseUi==='function')jjV185SyncRaiseUi();
   }

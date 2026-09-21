@@ -62,7 +62,7 @@ def install() -> None:
   doAction=async function(action){
     if(action==='raise'&&tableState?.tournament){
       const input=$('#raiseTo');
-      if(input)input.value=jjSngSnapRaiseBb(input.value);
+      if(input&&typeof jjV124CeilRaiseBb==='function')input.value=jjV124CeilRaiseBb(input.value);
     }
     return jjSngBaseDoAction(action);
   };
@@ -75,7 +75,11 @@ def install() -> None:
     const unit=Math.max(100,Number(tableState.chip_unit||tableState.tournament?.chip_unit||100));
     const step=unit/big;
     const input=$('#raiseTo'),slider=$('#raiseSlider');
-    if(input){input.step=String(step);input.value=String(jjSngSnapRaiseBb(input.value))}
+    if(input){
+      input.step=String(step);
+      const exact=jjSngSnapRaiseBb(input.value);
+      input.value=String(typeof jjV124CeilRaiseBb==='function'?jjV124CeilRaiseBb(exact):exact);
+    }
     if(slider){slider.step=String(step);slider.value=String(jjSngSnapRaiseBb(slider.value))}
   };
 

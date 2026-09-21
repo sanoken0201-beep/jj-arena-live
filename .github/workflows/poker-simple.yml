@@ -21,6 +21,7 @@ jobs:
       - run: node --check .jj_build/static/app.js
       - run: python smoke_test_prebuilt_assets.py
       - run: python smoke_test_timebank_rules.py
+      - run: python smoke_test_bet_precision.py
       - run: python smoke_test_oop_check_freshness.py
       - run: python smoke_test_poker_simple.py
       - run: python smoke_test_oop_check_browser.py

@@ -118,10 +118,21 @@ ACTION = r'''  doAction=async function(action){
     }
     if(action==='raise'){
       const raw=String($('#raiseTo')?.value??'').trim().replace(',','.');
-      const value=raw===''?NaN:Number(raw),bounds=jjRaiseBounds();
-      if(!Number.isFinite(value))return toast('ベット／レイズ額を入力してください');
-      if(value<Number(bounds.min)-0.001||value>Number(bounds.max)+0.001)return toast('ベット／レイズ額が利用可能な範囲外です');
-      body.amount=Math.round(value*Number(tableState.big_blind||100));
+      const entered=raw===''?NaN:Number(raw),bounds=jjRaiseBounds(),big=Number(tableState.big_blind||100);
+      if(!Number.isFinite(entered))return toast('ベット／レイズ額を入力してください');
+      const ceil1=value=>typeof jjV124CeilRaiseBb==='function'?jjV124CeilRaiseBb(value):Math.ceil((Number(value)-1e-9)*10)/10;
+      const value=ceil1(entered),displayMin=ceil1(bounds.min),displayMax=ceil1(bounds.max);
+      if(value<Number(displayMin)-0.001||value>Number(displayMax)+0.001)return toast('ベット／レイズ額が利用可能な範囲外です');
+      const roundedMaxAllin=legal.can_all_in&&Number(bounds.max||0)>0&&Math.abs(value-Number(displayMax))<0.011;
+      if(roundedMaxAllin){
+        body.action='allin';
+      }else{
+        const exactBb=tableState?.tournament&&typeof jjSngSnapRaiseBb==='function'?jjSngSnapRaiseBb(value):value;
+        const exactAmount=Math.round(Number(exactBb)*big);
+        const minChips=Math.round(Number(bounds.min||0)*big),maxChips=Math.round(Number(bounds.max||0)*big);
+        if(exactAmount<minChips||exactAmount>maxChips)return toast('ベット／レイズ額が利用可能な範囲外です');
+        body.amount=exactAmount;
+      }
     }
     jjV121ActionPending=true;jjV123ActionState();
     try{
