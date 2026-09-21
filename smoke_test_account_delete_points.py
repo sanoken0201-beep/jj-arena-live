@@ -113,6 +113,7 @@ def main() -> None:
 
     fresh = ranking_for(_rankings(db, server, season="fall"), name)
     assert fresh is not None
+    print("ACCOUNT_DELETE_POINT_EXPIRY_FRESH", fresh, flush=True)
     assert fresh["club_points"] == 8.0
     assert fresh["online_points"] == 6.0
     assert fresh["admin_points"] == 4.0
