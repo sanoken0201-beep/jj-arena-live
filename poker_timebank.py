@@ -240,6 +240,11 @@ def _install_sitngo_tick(runtime_module) -> None:
                     pending_map = getattr(self, "_pending_action_arrivals", {})
                     pending = pending_map.get((eid, turn_id)) if turn_id else None
                     if pending and float(pending.get("earliest", now_epoch + 1)) <= deadline:
+                        try:
+                            import sitngo_observability
+                            sitngo_observability.record(self.db, "timeout_boundary_protected")
+                        except Exception:
+                            pass
                         return now_epoch + 0.05
 
                     outcome = settle_expired_turn(
@@ -247,6 +252,11 @@ def _install_sitngo_tick(runtime_module) -> None:
                     )
                     if outcome:
                         if outcome == "fold":
+                            try:
+                                import sitngo_observability
+                                sitngo_observability.record(self.db, "timeout_auto_action")
+                            except Exception:
+                                pass
                             self.server.arm_action_deadline(state)
                         self.save(state, notify=False)
 
