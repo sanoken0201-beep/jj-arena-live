@@ -30,7 +30,6 @@ import sitngo_runtime
 import sitngo_tournament_rules
 import sitngo_process_guard
 import sitngo_resilience
-import sitngo_action_safety
 import timebank_rules
 import read_efficiency
 
@@ -45,7 +44,6 @@ sitngo_chip_rules.install(sitngo_runtime)
 sitngo_asset_cache.install()
 sitngo_resilience.install(sitngo_runtime)
 timebank_rules.install_ring(runtime_server, runtime_poker_engine)
-sitngo_action_safety.install(sitngo_runtime)
 timebank_rules.install_sitngo(sitngo_runtime)
 
 from served_assets import (
