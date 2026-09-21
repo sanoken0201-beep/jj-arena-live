@@ -207,3 +207,11 @@ Physical club entries are historically keyed by ranking name rather than user ID
 
 This rule applies to accounts that were already tombstoned before the rule was introduced as well as future deletions. Raw records remain available for forensic review; point expiry is an aggregation rule, not data destruction.
 
+## D-022 — Poker decisions use three mandatory 30-second timebank cards
+
+**Date:** 2026-09-21  
+**Status:** Accepted
+
+Every Ring and Sit&Go decision receives a 30-second base action window. Each participant receives three timebank cards for the duration of that seating/tournament participation. When a decision deadline expires, a remaining card is consumed automatically and grants exactly 30 more seconds; players cannot choose to preserve a card by declining its use. Cards persist across hands and are not replenished until a new participation begins.
+
+When no cards remain, expiry of the 30-second decision window forces a fold even if check is a legal poker action. Timeout settlement remains server-owned, and Sit&Go boundary protection for an action received before the deadline continues to take precedence over automatic timeout settlement.

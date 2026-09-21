@@ -76,7 +76,9 @@ def main() -> None:
     entry = (ROOT / "app.py").read_text(encoding="utf-8")
     compiler = (ROOT / "served_assets.py").read_text(encoding="utf-8")
     assert '@app.post("/api/poker-config")' in entry
-    assert 'inspect.signature(runtime_server.arm_action_deadline)' in entry
+    assert 'return timebank_rules.BASE_ACTION_SECONDS' in entry
+    assert '"timebank_cards": timebank_rules.TIMEBANK_CARDS' in entry
+    assert '"timebank_forced_use": True' in entry
     assert '@app.post("/api/tables/{table_id}/leave-after-hand")' in entry
     assert "runtime_poker_engine.remove_player" in entry
     assert "runtime_server.save_table(state)" in entry

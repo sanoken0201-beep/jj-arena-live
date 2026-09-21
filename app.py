@@ -10,7 +10,6 @@ parity oracle and rollback reference.
 """
 from __future__ import annotations
 
-import inspect
 from functools import lru_cache
 
 from fastapi import Depends, HTTPException
@@ -30,6 +29,7 @@ import sitngo_runtime
 import sitngo_tournament_rules
 import sitngo_process_guard
 import sitngo_resilience
+import timebank_rules
 import read_efficiency
 
 # Configure the root-level Sit&Go extension before browser transforms bind the
@@ -42,6 +42,8 @@ sitngo_tournament_rules.install(sitngo_runtime)
 sitngo_chip_rules.install(sitngo_runtime)
 sitngo_asset_cache.install()
 sitngo_resilience.install(sitngo_runtime)
+timebank_rules.install_ring(runtime_server, runtime_poker_engine)
+timebank_rules.install_sitngo(sitngo_runtime)
 
 from served_assets import (
     ASSET_VERSION,
@@ -141,18 +143,17 @@ class _LeaveAfterHandIn(BaseModel):
 
 
 def _action_timeout_seconds() -> int:
-    """Read the actual server deadline default instead of duplicating 45 in UI."""
-    try:
-        default = inspect.signature(runtime_server.arm_action_deadline).parameters["seconds"].default
-        return max(1, int(default))
-    except Exception:
-        return 45
+    """Expose the product-level decision clock, not a compatibility wrapper default."""
+    return timebank_rules.BASE_ACTION_SECONDS
 
 
 @app.post("/api/poker-config")
 def _poker_config(user=Depends(runtime_server.current_user)):
     return {
         "action_timeout_seconds": _action_timeout_seconds(),
+        "timebank_cards": timebank_rules.TIMEBANK_CARDS,
+        "timebank_card_seconds": timebank_rules.TIMEBANK_CARD_SECONDS,
+        "timebank_forced_use": True,
         "ranking_points_per_bb": 3,
         "rake_percent": 5,
         "rake_cap_bb": 3,

@@ -7,6 +7,7 @@ from unittest.mock import patch
 
 from smoke_test_sitngo_phase1 import add_member, production_app, sitngo
 from fastapi import HTTPException
+import sitngo_action_safety
 
 
 def main(paid=False):
@@ -69,7 +70,7 @@ def main(paid=False):
             for _ in range(6):
                 if waiting['status']=='waiting':break
                 deadline=datetime.fromisoformat(waiting['hand']['action_deadline']).timestamp()
-                clock=max(clock,deadline+.1)
+                clock=max(clock,deadline+sitngo_action_safety.TIMEOUT_SETTLEMENT_GRACE_SECONDS+.1)
                 with patch('time.time',return_value=clock):asyncio.run(rt.tick(eid,now=clock))
                 waiting=rt.load(eid)
             assert waiting['status']=='waiting' and waiting.get('next_hand_at_epoch')
