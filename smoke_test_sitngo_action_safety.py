@@ -139,10 +139,29 @@ def main() -> None:
             now=deadline + sitngo_action_safety.TIMEOUT_SETTLEMENT_GRACE_SECONDS + 1.0,
         )
     )
+    extended = runtime.load(eid)
+    require(extended.get("status") == "playing", "timebank expiry unexpectedly ended the hand")
+    require(extended["hand"].get("turn_id") == current_turn, "timebank extension consumed the active turn")
+    extended_actor = next(p for p in extended["seats"] if p["seat"] == extended["hand"]["action_seat"])
+    require(int(extended_actor.get("timebank_cards_remaining", -1)) == 2, "first timeout did not consume exactly one timebank card")
+    require(extended["hand"].get("action_clock_source") == "timebank", "timebank extension was not marked")
+
+    # With cards exhausted, the next missed 30-second extension is the actual
+    # automatic timeout action and must consume the turn via forced fold.
+    extended_actor["timebank_cards_remaining"] = 0
+    final_deadline = time.time() - 1.0
+    extended["hand"]["action_deadline"] = datetime.fromtimestamp(final_deadline, timezone.utc).isoformat()
+    runtime.save(extended)
+    asyncio.run(
+        runtime.tick(
+            eid,
+            now=final_deadline + sitngo_action_safety.TIMEOUT_SETTLEMENT_GRACE_SECONDS + 1.0,
+        )
+    )
     timed_out = runtime.load(eid)
     require(
         timed_out.get("status") != "playing" or timed_out["hand"].get("turn_id") != current_turn,
-        "timeout did not consume the expired turn",
+        "zero-card timeout did not consume the expired turn",
     )
 
     metrics=sitngo_observability.summary(db,days=7)["totals"]
