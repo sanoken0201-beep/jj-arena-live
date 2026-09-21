@@ -9,6 +9,7 @@ BASE_ACTION_SECONDS = 30
 TIMEBANK_CARD_SECONDS = 30
 TIMEBANK_CARDS = 3
 MARKER = "jj forced timebank cards 2026-09-21"
+# Cards belong to one seating/tournament participation and persist across hands.
 
 
 def _player_for_action(state: dict[str, Any]) -> dict[str, Any] | None:
