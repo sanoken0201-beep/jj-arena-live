@@ -176,7 +176,7 @@ def source_and_browser_contract_test():
 
     app_source = Path("app.py").read_text(encoding="utf-8")
     assert "timebank_rules.install_ring(runtime_server, runtime_poker_engine)" in app_source
-    assert "sitngo_action_safety.install(sitngo_runtime)" in app_source
+    assert "sitngo_asset_cache.install()" in app_source
     assert "timebank_rules.install_sitngo(sitngo_runtime)" in app_source
 
     source = Path("materialized_v1244/static/app.js").read_text(encoding="utf-8")
