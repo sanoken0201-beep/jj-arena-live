@@ -7,6 +7,7 @@ ADMIN_ASSET_VERSION = "127"
 
 
 def apply(static_dir: Path) -> None:
+    """Explicit maintenance utility; never run during application startup."""
     _index(static_dir/'index.html')
     _js(static_dir/'admin.js')
 

@@ -60,3 +60,9 @@ jobs:
 
       - name: Harden official point form submission
         run: python smoke_test_non_sng_safety.py
+
+      - name: Verify headers on every response boundary
+        run: python smoke_test_response_security.py
+
+      - name: Verify immutable admin startup
+        run: python smoke_test_admin_startup_immutable.py

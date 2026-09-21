@@ -16,7 +16,6 @@ import sys
 from pathlib import Path
 
 import admin_api_consolidation
-import admin_copy_patch
 import admin_ledger_stabilization
 import admin_pin_verification
 import hand_analytics
@@ -43,7 +42,6 @@ DEST = (ROOT / "materialized_v1244").resolve()
 if not (DEST / "server.py").is_file():
     raise RuntimeError(f"materialized v1.24.4 core is missing: {DEST}")
 
-admin_copy_patch.apply(ROOT / "admin_static")
 
 # Preserve the current PIN-authentication bootstrap semantics exactly.
 os.environ["JJ_ADMIN_PASSWORD"] = secrets.token_urlsafe(32)

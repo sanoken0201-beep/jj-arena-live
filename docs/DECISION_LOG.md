@@ -229,3 +229,10 @@ Manual point credit/collection requires a client request ID scoped to the admini
 Ring action requests carry hand_id, turn_id and action_id. The server rejects stale or late decisions and scopes replay receipts to the actor. Receipt and game state persist together. An action received before the deadline may finish after waiting for the table lock; the timeout loop defers consumption only for that actor and turn. Existing 30-second decisions and three mandatory 30-second cards remain unchanged. Persisted pre-release hands receive deterministic public turn tokens until their next transition. Browser assets use a new cache revision.
 
 Validation: Ring API regression covers missing/stale identity, late actions, actor-scoped retries, persisted legacy hands, queued arrival and timebank consumption. Existing timebank, Sit&Go safety and member journey tests also pass.
+
+
+## D-025 — Browser policy covers all HTTP responses; admin assets are immutable at startup
+
+The existing security-header policy is applied outside the complete ASGI middleware stack, including asset short circuits, HEAD/304, CSRF rejection and unhandled HTTP 500 responses. Transport/cache headers and streaming are preserved. The wrapper is installed through the shared security extension for production and legacy paths without modifying the materialized core.
+
+Admin copy, CSV hardening and extension references are committed as final source. Startup no longer invokes admin_copy_patch; it remains an explicit maintenance utility. Regression checks cover response headers and unchanged admin contents/mtimes across both application lifecycles.

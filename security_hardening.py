@@ -63,6 +63,8 @@ def install(app, server, db) -> None:
     if getattr(app.state, "jj_security_hardening_installed", False):
         return
     app.state.jj_security_hardening_installed = True
+    from response_security import install as install_response_security
+    install_response_security(app)
 
     # Production sessions must use the __Host- cookie. The old unprefixed cookie
     # remains available only in local/non-Render compatibility environments.
