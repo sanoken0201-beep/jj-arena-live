@@ -207,3 +207,14 @@ Physical club entries are historically keyed by ranking name rather than user ID
 
 This rule applies to accounts that were already tombstoned before the rule was introduced as well as future deletions. Raw records remain available for forensic review; point expiry is an aggregation rule, not data destruction.
 
+## D-022 — Poker decisions use forced three-card time banks
+
+**Date:** 2026-09-21  
+**Status:** Accepted
+
+Ring and Sit&Go player decisions use a 30-second base action window. Each seating or tournament entry starts with three time-bank cards. A card is never player-triggered: when a decision reaches its deadline, the server automatically consumes one remaining card and extends that same decision by another 30 seconds.
+
+Time-bank inventory persists across hands. Once all three cards are exhausted, the next missed action deadline is always resolved as a fold, including spots where check would otherwise be legal. The old Ring behavior that timed-out players into check/fold plus next-hand sit-out is not part of this contract.
+
+Timeout settlement remains server-authoritative. The browser only displays the authoritative deadline and remaining-card count; reconnects, refreshes or stale clients cannot restore consumed cards.
+
