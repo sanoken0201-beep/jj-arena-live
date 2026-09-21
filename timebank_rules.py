@@ -122,26 +122,6 @@ def install_sitngo(runtime_module) -> None:
         return
 
     original_tick = runtime_cls.tick
-    original_init = runtime_cls.__init__
-
-    def init(self, *args, **kwargs):
-        original_init(self, *args, **kwargs)
-        server = self.server
-        if not getattr(server, "_jj_timebank_sng_deadline_installed", False):
-            def arm_action_deadline(state, seconds: int = BASE_ACTION_SECONDS):
-                player = _player_for_action(state)
-                ensure_cards(player)
-                requested = BASE_ACTION_SECONDS if seconds == 45 else int(seconds)
-                _set_deadline(state, requested, source="base")
-                hand = state.get("hand") or {}
-                # Preserve Sit&Go turn-token renewal when present.
-                try:
-                    import sitngo_action_safety
-                    sitngo_action_safety._renew_turn_id(state)
-                except Exception:
-                    pass
-            server.arm_action_deadline = arm_action_deadline
-            server._jj_timebank_sng_deadline_installed = True
 
     async def tick(self, eid, *, now=None, recover=False):
         now = time.time() if now is None else float(now)
@@ -200,7 +180,6 @@ def install_sitngo(runtime_module) -> None:
 
         return await original_tick(self, eid, now=now, recover=False)
 
-    runtime_cls.__init__ = init
     runtime_cls.tick = tick
     runtime_cls._jj_timebank_installed = True
 
