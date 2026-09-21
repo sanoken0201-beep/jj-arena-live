@@ -30,6 +30,7 @@ import sitngo_runtime
 import sitngo_tournament_rules
 import sitngo_process_guard
 import sitngo_resilience
+import timebank_rules
 import read_efficiency
 
 # Configure the root-level Sit&Go extension before browser transforms bind the
@@ -153,6 +154,9 @@ def _action_timeout_seconds() -> int:
 def _poker_config(user=Depends(runtime_server.current_user)):
     return {
         "action_timeout_seconds": _action_timeout_seconds(),
+        "timebank_cards": timebank_rules.TIMEBANK_CARDS,
+        "timebank_card_seconds": timebank_rules.TIMEBANK_CARD_SECONDS,
+        "timebank_forced_use": True,
         "ranking_points_per_bb": 3,
         "rake_percent": 5,
         "rake_cap_bb": 3,
