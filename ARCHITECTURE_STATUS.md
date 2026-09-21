@@ -71,6 +71,8 @@ The canonical committed core is `materialized_v1244/`; the canonical served brow
 
 Stage 7B.2 removes the final unreferenced archive payloads `release_v14/`, `v18_assets/`, and `v54_patch.py`. They are no longer runtime, compatibility-builder, rollback, or active-test inputs; forensic reconstruction remains available through Git history. `app_legacy.py` and `runtime_builder.py` remain because the parity/emergency-rollback path still uses the verified `materialized_v1244` snapshot.
 
+The final pre-release repository cleanup also removes unreferenced one-off regressions (`smoke_test_account_delete.py`, `smoke_test_admin_route.py`, `smoke_test_learning_language.py`, `smoke_test_user_management.py`) and superseded transition/audit notes from earlier releases. Current behavior remains covered by the active suites and workflows; historical copies remain available through Git history rather than the working tree.
+
 ## Test ownership
 
 Stage 5 makes `test_suites.py` the enforceable source of truth for active regression ownership. Tests are grouped by operational concern:
