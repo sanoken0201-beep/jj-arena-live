@@ -30,6 +30,7 @@ import sitngo_runtime
 import sitngo_tournament_rules
 import sitngo_process_guard
 import sitngo_resilience
+import sitngo_action_safety
 import timebank_rules
 import read_efficiency
 
@@ -43,6 +44,9 @@ sitngo_tournament_rules.install(sitngo_runtime)
 sitngo_chip_rules.install(sitngo_runtime)
 sitngo_asset_cache.install()
 sitngo_resilience.install(sitngo_runtime)
+timebank_rules.install_ring(runtime_server, runtime_poker_engine)
+sitngo_action_safety.install(sitngo_runtime)
+timebank_rules.install_sitngo(sitngo_runtime)
 
 from served_assets import (
     ASSET_VERSION,
@@ -147,7 +151,7 @@ def _action_timeout_seconds() -> int:
         default = inspect.signature(runtime_server.arm_action_deadline).parameters["seconds"].default
         return max(1, int(default))
     except Exception:
-        return 45
+        return timebank_rules.BASE_ACTION_SECONDS
 
 
 @app.post("/api/poker-config")
