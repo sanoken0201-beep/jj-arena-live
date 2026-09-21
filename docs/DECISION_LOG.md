@@ -195,3 +195,15 @@ Player Sit&Go browser transforms are owned by the dependency-free `sitngo_browse
 **Status:** Accepted
 
 The production Sit&Go contract is broader than any single smoke test. `sitngo_acceptance.py` is the machine-readable traceability map from each adopted contract area to active Sit&Go regression evidence. The manifest does not replace behavioral tests; it prevents coverage ownership from drifting silently as tests are consolidated, renamed, added, or retired. A release-gated regression requires every active Sit&Go behavioral test to appear in that map, while browser-only evidence remains GitHub-only rather than entering Render's dependency-light release gate.
+
+## D-021 — Account deletion expires official points without erasing audit history
+
+**Date:** 2026-09-21  
+**Status:** Accepted
+
+A deleted member account no longer contributes to official JJ rankings. Point-ledger transactions and online-hand results remain stored for auditability, but rows tied to the deleted user ID are excluded from ranking aggregation rather than being destructively rewritten.
+
+Physical club entries are historically keyed by ranking name rather than user ID. Once an account generation for that ranking name is deleted, those name-keyed points are retired with it. A later same-name registration starts a new generation after the deletion boundary and must not inherit the deleted account's club, online or ledger points.
+
+This rule applies to accounts that were already tombstoned before the rule was introduced as well as future deletions. Raw records remain available for forensic review; point expiry is an aggregation rule, not data destruction.
+
