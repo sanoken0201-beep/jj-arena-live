@@ -140,9 +140,36 @@ def main() -> None:
         )
     )
     timed_out = runtime.load(eid)
+    require(timed_out.get("status") == "playing", "first timeout unexpectedly ended the hand")
+    require(timed_out["hand"].get("turn_id") == current_turn, "time bank must keep the same decision turn")
+    timed_actor = next(p for p in timed_out["seats"] if p["seat"] == timed_out["hand"]["action_seat"])
+    require(int(timed_actor.get("timebank_cards", -1)) == 2, "first timeout did not consume exactly one time-bank card")
+
+    for remaining in (1, 0):
+        bank_deadline = datetime.fromisoformat(timed_out["hand"]["action_deadline"]).timestamp()
+        asyncio.run(
+            runtime.tick(
+                eid,
+                now=bank_deadline + sitngo_action_safety.TIMEOUT_SETTLEMENT_GRACE_SECONDS + 1.0,
+            )
+        )
+        timed_out = runtime.load(eid)
+        require(timed_out.get("status") == "playing", "time-bank extension unexpectedly ended the hand")
+        require(timed_out["hand"].get("turn_id") == current_turn, "time-bank extension changed the decision turn")
+        timed_actor = next(p for p in timed_out["seats"] if p["seat"] == timed_out["hand"]["action_seat"])
+        require(int(timed_actor.get("timebank_cards", -1)) == remaining, "time-bank card count drifted")
+
+    final_deadline = datetime.fromisoformat(timed_out["hand"]["action_deadline"]).timestamp()
+    asyncio.run(
+        runtime.tick(
+            eid,
+            now=final_deadline + sitngo_action_safety.TIMEOUT_SETTLEMENT_GRACE_SECONDS + 1.0,
+        )
+    )
+    timed_out = runtime.load(eid)
     require(
         timed_out.get("status") != "playing" or timed_out["hand"].get("turn_id") != current_turn,
-        "timeout did not consume the expired turn",
+        "zero-card timeout did not force-fold the expired turn",
     )
 
     metrics=sitngo_observability.summary(db,days=7)["totals"]
