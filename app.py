@@ -10,7 +10,6 @@ parity oracle and rollback reference.
 """
 from __future__ import annotations
 
-import inspect
 from functools import lru_cache
 
 from fastapi import Depends, HTTPException
@@ -144,12 +143,8 @@ class _LeaveAfterHandIn(BaseModel):
 
 
 def _action_timeout_seconds() -> int:
-    """Read the actual server deadline default instead of duplicating 45 in UI."""
-    try:
-        default = inspect.signature(runtime_server.arm_action_deadline).parameters["seconds"].default
-        return max(1, int(default))
-    except Exception:
-        return timebank_rules.BASE_ACTION_SECONDS
+    """Expose the product-level decision clock, not a compatibility wrapper default."""
+    return timebank_rules.BASE_ACTION_SECONDS
 
 
 @app.post("/api/poker-config")
