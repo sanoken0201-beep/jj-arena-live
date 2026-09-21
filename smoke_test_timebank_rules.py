@@ -99,18 +99,21 @@ def ring_test():
     assert fresh["seats"][0]["timebank_cards_remaining"] == 3
     assert fresh["hand"]["action_clock_source"] == "base"
 
-    # First expiry must consume one card, never auto-check or fold.
+    # Three consecutive expiries consume all three cards. None may auto-check/fold.
     holder["state"] = state(3)
-    asyncio.run(one_ring_scan(server))
-    assert holder["state"]["seats"][0]["timebank_cards_remaining"] == 2
-    assert engine.actions == []
-    assert holder["state"]["hand"]["action_clock_source"] == "timebank"
-    extended = datetime.fromisoformat(holder["state"]["hand"]["action_deadline"])
-    remain = (extended - datetime.now(timezone.utc)).total_seconds()
-    assert 28 <= remain <= 31, remain
+    for expected in (2, 1, 0):
+        holder["state"]["hand"]["action_deadline"] = (datetime.now(timezone.utc) - timedelta(seconds=1)).isoformat()
+        asyncio.run(one_ring_scan(server))
+        assert holder["state"]["seats"][0]["timebank_cards_remaining"] == expected
+        assert engine.actions == []
+        assert holder["state"]["hand"]["action_clock_source"] == "timebank"
+        extended = datetime.fromisoformat(holder["state"]["hand"]["action_deadline"])
+        remain = (extended - datetime.now(timezone.utc)).total_seconds()
+        assert 28 <= remain <= 31, remain
 
-    # With no cards, the next expiry is a forced fold even though check is legal.
-    holder["state"] = state(0)
+    # After the third card has been used, the following 30s expiry is forced fold,
+    # even in a spot where checking would otherwise be legal.
+    holder["state"]["hand"]["action_deadline"] = (datetime.now(timezone.utc) - timedelta(seconds=1)).isoformat()
     asyncio.run(one_ring_scan(server))
     assert engine.actions[-1] == (7, "fold")
     assert holder["state"]["seats"][0]["folded"] is True
@@ -144,14 +147,15 @@ def sitngo_test():
     timebank_rules.install_sitngo(module)
     runtime = module.TournamentRuntime(server, engine, holder)
 
-    deadline = datetime.now(timezone.utc) - timedelta(seconds=1)
-    holder["state"]["hand"]["action_deadline"] = deadline.isoformat()
-    asyncio.run(runtime.tick("event-1", now=deadline.timestamp() + 1))
-    assert holder["state"]["seats"][0]["timebank_cards_remaining"] == 2
-    assert engine.actions == []
-    assert runtime.original_calls == 0
+    for expected in (2, 1, 0):
+        deadline = datetime.now(timezone.utc) - timedelta(seconds=1)
+        holder["state"]["hand"]["action_deadline"] = deadline.isoformat()
+        asyncio.run(runtime.tick("event-1", now=deadline.timestamp() + 1))
+        assert holder["state"]["seats"][0]["timebank_cards_remaining"] == expected
+        assert engine.actions == []
+        assert runtime.original_calls == 0
+        assert holder["state"]["hand"]["action_clock_source"] == "timebank"
 
-    holder["state"] = state(0)
     deadline = datetime.now(timezone.utc) - timedelta(seconds=1)
     holder["state"]["hand"]["action_deadline"] = deadline.isoformat()
     asyncio.run(runtime.tick("event-1", now=deadline.timestamp() + 1))
@@ -166,6 +170,22 @@ def persistence_test():
     assert player["timebank_cards_total"] == 3
 
 
+def source_and_browser_contract_test():
+    from pathlib import Path
+    import poker_simple
+
+    app_source = Path("app.py").read_text(encoding="utf-8")
+    assert "timebank_rules.install_ring(runtime_server, runtime_poker_engine)" in app_source
+    assert "sitngo_action_safety.install(sitngo_runtime)" in app_source
+    assert "timebank_rules.install_sitngo(sitngo_runtime)" in app_source
+
+    source = Path("materialized_v1244/static/app.js").read_text(encoding="utf-8")
+    transformed = poker_simple.transform_app_js(source)
+    assert "TIME BANK" in transformed
+    assert "timebank_cards_remaining" in transformed
+    assert "action_clock_source==='timebank'" in transformed
+
+
 def main():
     assert timebank_rules.BASE_ACTION_SECONDS == 30
     assert timebank_rules.TIMEBANK_CARD_SECONDS == 30
@@ -173,6 +193,7 @@ def main():
     ring_test()
     sitngo_test()
     persistence_test()
+    source_and_browser_contract_test()
     print("JJ_TIMEBANK_RULES_OK", flush=True)
 
 
