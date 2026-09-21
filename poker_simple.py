@@ -197,7 +197,7 @@ def transform_app_js(source: str) -> str:
     const deadline=tableState?.hand?.action_deadline;
     if(!deadline){el.textContent='';el.classList.remove('is-urgent');return}
     const sec=Math.max(0,Math.ceil((new Date(deadline)-new Date())/1000));
-    el.textContent=\`残り ${sec}秒\`;
+    el.textContent=`残り ${sec}秒`;
     el.classList.toggle('is-urgent',sec<=10);
   }""",
         """  function jjV186TickActionClock(){
@@ -206,7 +206,7 @@ def transform_app_js(source: str) -> str:
     if(!deadline){el.textContent='';el.classList.remove('is-urgent');return}
     const sec=Math.max(0,Math.ceil((new Date(deadline)-new Date())/1000));
     const using=tableState?.hand?.action_clock_source==='timebank';
-    el.textContent=using?\`TIME BANK · ${sec}秒\`:\`残り ${sec}秒\`;
+    el.textContent=using?`TIME BANK · ${sec}秒`:`残り ${sec}秒`;
     el.classList.toggle('is-urgent',sec<=10);
   }""",
     )
