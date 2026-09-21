@@ -190,16 +190,17 @@ def transform_app_js(source: str) -> str:
     source = once(source,
         "jjV2Connection.mode='idle';jjV2Connection.fresh=false;jjV2Connection.lastStateAt=0;jjV2RenderConnection();",
         "jjV2Connection.mode='idle';jjV2Connection.fresh=false;jjV2Connection.lastStateAt=0;jjV2RenderConnection();document.body.classList.remove('jj-poker-simple');")
-    source = once(source,
-        `  function jjV186TickActionClock(){
+    source = once(
+        source,
+        """  function jjV186TickActionClock(){
     const el=$('#jjActionClock');if(!el)return;
     const deadline=tableState?.hand?.action_deadline;
     if(!deadline){el.textContent='';el.classList.remove('is-urgent');return}
     const sec=Math.max(0,Math.ceil((new Date(deadline)-new Date())/1000));
     el.textContent=\`残り ${sec}秒\`;
     el.classList.toggle('is-urgent',sec<=10);
-  }`,
-        `  function jjV186TickActionClock(){
+  }""",
+        """  function jjV186TickActionClock(){
     const el=$('#jjActionClock');if(!el)return;
     const deadline=tableState?.hand?.action_deadline;
     if(!deadline){el.textContent='';el.classList.remove('is-urgent');return}
@@ -207,7 +208,8 @@ def transform_app_js(source: str) -> str:
     const using=tableState?.hand?.action_clock_source==='timebank';
     el.textContent=using?\`TIME BANK · ${sec}秒\`:\`残り ${sec}秒\`;
     el.classList.toggle('is-urgent',sec<=10);
-  }`)
+  }""",
+    )
     source = once(source,
         "  // Desktop bet markers use explicit poker-table lanes rather than the old\n",
         HELPERS + "\n  // Desktop bet markers use explicit poker-table lanes rather than the old\n")
