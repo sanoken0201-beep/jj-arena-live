@@ -223,3 +223,9 @@ When no cards remain, expiry of the 30-second decision window forces a fold even
 **Status:** Accepted
 
 Manual point credit/collection requires a client request ID scoped to the administrator. Its canonical payload and response are stored in the same transaction as the ledger and audit row. Concurrent/repeated requests return the original response; reusing an ID with different content is rejected. Missing IDs fail closed, so stale admin clients must reload. The browser retains unresolved operations in account-scoped session storage, including across reloads. Reversal auditing shares the reversal/claim transaction as well. Historical ledger rows are not rewritten.
+
+## D-024 — Ring decisions require current hand, turn and timely arrival
+
+Ring action requests carry hand_id, turn_id and action_id. The server rejects stale or late decisions and scopes replay receipts to the actor. Receipt and game state persist together. An action received before the deadline may finish after waiting for the table lock; the timeout loop defers consumption only for that actor and turn. Existing 30-second decisions and three mandatory 30-second cards remain unchanged. Persisted pre-release hands receive deterministic public turn tokens until their next transition. Browser assets use a new cache revision.
+
+Validation: Ring API regression covers missing/stale identity, late actions, actor-scoped retries, persisted legacy hands, queued arrival and timebank consumption. Existing timebank, Sit&Go safety and member journey tests also pass.

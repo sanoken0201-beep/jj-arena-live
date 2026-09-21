@@ -79,6 +79,10 @@ def install_ring(server, engine) -> None:
                             and deadline_raw
                             and datetime.now(timezone.utc) >= datetime.fromisoformat(deadline_raw)
                         ):
+                            from ring_action_safety import pending_before_deadline
+                            deadline_epoch = datetime.fromisoformat(deadline_raw).timestamp()
+                            if pending_before_deadline(server, state, deadline_epoch):
+                                continue
                             player = _player_for_action(state)
                             if player:
                                 ensure_cards(player)
