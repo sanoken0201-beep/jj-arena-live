@@ -16,7 +16,7 @@ from pathlib import Path
 from poker_client_cleanup import remove_fast_fold
 
 MARKER = "v75 canonical browser output 2026-09-17"
-CACHE_QUERY = "r=sitngo-playable-20260916-2"
+CACHE_QUERY = "r=timebank-20260921-1"
 
 
 def _digest(value: str) -> str:
