@@ -7,7 +7,8 @@ MARKER = "v70 simple poker table and action recovery"
 HELPERS = r'''  // v70 simple poker table and action recovery
   function jjV7HeroMarkup(hero,l){
     const cards=(hero?.cards||[]).map(cardHTML).join('');
-    return '<div class="jj-v7-hero-strip"><div class="jj-v7-hand" aria-label="自分の手札">'+(cards||'<span class="hint">手札待ち</span>')+'</div><div class="jj-v7-stack"><span>持ち点</span><strong>'+safe(bb(hero?.stack||0))+'</strong></div><strong id="jjActionClock" class="jj-action-clock" aria-live="polite"></strong></div>';
+    const tb=Math.max(0,Math.min(3,Number(hero?.timebank_cards??3))),bank=Array.from({length:3},(_,i)=>'<span class="'+(i<tb?'is-live':'is-used')+'"></span>').join('');
+    return '<div class="jj-v7-hero-strip"><div class="jj-v7-hand" aria-label="自分の手札">'+(cards||'<span class="hint">手札待ち</span>')+'</div><div class="jj-v7-stack"><span>持ち点</span><strong>'+safe(bb(hero?.stack||0))+'</strong></div><div class="jj-v7-timebank" aria-label="タイムバンク残り'+tb+'枚"><small>TIME BANK</small><span class="jj-v7-timebank-cards">'+bank+'</span></div><strong id="jjActionClock" class="jj-action-clock" aria-live="polite"></strong></div>';
   }
   function jjV7Chrome(){
     const active=!!currentTableId&&!!tableState;
@@ -60,6 +61,11 @@ body.jj-poker-simple #actionBar .jj-v7-hand{display:flex;align-items:center;gap:
 body.jj-poker-simple #actionBar .jj-v7-hand .card-face{display:inline-flex!important;position:relative!important;inset:auto!important;transform:none!important;opacity:1!important;width:36px!important;height:48px!important;min-height:48px!important;font-size:17px!important;border-radius:6px!important}
 body.jj-poker-simple #actionBar .jj-v7-stack span{display:block;color:#a9bbb1;font-size:10px}
 body.jj-poker-simple #actionBar .jj-v7-stack strong{font-size:15px}
+body.jj-poker-simple #actionBar .jj-v7-timebank{display:grid;gap:2px;align-items:center}
+body.jj-poker-simple #actionBar .jj-v7-timebank small{font-size:9px;color:#a9bbb1;letter-spacing:.04em}
+body.jj-poker-simple #actionBar .jj-v7-timebank-cards{display:flex;gap:3px}
+body.jj-poker-simple #actionBar .jj-v7-timebank-cards span{display:block;width:13px;height:9px;border:1px solid currentColor;border-radius:2px}
+body.jj-poker-simple #actionBar .jj-v7-timebank-cards .is-used{opacity:.22}
 body.jj-poker-simple #actionBar .jj-action-clock{margin-left:auto!important;font-size:12px!important}
 body.jj-poker-simple #actionBar .jj-main-actions .jj-action-btn>small{display:none!important}
 body.jj-poker-simple #actionBar .jj-main-actions .jj-confirm-allin>small{display:block!important}
