@@ -7,7 +7,8 @@ MARKER = "v70 simple poker table and action recovery"
 HELPERS = r'''  // v70 simple poker table and action recovery
   function jjV7HeroMarkup(hero,l){
     const cards=(hero?.cards||[]).map(cardHTML).join('');
-    return '<div class="jj-v7-hero-strip"><div class="jj-v7-hand" aria-label="自分の手札">'+(cards||'<span class="hint">手札待ち</span>')+'</div><div class="jj-v7-stack"><span>持ち点</span><strong>'+safe(bb(hero?.stack||0))+'</strong></div><strong id="jjActionClock" class="jj-action-clock" aria-live="polite"></strong></div>';
+    const timebank=Math.max(0,Number(hero?.timebank_cards_remaining??3));
+    return '<div class="jj-v7-hero-strip"><div class="jj-v7-hand" aria-label="自分の手札">'+(cards||'<span class="hint">手札待ち</span>')+'</div><div class="jj-v7-stack"><span>持ち点</span><strong>'+safe(bb(hero?.stack||0))+'</strong></div><div class="jj-v7-timebank" aria-label="タイムバンク残り"><span>TIME BANK</span><strong>×'+timebank+'</strong></div><strong id="jjActionClock" class="jj-action-clock" aria-live="polite"></strong></div>';
   }
   function jjV7Chrome(){
     const active=!!currentTableId&&!!tableState;
@@ -26,6 +27,14 @@ HELPERS = r'''  // v70 simple poker table and action recovery
     if(menu?.open&&(!menu.contains(e.target)||e.target.closest('button')))menu.open=false;
   });
   document.addEventListener('keydown',e=>{if(e.key==='Escape'){const menu=$('#jjV7Menu');if(menu)menu.open=false;jjV4CloseSide()}});
+  function jjV7TimebankClock(){
+    const el=$('#jjActionClock');if(!el)return;
+    const deadline=tableState?.hand?.action_deadline;if(!deadline)return;
+    const sec=Math.max(0,Math.ceil((new Date(deadline)-new Date())/1000));
+    const using=tableState?.hand?.action_clock_source==='timebank';
+    el.textContent=(using?'TIME BANK · ':'残り ')+sec+'秒';
+  }
+  window.setInterval(jjV7TimebankClock,250);
 '''
 CSS = r'''
 /* v70 simple poker table and action recovery */
@@ -60,6 +69,9 @@ body.jj-poker-simple #actionBar .jj-v7-hand{display:flex;align-items:center;gap:
 body.jj-poker-simple #actionBar .jj-v7-hand .card-face{display:inline-flex!important;position:relative!important;inset:auto!important;transform:none!important;opacity:1!important;width:36px!important;height:48px!important;min-height:48px!important;font-size:17px!important;border-radius:6px!important}
 body.jj-poker-simple #actionBar .jj-v7-stack span{display:block;color:#a9bbb1;font-size:10px}
 body.jj-poker-simple #actionBar .jj-v7-stack strong{font-size:15px}
+body.jj-poker-simple #actionBar .jj-v7-timebank{display:flex;align-items:baseline;gap:5px;padding:4px 7px;border:1px solid #43564c;border-radius:8px}
+body.jj-poker-simple #actionBar .jj-v7-timebank span{font-size:9px;color:#a9bbb1;letter-spacing:.04em}
+body.jj-poker-simple #actionBar .jj-v7-timebank strong{font-size:14px}
 body.jj-poker-simple #actionBar .jj-action-clock{margin-left:auto!important;font-size:12px!important}
 body.jj-poker-simple #actionBar .jj-main-actions .jj-action-btn>small{display:none!important}
 body.jj-poker-simple #actionBar .jj-main-actions .jj-confirm-allin>small{display:block!important}
