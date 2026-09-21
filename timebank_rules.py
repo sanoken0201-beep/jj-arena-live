@@ -167,6 +167,11 @@ def install_sitngo(runtime_module) -> None:
                                     self.save(state)
                                     await s.hub.broadcast(eid)
                                     return now + TIMEBANK_CARD_SECONDS + grace
+                                try:
+                                    import sitngo_observability
+                                    sitngo_observability.record(self.db, "timeout_auto_action")
+                                except Exception:
+                                    pass
                                 self.engine.apply_action(state, player["user_id"], "fold")
                                 if state.get("hand"):
                                     state["hand"].setdefault("log", []).append(
