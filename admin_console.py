@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import json, math, re, uuid
+import sys
+import admin_point_safety
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -19,9 +21,10 @@ class AdminUserPatch(BaseModel):
     admin_note: str|None=Field(default=None,max_length=1000)
 
 class AdminPointIn(BaseModel):
+    request_id:str=Field(min_length=16,max_length=80,pattern=r"^[A-Za-z0-9_-]+$")
     user_id:int=Field(gt=0)
     direction:str=Field(min_length=3,max_length=20)
-    amount:float=Field(gt=0)
+    amount:float=Field(gt=0,allow_inf_nan=False)
     reason:str=Field(min_length=2,max_length=500)
     effective_at:str|None=Field(default=None,max_length=40)
 
@@ -78,8 +81,14 @@ def _set(db,key,value,actor):
             con.execute("UPDATE app_settings SET value=?,updated_by=?,updated_at=? WHERE key=?",(value,actor,_now(db),key))
         else:con.execute("INSERT INTO app_settings(key,value,updated_by,updated_at) VALUES (?,?,?,?)",(key,value,actor,_now(db)))
 
-def _audit(db,actor,action,target=None,**detail):
-    with db.connect() as con:con.execute("INSERT INTO admin_audit_log(actor_id,action,target_user_id,detail_json,created_at) VALUES (?,?,?,?,?)",(actor,action,target,json.dumps(detail,ensure_ascii=False,separators=(",",":")),_now(db)))
+def _audit(db,actor,action,target=None,*,con=None,**detail):
+    params=(actor,action,target,json.dumps(detail,ensure_ascii=False,separators=(",",":")),_now(db))
+    sql="INSERT INTO admin_audit_log(actor_id,action,target_user_id,detail_json,created_at) VALUES (?,?,?,?,?)"
+    if con is not None:
+        con.execute(sql,params)
+    else:
+        with db.connect() as connection:connection.execute(sql,params)
+
 
 def _revoke(db,uid):
     if hasattr(db,"delete_user_sessions"):db.delete_user_sessions(uid)
@@ -272,15 +281,7 @@ def install_admin_console(app):
 
     @app.post("/api/admin/console/points")
     def point(p:AdminPointIn,user=Depends(server.admin_user)):
-        direction=p.direction.strip().lower()
-        if direction not in {"credit","debit"}:raise HTTPException(400,"direction must be credit or debit")
-        cap=float(_get(db,"manual_adjustment_limit","100000"));amount=_pt(p.amount)
-        if amount<=0 or amount>cap:raise HTTPException(400,f"1回の操作は0より大きく{cap:g}pt以下にしてください")
-        signed=amount if direction=="credit" else -amount;effective=_effective(p.effective_at,db)
-        with db.connect() as con:
-            if not con.execute("SELECT 1 FROM users WHERE id=?",(p.user_id,)).fetchone():raise HTTPException(404,"user not found")
-            tx="pt-"+uuid.uuid4().hex;con.execute("INSERT INTO point_ledger(id,user_id,amount,kind,reason,effective_at,created_by,created_at,reversal_of) VALUES (?,?,?,?,?,?,?,?,NULL)",(tx,p.user_id,signed,"credit" if signed>0 else "collection",p.reason.strip(),effective,user["id"],_now(db)))
-        _audit(db,int(user["id"]),"point.credit" if signed>0 else "point.collection",p.user_id,transaction_id=tx,amount=signed,reason=p.reason.strip(),effective_at=effective);return {"id":tx,"user_id":p.user_id,"amount":signed,"effective_at":effective}
+        return admin_point_safety.apply_point(db,sys.modules[__name__],p,user)
 
     @app.post("/api/admin/console/points/{txid}/reverse")
     def reverse(txid:str,user=Depends(server.admin_user)):

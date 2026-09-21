@@ -6,9 +6,9 @@
   const safe=v=>String(v??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
   const dt=v=>{if(!v)return '—';const d=new Date(v);return Number.isNaN(d.getTime())?String(v):new Intl.DateTimeFormat('ja-JP',{month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'}).format(d)};
   const isoLocal=()=>{const d=new Date();d.setMinutes(d.getMinutes()-d.getTimezoneOffset());return d.toISOString().slice(0,16)};
-  let toastTimer;
+  let toastTimer, pointRequests;
   function toast(msg){const el=$('#toast');el.textContent=msg;el.classList.add('show');clearTimeout(toastTimer);toastTimer=setTimeout(()=>el.classList.remove('show'),2600)}
-  async function api(path,options={}){const opts={credentials:'include',...options,headers:{'Content-Type':'application/json',...(options.headers||{})}};const res=await fetch('/api'+path,opts);let data=null;try{data=await res.json()}catch{}if(!res.ok){if(res.status===401){location.href='/';throw new Error('ログインが必要です')}throw new Error(data?.detail||`HTTP ${res.status}`)}return data}
+  async function api(path,options={}){const opts={credentials:'include',...options,headers:{'Content-Type':'application/json',...(options.headers||{})}};const res=await fetch('/api'+path,opts);let data=null;try{data=await res.json()}catch{}if(!res.ok){if(res.status===401){location.href='/';throw new Error('ログインが必要です')}throw Object.assign(new Error(typeof data?.detail==='string'?data.detail:`HTTP ${res.status}`),{status:res.status})}return data}
   const post=(p,b)=>api(p,{method:'POST',body:JSON.stringify(b??{})}),patch=(p,b)=>api(p,{method:'PATCH',body:JSON.stringify(b??{})});
   function setView(view){if(!titles[view])return;state.view=view;$('#pageTitle').textContent=titles[view];$$('.view').forEach(v=>v.classList.toggle('active',v.id===view+'View'));$$('[data-view]').forEach(b=>b.classList.toggle('active',b.dataset.view===view));history.replaceState(null,'','#'+view);if(view==='users')loadUsers();if(view==='points')loadLedger();if(view==='settings')loadSettings();if(view==='audit')loadAudit();window.scrollTo({top:0,behavior:'smooth'})}
   function actionLabel(a){return ({'user.update':'アカウント更新','user.sessions_revoke':'セッション失効','user.pin_reset':'PINリセット','point.credit':'ポイント振込','point.collection':'ポイント回収','point.reverse':'ポイント取消','settings.update':'制度設定変更'})[a]||a}
@@ -29,9 +29,40 @@
     let searchTimer;$('#userSearch').addEventListener('input',()=>{clearTimeout(searchTimer);searchTimer=setTimeout(loadUsers,220)});$('#showDisabled').addEventListener('change',loadUsers);$('#refreshUsers').addEventListener('click',loadUsers);
     document.addEventListener('click',async e=>{const edit=e.target.closest('[data-user-edit]');if(edit)return openUser(edit.dataset.userEdit);const toggle=e.target.closest('[data-toggle-disabled]');if(toggle){const id=Number(toggle.dataset.toggleDisabled),disabled=toggle.dataset.next==='1';if(disabled&&!confirm('このアカウントを利用停止にします。既存セッションも失効します。'))return;try{await patch(`/admin/console/users/${id}`,{disabled});toast(disabled?'利用停止にしました':'利用を再開しました');$('#userDialog').close();await loadUsers();await loadOverview()}catch(err){toast(err.message)}return}const reset=e.target.closest('[data-reset-pin]');if(reset){const pin=prompt('新しい6桁PINを入力してください');if(!pin)return;if(!/^\d{6}$/.test(pin))return toast('PINは6桁の数字です');if(!confirm('PINをリセットすると、そのユーザーの既存セッションは失効します。続行しますか？'))return;try{await post(`/admin/console/users/${reset.dataset.resetPin}/reset-pin`,{pin});toast('PINをリセットしました');$('#userDialog').close();await loadUsers()}catch(err){toast(err.message)}return}const revoke=e.target.closest('[data-revoke]');if(revoke){if(!confirm('このユーザーを全端末からログアウトさせますか？'))return;try{await post(`/admin/console/users/${revoke.dataset.revoke}/revoke-sessions`,{});toast('全セッションを失効しました');$('#userDialog').close();await loadUsers()}catch(err){toast(err.message)}return}const rev=e.target.closest('[data-reverse]');if(rev){if(!confirm('このポイント取引を取消しますか？ 元データは削除せず、反対取引を追加します。'))return;try{await post(`/admin/console/points/${rev.dataset.reverse}/reverse`,{});toast('取消取引を記録しました');await Promise.all([loadLedger(),loadUsers(),loadOverview()])}catch(err){toast(err.message)}}});
     $('#closeUserDialog').addEventListener('click',()=>$('#userDialog').close());$('#userDialog').addEventListener('click',e=>{if(e.target===$('#userDialog'))$('#userDialog').close()});$('#userDialog').addEventListener('submit',async e=>{if(e.target.id!=='userEditForm')return;e.preventDefault();const fd=new FormData(e.target),id=Number(e.target.dataset.userId);try{await patch(`/admin/console/users/${id}`,{ranking_name:String(fd.get('ranking_name')||'').trim(),club_verified:fd.get('club_verified')==='on',admin_note:String(fd.get('admin_note')||'')});toast('アカウント情報を保存しました');$('#userDialog').close();await Promise.all([loadUsers(),loadOverview()])}catch(err){toast(err.message)}});
-    $$('.direction button').forEach(b=>b.addEventListener('click',()=>{state.direction=b.dataset.direction;$$('.direction button').forEach(x=>x.classList.toggle('active',x===b));updatePointPreview()}));$('#pointAmount').addEventListener('input',updatePointPreview);$('#pointEffective').value=isoLocal();$('#pointForm').addEventListener('submit',async e=>{e.preventDefault();const uid=Number($('#pointUser').value),amount=Number($('#pointAmount').value),reason=$('#pointReason').value.trim(),effective=$('#pointEffective').value;if(!uid)return toast('対象アカウントを選択してください');const verb=state.direction==='credit'?'振込':'回収',target=state.users.find(u=>u.id===uid);if(!confirm(`${target?.name||'対象'} に ${fmt(amount)}pt を${verb}します。よろしいですか？`))return;try{await post('/admin/console/points',{user_id:uid,direction:state.direction,amount,reason,effective_at:effective});toast(`ポイントを${verb}しました`);$('#pointAmount').value='';$('#pointReason').value='';$('#pointEffective').value=isoLocal();updatePointPreview();await Promise.all([loadLedger(),loadUsers(),loadOverview()])}catch(err){toast(err.message)}});
+    $$('.direction button').forEach(b=>b.addEventListener('click',()=>{state.direction=b.dataset.direction;$$('.direction button').forEach(x=>x.classList.toggle('active',x===b));updatePointPreview()}));$('#pointAmount').addEventListener('input',updatePointPreview);$('#pointEffective').value=isoLocal();$('#pointForm').addEventListener('submit',submitPoints);
     $('#refreshLedger').addEventListener('click',loadLedger);$('#exportLedger').addEventListener('click',()=>downloadCsv(`jj-point-ledger-${new Date().toISOString().slice(0,10)}.csv`,state.ledger));$('#exportUsers').addEventListener('click',()=>downloadCsv(`jj-accounts-${new Date().toISOString().slice(0,10)}.csv`,state.users));$('#settingsForm').addEventListener('submit',async e=>{e.preventDefault();const body={online_points_per_bb:Number($('#settingRate').value),manual_adjustment_limit:Number($('#settingLimit').value)};if(!confirm(`オンライン換算を 1bb=${body.online_points_per_bb}pt に設定します。過去結果は変更しません。続行しますか？`))return;try{state.settings=await patch('/admin/console/settings',body);toast('制度設定を保存しました');await Promise.all([loadSettings(),loadOverview()])}catch(err){toast(err.message)}});$('#refreshAudit').addEventListener('click',loadAudit)
   }
-  async function init(){try{state.me=await api('/me');if(state.me.role!=='admin')throw new Error('管理者権限が必要です');$('#adminName').textContent=state.me.name;bind();const hash=location.hash.replace('#','');setView(titles[hash]?hash:'dashboard');await Promise.all([loadOverview(),loadUsers(),loadSettings()]);if(state.view==='points')await loadLedger();if(state.view==='audit')await loadAudit();updatePointPreview()}catch(err){document.body.innerHTML=`<main style="max-width:560px;margin:12vh auto;padding:24px;font-family:system-ui"><h1>Admin Console</h1><p>${safe(err.message)}</p><p><a href="/">JJ Arenaへ戻る</a></p></main>`}}
+  function restorePendingPoints(){
+    const pending=pointRequests.pending();if(!pending)return;
+    $('#pointUser').value=String(pending.user_id);$('#pointAmount').value=pending.amount;
+    $('#pointReason').value=pending.reason;$('#pointEffective').value=pending.effective_at;
+    state.direction=pending.direction;
+    $$('.direction button').forEach(b=>b.classList.toggle('active',b.dataset.direction===state.direction));
+    updatePointPreview();toast('前回のポイント操作が未確認です。内容を復元しました。再送して結果を確認できます。');
+  }
+  async function submitPoints(e){
+    e.preventDefault();const form=e.currentTarget;if(form.dataset.submitting)return;
+    const body={user_id:Number($('#pointUser').value),direction:state.direction,
+      amount:Number($('#pointAmount').value),reason:$('#pointReason').value.trim(),effective_at:$('#pointEffective').value};
+    if(!body.user_id)return toast('対象アカウントを選択してください');
+    const verb=body.direction==='credit'?'付与':'回収',target=state.users.find(u=>u.id===body.user_id);
+    if(!confirm(`${target?.name||'対象'} に ${fmt(body.amount)}pt を${verb}します。よろしいですか？`))return;
+    form.dataset.submitting='1';const buttons=[...form.querySelectorAll('button')];buttons.forEach(b=>b.disabled=true);
+    let succeeded=false;
+    try{
+      const request=pointRequests.prepare(body);
+      await post('/admin/console/points',request);succeeded=true;
+      pointRequests.complete();
+      $('#pointAmount').value='';$('#pointReason').value='';$('#pointEffective').value=isoLocal();updatePointPreview();
+      toast(`ポイントを${verb}しました`);
+      try{await Promise.all([loadLedger(),loadUsers(),loadOverview()])}
+      catch{toast('ポイント処理は完了しました。一覧を更新してください。')}
+    }catch(err){
+      if(!succeeded&&[400,403,404,422].includes(err.status))pointRequests.complete();
+      toast(succeeded?'ポイント処理は完了しました。画面を再読み込みしてください。':err.message);
+      if(!succeeded&&pointRequests.pending())restorePendingPoints();
+    }finally{delete form.dataset.submitting;buttons.forEach(b=>b.disabled=false)}
+  }
+  async function init(){try{state.me=await api('/me');if(state.me.role!=='admin')throw new Error('管理者権限が必要です');$('#adminName').textContent=state.me.name;pointRequests=jjPointRequests(sessionStorage,state.me.id,()=>crypto.randomUUID());bind();const hash=location.hash.replace('#','');setView(titles[hash]?hash:'dashboard');await Promise.all([loadOverview(),loadUsers(),loadSettings()]);if(state.view==='points')await loadLedger();if(state.view==='audit')await loadAudit();updatePointPreview();restorePendingPoints()}catch(err){document.body.innerHTML=`<main style="max-width:560px;margin:12vh auto;padding:24px;font-family:system-ui"><h1>Admin Console</h1><p>${safe(err.message)}</p><p><a href="/">JJ Arenaへ戻る</a></p></main>`}}
   init();
 })();

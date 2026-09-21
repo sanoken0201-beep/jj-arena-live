@@ -1,0 +1,16 @@
+const assert=require('node:assert/strict');
+const pointRequests=require('./admin_static/admin_point_requests.js');
+const values=new Map();const storage={getItem:k=>values.get(k)||null,setItem:(k,v)=>values.set(k,v),removeItem:k=>values.delete(k)};
+let n=0;const id=()=>`request-${++n}`;
+const body={user_id:7,direction:'credit',amount:100,reason:'test',effective_at:''};
+const a=pointRequests(storage,1,id);const request=a.prepare(body);
+assert.deepEqual(a.prepare(body),request);
+const reload=pointRequests(storage,1,id);
+assert.deepEqual(reload.pending(),request);
+assert.deepEqual(reload.prepare(body),request);
+assert.throws(()=>reload.prepare({...body,amount:200}));
+assert.equal(pointRequests(storage,2,id).pending(),null);
+reload.complete();assert.notEqual(reload.prepare(body).request_id,request.request_id);
+const broken=pointRequests({...storage,setItem(){throw Error('unavailable')}},3,id);
+assert.throws(()=>broken.prepare(body));
+console.log('JJ_ADMIN_POINT_REQUESTS_OK replay/reload/conflict/account/storage');

@@ -3,7 +3,7 @@ import re
 from pathlib import Path
 
 
-ADMIN_ASSET_VERSION = "126"
+ADMIN_ASSET_VERSION = "127"
 
 
 def apply(static_dir: Path) -> None:
@@ -98,20 +98,8 @@ def _js(p: Path) -> None:
             raise RuntimeError('admin CSV safety anchor missing')
         s=s.replace(old_csv,new_csv,1)
 
-    # Prevent an accidental fast double-submit from creating two independent
-    # point-ledger transactions. Unsafe gateway requests are never retried, so
-    # one in-flight form submission is the correct browser-side boundary.
-    point_start="$('#pointForm').addEventListener('submit',async e=>{e.preventDefault();const uid="
-    point_start_new="$('#pointForm').addEventListener('submit',async e=>{e.preventDefault();const form=e.currentTarget;if(form.dataset.jjSubmitting==='1')return;form.dataset.jjSubmitting='1';const submit=form.querySelector('button[type=\"submit\"],button:not([type])');if(submit)submit.disabled=true;const uid="
-    if point_start_new not in s:
-        if s.count(point_start)!=1:
-            raise RuntimeError('admin point submit start anchor missing')
-        s=s.replace(point_start,point_start_new,1)
-    point_end="catch(err){toast(err.message)}});\n    $('#refreshLedger')"
-    point_end_new="catch(err){toast(err.message)}finally{delete form.dataset.jjSubmitting;if(submit&&submit.isConnected)submit.disabled=false}});\n    $('#refreshLedger')"
-    if point_end_new not in s:
-        if s.count(point_end)!=1:
-            raise RuntimeError('admin point submit end anchor missing')
-        s=s.replace(point_end,point_end_new,1)
+    # The committed submitPoints handler owns in-flight and retry safety.
+    if "async function submitPoints(e)" not in s:
+        raise RuntimeError('canonical admin point submit handler missing')
 
     p.write_text(s,encoding='utf-8')
