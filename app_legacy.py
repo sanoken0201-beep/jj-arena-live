@@ -13,7 +13,6 @@ import sys
 from pathlib import Path
 
 import admin_api_consolidation
-import admin_copy_patch
 import admin_ledger_stabilization
 import admin_pin_verification
 import hand_analytics
@@ -31,7 +30,6 @@ from runtime_builder import build_runtime
 
 ROOT = Path(__file__).resolve().parent
 DEST = build_runtime()
-admin_copy_patch.apply(ROOT / "admin_static")
 
 # Legacy email/password bootstrap variables are not part of the current PIN
 # authentication model. Neutralize them before importing the reconstructed app.

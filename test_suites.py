@@ -15,6 +15,8 @@ from pathlib import Path
 
 TEST_SUITES: dict[str, tuple[str, ...]] = {
     "auth_security": (
+        "smoke_test_response_security.py",
+        "smoke_test_admin_startup_immutable.py",
         "smoke_test_auth_hardening.py",
         "smoke_test_websocket_auth.py",
         "smoke_test_public_proxy_security.py",
