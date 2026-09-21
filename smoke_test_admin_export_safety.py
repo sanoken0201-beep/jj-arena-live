@@ -26,11 +26,11 @@ def main() -> None:
 
         # Manual point adjustments are accounting mutations: only one request
         # may be in flight from the form at a time, including on failure paths.
-        assert "form.dataset.jjSubmitting==='1'" in js
-        assert "form.dataset.jjSubmitting='1'" in js
-        assert "submit.disabled=true" in js
-        assert "delete form.dataset.jjSubmitting" in js
-        assert "submit.disabled=false" in js
+        assert "if(form.dataset.submitting)return" in js
+        assert "form.dataset.submitting='1'" in js
+        assert "buttons.forEach(b=>b.disabled=true)" in js
+        assert "delete form.dataset.submitting" in js
+        assert "buttons.forEach(b=>b.disabled=false)" in js
 
     print("JJ_ADMIN_EXPORT_SAFETY_OK")
 

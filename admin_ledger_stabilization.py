@@ -129,6 +129,8 @@ def install(app, admin_console) -> None:
     import server
 
     _ensure_reversal_claims(db)
+    import admin_point_safety
+    admin_point_safety.ensure_schema(db)
     original_rankings = admin_console._rankings
 
     def rankings(db_module, server_module, month=None, season="fall"):
@@ -301,15 +303,16 @@ def install(app, admin_console) -> None:
                     txid,
                 ),
             )
-        admin_console._audit(
-            db,
-            int(user["id"]),
-            "point.reverse",
-            int(original["user_id"]),
-            transaction_id=reversal_id,
-            reversal_of=txid,
-            amount=amount,
-        )
+            admin_console._audit(
+                db,
+                int(user["id"]),
+                "point.reverse",
+                int(original["user_id"]),
+                transaction_id=reversal_id,
+                reversal_of=txid,
+                amount=amount,
+                con=con,
+            )
         return {"id": reversal_id, "reversal_of": txid, "amount": amount}
 
     app.add_api_route("/api/admin/console/overview", overview, methods=["GET"], name="admin_overview_v190")

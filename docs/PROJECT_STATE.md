@@ -101,6 +101,8 @@ Never place admin PINs, credentials, secrets or production session material in G
 
 ## 8. Official points and ranking invariants
 
+Manual administrator point writes require a client request ID. Retries return the original result, and request receipt, ledger entry and audit record commit together. The admin browser retains unresolved operations across reloads; clients without request IDs must refresh. Reversal audit records also commit with their ledger/claim rows.
+
 Official JJ points are an auditable ledger-backed system. Do not directly overwrite point history as a shortcut.
 
 Deleting a member account expires that account's official ranking points without deleting the underlying forensic history. Ledger and online-hand rows tied to the deleted user ID remain stored but are excluded from official ranking aggregation. Name-keyed club entries from the deleted account generation are likewise excluded; if the same ranking name is registered again, only the new account generation contributes, so the new account starts from zero rather than inheriting the deleted account's points.

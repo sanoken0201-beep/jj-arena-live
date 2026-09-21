@@ -236,7 +236,7 @@ def run() -> None:
             json_response(admin.post(reset_url, json={"pin": "345678"}))
             json_response(other.get("/api/me"), 401)
             login(other, second["name"], "345678")
-            credit = {"user_id": second_uid, "direction": "credit", "amount": 5,
+            credit = {"request_id": "learning-credit-0001", "user_id": second_uid, "direction": "credit", "amount": 5,
                       "reason": "回帰テスト", "effective_at": "2026-09-10T12:00:00+00:00"}
             json_response(other.post("/api/admin/console/points", json=credit), 403)
             invalid_credit = json_response(admin.post("/api/admin/console/points", json={**credit, "amount": -1}), 422)

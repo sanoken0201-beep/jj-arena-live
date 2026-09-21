@@ -215,3 +215,11 @@ This rule applies to accounts that were already tombstoned before the rule was i
 Every Ring and Sit&Go decision receives a 30-second base action window. Each participant receives three timebank cards for the duration of that seating/tournament participation. When a decision deadline expires, a remaining card is consumed automatically and grants exactly 30 more seconds; players cannot choose to preserve a card by declining its use. Cards persist across hands and are not replenished until a new participation begins.
 
 When no cards remain, expiry of the 30-second decision window forces a fold even if check is a legal poker action. Timeout settlement remains server-owned, and Sit&Go boundary protection for an action received before the deadline continues to take precedence over automatic timeout settlement.
+
+
+## D-023 — Manual point requests are idempotent and audit-atomic
+
+**Date:** 2026-09-21  
+**Status:** Accepted
+
+Manual point credit/collection requires a client request ID scoped to the administrator. Its canonical payload and response are stored in the same transaction as the ledger and audit row. Concurrent/repeated requests return the original response; reusing an ID with different content is rejected. Missing IDs fail closed, so stale admin clients must reload. The browser retains unresolved operations in account-scoped session storage, including across reloads. Reversal auditing shares the reversal/claim transaction as well. Historical ledger rows are not rewritten.

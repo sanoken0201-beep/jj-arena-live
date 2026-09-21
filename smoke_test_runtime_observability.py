@@ -90,7 +90,8 @@ def main() -> None:
     assert "cards" not in admin
 
     admin_patch = (ROOT / "admin_copy_patch.py").read_text(encoding="utf-8")
-    assert 'ADMIN_ASSET_VERSION = "126"' in admin_patch
+    from admin_copy_patch import ADMIN_ASSET_VERSION
+    assert int(ADMIN_ASSET_VERSION) >= 127
 
     print("JJ_RUNTIME_OBSERVABILITY_OK")
 
