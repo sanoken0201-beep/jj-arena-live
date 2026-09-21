@@ -172,16 +172,15 @@ def persistence_test():
 
 def source_and_browser_contract_test():
     from pathlib import Path
-    import poker_simple
+    import served_assets
 
     app_source = Path("app.py").read_text(encoding="utf-8")
     assert "timebank_rules.install_ring(runtime_server, runtime_poker_engine)" in app_source
-    assert "sitngo_asset_cache.install()" in app_source
+    assert "sitngo_action_safety.install(sitngo_runtime)" in app_source
     assert "timebank_rules.install_sitngo(sitngo_runtime)" in app_source
     assert "return timebank_rules.BASE_ACTION_SECONDS" in app_source
 
-    source = Path("materialized_v1244/static/app.js").read_text(encoding="utf-8")
-    transformed = poker_simple.transform_app_js(source)
+    transformed = served_assets.build_app_js()
     assert "TIME BANK" in transformed
     assert "timebank_cards_remaining" in transformed
     assert "action_clock_source==='timebank'" in transformed
