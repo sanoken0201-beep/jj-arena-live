@@ -76,6 +76,7 @@ def install() -> None:
     const step=unit/big;
     const input=$('#raiseTo'),slider=$('#raiseSlider');
     if(input){
+      input.step=String(step);
       const exact=jjSngSnapRaiseBb(input.value);
       input.value=String(typeof jjV124CeilRaiseBb==='function'?jjV124CeilRaiseBb(exact):exact);
     }
