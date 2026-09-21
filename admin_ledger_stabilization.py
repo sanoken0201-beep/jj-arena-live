@@ -10,6 +10,16 @@ REVERSIBLE_KINDS = ("credit", "collection")
 QUIZ_KIND = "quiz_reward"
 
 
+def _has_deleted_at(db, con) -> bool:
+    if getattr(db, "IS_POSTGRES", False):
+        row = con.execute(
+            "SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='users' AND column_name='deleted_at' LIMIT 1"
+        ).fetchone()
+        return bool(row)
+    rows = con.execute("PRAGMA table_info(users)").fetchall()
+    return any(str(row["name"]) == "deleted_at" for row in rows)
+
+
 def _ledger_by_name(db, server, *, month: str | None, season: str) -> dict[str, dict[str, float]]:
     start, end = _bounds(server, season)
     where = "WHERE l.effective_at>=? AND l.effective_at<?"
@@ -18,6 +28,8 @@ def _ledger_by_name(db, server, *, month: str | None, season: str) -> dict[str, 
         where += " AND substr(l.effective_at,1,7)=?"
         params.append(month)
     with db.connect() as con:
+        if _has_deleted_at(db, con):
+            where += " AND u.deleted_at IS NULL"
         rows = con.execute(
             f"""
             SELECT COALESCE(NULLIF(u.ranking_name,''),u.name) name,
@@ -151,6 +163,7 @@ def install(app, admin_console) -> None:
     def overview(user=Depends(server.admin_user)):
         start, end = _bounds(server, "fall")
         with db.connect() as con:
+            deletion_aware = _has_deleted_at(db, con)
             accounts = con.execute(
                 """
                 SELECT COUNT(*) total,
@@ -165,18 +178,22 @@ def install(app, admin_console) -> None:
                 SELECT COALESCE(SUM(CASE WHEN amount>0 THEN amount ELSE 0 END),0) credited,
                        COALESCE(SUM(CASE WHEN amount<0 THEN -amount ELSE 0 END),0) collected,
                        COUNT(*) transactions
-                FROM point_ledger
-                WHERE effective_at>=? AND effective_at<?
-                  AND kind IN ('credit','collection','reversal')
-                """,
+                FROM point_ledger l
+                JOIN users u ON u.id=l.user_id
+                WHERE l.effective_at>=? AND l.effective_at<?
+                  AND l.kind IN ('credit','collection','reversal')
+                  {deleted_guard}
+                """.format(deleted_guard="AND u.deleted_at IS NULL" if deletion_aware else ""),
                 (start, end),
             ).fetchone()
             quiz = con.execute(
                 """
                 SELECT COALESCE(SUM(amount),0) points, COUNT(*) transactions
-                FROM point_ledger
-                WHERE effective_at>=? AND effective_at<? AND kind='quiz_reward'
-                """,
+                FROM point_ledger l
+                JOIN users u ON u.id=l.user_id
+                WHERE l.effective_at>=? AND l.effective_at<? AND l.kind='quiz_reward'
+                  {deleted_guard}
+                """.format(deleted_guard="AND u.deleted_at IS NULL" if deletion_aware else ""),
                 (start, end),
             ).fetchone()
             dup = con.execute(

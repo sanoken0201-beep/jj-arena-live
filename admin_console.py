@@ -90,6 +90,44 @@ def _bounds(server,season):
     start=getattr(server,"FALL_SEASON_START","2026-09-01");end=getattr(server,"FALL_SEASON_END","2027-04-01")
     return (start,end) if season=="fall" else ("0000-01-01",start)
 
+def _account_generations(con):
+    """Return deletion/live generation boundaries keyed by ranking name.
+
+    Raw club entries predate account identity and are keyed only by name. Once an
+    account with that ranking name is deleted, those historical entries must not
+    reappear through a later same-name registration. The latest live account may
+    start a new generation after the later of its creation time and the latest
+    deletion time.
+    """
+    state={}
+    rows=con.execute("SELECT name,ranking_name,created_at,deleted_at FROM users").fetchall()
+    for row in rows:
+        name=str(row["ranking_name"] or row["name"] or "").strip()
+        if not name:continue
+        item=state.setdefault(name,{"latest_deleted_at":"","latest_live_created_at":""})
+        deleted=str(row["deleted_at"] or "")
+        created=str(row["created_at"] or "")
+        if deleted:
+            if deleted>item["latest_deleted_at"]:item["latest_deleted_at"]=deleted
+        elif created and created>item["latest_live_created_at"]:
+            item["latest_live_created_at"]=created
+    return state
+
+
+def _club_entry_is_current(row,generations):
+    state=generations.get(str(row["name"]))
+    if not state or not state["latest_deleted_at"]:return True
+    live=state["latest_live_created_at"]
+    if not live:return False
+    barrier=max(live,state["latest_deleted_at"])
+    day=str(row["date"] or "")
+    barrier_day=barrier[:10]
+    if day>barrier_day:return True
+    if day<barrier_day:return False
+    created=str(row["created_at"] or "")
+    return bool(created and created>=barrier)
+
+
 def _rankings(db,server,month=None,season="fall"):
     season=(season or "fall").strip().lower()
     if season not in {"fall","summer"}:raise HTTPException(400,"season must be fall or summer")
@@ -102,13 +140,24 @@ def _rankings(db,server,month=None,season="fall"):
     if month:
         cw+=" AND substr(date,1,7)=?";cp.append(month);ow+=" AND r.month=?";op.append(month);lw+=" AND substr(l.effective_at,1,7)=?";lp.append(month)
     with db.connect() as con:
-        club=con.execute(f"SELECT name,SUM(points) points,COUNT(*) games,MAX(points) best,SUM(CASE WHEN points>0 THEN 1 ELSE 0 END) wins FROM entries {cw} GROUP BY name",cp).fetchall()
-        try:online=con.execute(f"SELECT r.ranking_name name,SUM(r.points) points,COUNT(*) games,MAX(r.points) best,SUM(CASE WHEN r.points>0 THEN 1 ELSE 0 END) wins FROM online_hand_results r JOIN online_hands h ON h.hand_id=r.hand_id {ow} GROUP BY r.ranking_name",op).fetchall()
+        deletion_aware="deleted_at" in _cols(db,con,"users")
+        generations=_account_generations(con) if deletion_aware else {}
+        club_rows=con.execute(f"SELECT name,points,date,created_at FROM entries {cw}",cp).fetchall()
+        try:
+            online_join=" LEFT JOIN users ou ON ou.id=r.user_id" if deletion_aware else ""
+            online_guard=" AND (r.user_id IS NULL OR ou.deleted_at IS NULL)" if deletion_aware else ""
+            online=con.execute(f"SELECT r.ranking_name name,SUM(r.points) points,COUNT(*) games,MAX(r.points) best,SUM(CASE WHEN r.points>0 THEN 1 ELSE 0 END) wins FROM online_hand_results r JOIN online_hands h ON h.hand_id=r.hand_id{online_join} {ow}{online_guard} GROUP BY r.ranking_name",op).fetchall()
         except Exception:online=[]
-        adj=con.execute(f"SELECT COALESCE(NULLIF(u.ranking_name,''),u.name) name,SUM(l.amount) points,COUNT(*) transactions FROM point_ledger l JOIN users u ON u.id=l.user_id {lw} GROUP BY COALESCE(NULLIF(u.ranking_name,''),u.name)",lp).fetchall()
+        ledger_guard=" AND u.deleted_at IS NULL" if deletion_aware else ""
+        adj=con.execute(f"SELECT COALESCE(NULLIF(u.ranking_name,''),u.name) name,SUM(l.amount) points,COUNT(*) transactions FROM point_ledger l JOIN users u ON u.id=l.user_id {lw}{ledger_guard} GROUP BY COALESCE(NULLIF(u.ranking_name,''),u.name)",lp).fetchall()
+    club={}
+    for r in club_rows:
+        if deletion_aware and not _club_entry_is_current(r,generations):continue
+        name=str(r["name"]);d=club.setdefault(name,{"name":name,"points":0.0,"games":0,"best":None,"wins":0})
+        points=float(r["points"] or 0);d["points"]+=points;d["games"]+=1;d["best"]=points if d["best"] is None else max(float(d["best"]),points);d["wins"]+=1 if points>0 else 0
     merged={}
     def blank(name,best=0):return {"name":name,"club_points":0.0,"online_points":0.0,"admin_points":0.0,"games":0,"online_hands":0,"adjustments":0,"best":float(best or 0),"wins":0}
-    for r in club:
+    for r in club.values():
         d=blank(str(r["name"]),r["best"]);d.update(club_points=float(r["points"] or 0),games=int(r["games"] or 0),wins=int(r["wins"] or 0));merged[d["name"]]=d
     for r in online:
         name=str(r["name"]);d=merged.setdefault(name,blank(name,r["best"]));d["online_points"]=float(r["points"] or 0);d["games"]+=int(r["games"] or 0);d["online_hands"]=int(r["games"] or 0);d["best"]=max(d["best"],float(r["best"] or 0));d["wins"]+=int(r["wins"] or 0)

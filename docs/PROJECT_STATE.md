@@ -103,7 +103,9 @@ Never place admin PINs, credentials, secrets or production session material in G
 
 Official JJ points are an auditable ledger-backed system. Do not directly overwrite point history as a shortcut.
 
-Point-ledger precision and ranking mapping are regression-protected. Changes to point earning, spending, reversal or settlement must preserve auditability and be tested against PostgreSQL behavior.
+Deleting a member account expires that account's official ranking points without deleting the underlying forensic history. Ledger and online-hand rows tied to the deleted user ID remain stored but are excluded from official ranking aggregation. Name-keyed club entries from the deleted account generation are likewise excluded; if the same ranking name is registered again, only the new account generation contributes, so the new account starts from zero rather than inheriting the deleted account's points.
+
+Point-ledger precision and ranking mapping are regression-protected. Changes to point earning, spending, reversal, deletion expiry or settlement must preserve auditability and be tested against PostgreSQL behavior.
 
 Poker practice chips and official JJ points are separate accounting domains unless a feature explicitly defines a ledger transaction between them.
 

@@ -20,7 +20,7 @@
     const note=document.createElement('p');
     note.className='field-note';
     note.style.width='100%';
-    note.textContent='削除は取り消せません。削除後はユーザー管理一覧から除外され、ログイン情報は無効化されます。ランキング・ポイント・監査履歴は整合性維持のため保存します。同じ名前で再登録した場合は、新しいアカウントIDとそのとき設定したPINで作成されます。';
+    note.textContent='削除は取り消せません。削除後はユーザー管理一覧から除外され、ログイン情報は無効化されます。保有ポイントは失効し、公式ランキング集計から除外されます。取引・対局履歴は監査用に保存します。同じ名前で再登録した場合は、新しいアカウントとして0から集計されます。';
     actions.appendChild(note);
   }
 
@@ -46,7 +46,7 @@
       let data=null;try{data=await res.json()}catch{}
       if(!res.ok)throw new Error(data?.detail||`HTTP ${res.status}`);
       dialog.close();
-      alert('アカウントを削除しました。ユーザー管理一覧から除外されます。ランキング・ポイント・監査履歴は保持されています。');
+      alert('アカウントを削除しました。保有ポイントは失効し、公式ランキング集計から除外されます。監査用の取引・対局履歴は保持されます。');
       location.hash='#users';
       location.reload();
     }catch(err){

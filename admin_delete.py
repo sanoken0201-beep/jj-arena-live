@@ -252,8 +252,9 @@ def install_account_deletion(app) -> None:
                 # normalized name gets an independent hash from its new PIN.
                 sets.append("password_hash=?")
                 args.append(db.hash_password(dead_secret))
-            # ranking_name is deliberately preserved so historical rankings,
-            # point ledgers and online-hand results remain attributable.
+            # ranking_name is deliberately preserved for forensic attribution.
+            # Raw point/hand history remains auditable, but deletion-aware ranking
+            # aggregation expires this account's official points.
             con.execute(f"UPDATE users SET {','.join(sets)} WHERE id=?", args + [uid])
 
         _audit(
