@@ -218,3 +218,8 @@ Do not turn `PROJECT_STATE.md` into a chronological changelog. Replace stale cur
 Ring and Sit&Go use the same action-time contract: every player decision starts with 30 seconds. Each seated participant has three persistent timebank cards for that table/tournament participation; a card is automatically and mandatorily consumed when the 30-second decision window expires and grants another 30 seconds. Cards do not reset between hands. After all three cards are spent, expiration of the next 30-second window forces a fold even when checking would otherwise be legal. Leaving and later taking a new seat is a new participation and receives a new set of three cards.
 
 The server is authoritative for card consumption, deadlines and forced folds. The browser only displays the authoritative deadline and remaining-card count.
+
+
+### 2026-09-21 audit: Ring action integrity
+
+Ring now requires current hand/turn identity and validates arrival against the action deadline. Replay receipts are scoped per actor. Timely queued actions prevent premature timebank consumption while waiting for the table lock. The 30-second base window, three mandatory cards, and one-decimal betting behavior are preserved.

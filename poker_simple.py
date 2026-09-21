@@ -112,10 +112,8 @@ ACTION = r'''  doAction=async function(action){
     if(!legal.can_act||!allowed[action])return;
     const tableId=currentTableId,before=tableState,decisionKey=jjV124DecisionKey();
     const body={action,action_id:jjV121ActionId()};
-    if(tableState?.tournament){
-      body.hand_id=tableState.hand?.id;
-      body.turn_id=tableState.turn_id||tableState.hand?.turn_id;
-    }
+    body.hand_id=tableState.hand?.id;
+    body.turn_id=tableState.turn_id||tableState.hand?.turn_id;
     if(action==='raise'){
       const raw=String($('#raiseTo')?.value??'').trim().replace(',','.');
       const entered=raw===''?NaN:Number(raw),bounds=jjRaiseBounds(),big=Number(tableState.big_blind||100);

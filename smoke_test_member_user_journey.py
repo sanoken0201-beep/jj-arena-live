@@ -142,7 +142,7 @@ def run() -> None:
             assert legal["can_act"] is True
             action_name = "call" if legal.get("can_call") else "check" if legal.get("can_check") else "fold"
             action_id = "journey-" + uuid.uuid4().hex[:16]
-            payload = {"action": action_name, "action_id": action_id}
+            payload = {"action": action_name, "action_id": action_id, "hand_id": actor_state["hand"]["id"], "turn_id": actor_state.get("turn_id") or actor_state["hand"].get("turn_id")}
             acted = json_response(
                 client.post(f"/api/tables/{table_id}/action", json=payload, headers=auth(actor_token))
             )

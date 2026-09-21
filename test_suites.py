@@ -29,6 +29,7 @@ TEST_SUITES: dict[str, tuple[str, ...]] = {
         "smoke_test_non_sng_safety.py",
     ),
     "ring_gameplay": (
+        "smoke_test_ring_action_safety.py",
         "smoke_test_v1244.py",
         "smoke_test_timebank_rules.py",
         "smoke_test_bet_precision.py",
