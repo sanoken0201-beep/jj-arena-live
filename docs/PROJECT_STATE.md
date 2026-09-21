@@ -115,7 +115,8 @@ The Ring game uses server-authoritative state and supports standard NLH actions 
 
 Operational timing that must not be casually changed:
 
-- 45-second player action deadline.
+- Every player decision starts with a 30-second action window.
+- Each seating/tournament has three time-bank cards. Cards are consumed automatically, never manually: every missed 30-second deadline spends one card and grants another 30 seconds. After all three cards are gone, the next missed deadline is a forced fold even when checking would be legal. Remaining cards persist across hands and are reset only by a new seating/tournament entry.
 - At least 1.6-second next-hand/showdown transition behavior where required by the canonical flow.
 - Event-driven timeout, forced runout and next-hand progression.
 - WebSocket-first synchronization with HTTP fallback/recovery.
