@@ -29,6 +29,7 @@ TEST_SUITES: dict[str, tuple[str, ...]] = {
     ),
     "ring_gameplay": (
         "smoke_test_v1244.py",
+        "smoke_test_timebank_rules.py",
         "smoke_test_single_public_table.py",
         "smoke_test_poker_simple.py",
         "smoke_test_oop_check_browser.py",
@@ -143,6 +144,7 @@ PRODUCTION_RELEASE_SELECTION: tuple[tuple[str, tuple[str, ...]], ...] = (
     )),
     ("ring_gameplay", (
         "smoke_test_v1244.py",
+        "smoke_test_timebank_rules.py",
         "smoke_test_single_public_table.py",
         "smoke_test_rake_settlement_fix.py",
     )),
