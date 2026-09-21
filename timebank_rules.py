@@ -129,6 +129,7 @@ def install_sitngo(runtime_module) -> None:
             return await original_tick(self, eid, now=now, recover=True)
 
         s = self.server
+        delegate_pending = False
         try:
             async with s.get_table_lock(eid):
                 state = self.load(eid)
@@ -146,9 +147,8 @@ def install_sitngo(runtime_module) -> None:
                         turn_id = str(hand.get("turn_id") or "")
                         pending = getattr(self, "_pending_action_arrivals", {}).get((eid, turn_id)) if turn_id else None
                         if pending and float(pending.get("earliest", 1e30)) <= deadline:
-                            return await original_tick(self, eid, now=now, recover=False)
-
-                        player = _player_for_action(state)
+                            delegate_pending = True
+                        player = None if delegate_pending else _player_for_action(state)
                         if player:
                             ensure_cards(player)
                             legal = self.engine.legal_actions(state, player["user_id"])
