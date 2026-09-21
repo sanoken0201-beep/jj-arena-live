@@ -27,6 +27,9 @@ def main():
             for check in (True,False):
                 s=state(check=check)
                 s['tournament']={'event_id':'sng-test','level':1,'bb_ante':200,'remaining':2,'entrants':2,'status':'running','results':[],'ante_paid':200,'next_level_at':None}
+                turn_id=f"{s['hand']['id']}:test"
+                s['hand']['turn_id']=turn_id
+                s['turn_id']=turn_id
                 page.evaluate('(s)=>JJ_TEST.setState(s)',s)
                 assert page.locator('#jjSngTableInfo').is_visible()
                 assert page.locator('[data-table-presence]:visible,#rebuyBtn:visible,#leaveSeatBtn:visible,#jjObserverJoin:visible').count()==0
@@ -34,7 +37,10 @@ def main():
                 page.evaluate('JJ_TEST.defer()')
                 page.locator(f'[data-action="{action}"]').click()
                 sent=page.evaluate('JJ_TEST.sent.at(-1)')
-                assert sent['body']['action']==action and sent['body']['hand_id']==s['hand']['id'],sent
+                assert sent['body']['action']==action,sent
+                assert sent['body'].get('action_id'),sent
+                assert sent['body']['hand_id']==s['hand']['id'],sent
+                assert sent['body']['turn_id']==turn_id,sent
                 page.evaluate('(s)=>JJ_TEST.resolve(s)',s)
                 page.wait_for_function('!JJ_TEST.pending()')
                 # Hero's two cards must remain visible above action buttons.

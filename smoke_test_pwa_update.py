@@ -4,7 +4,7 @@ from served_assets import ASSET_VERSION, build_app_js, build_index, build_servic
 
 
 def main() -> None:
-    assert ASSET_VERSION == 71
+    assert ASSET_VERSION == 72
 
     index = build_index()
     js = build_app_js()
