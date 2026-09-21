@@ -384,14 +384,6 @@ def transform_app_js(source: str) -> str:
   document.addEventListener('input',e=>{
     if(e.target?.id==='raiseSlider'||e.target?.id==='raiseTo')jjV124SyncRaiseFrom(e.target);
   });
-  document.addEventListener('change',e=>{
-    if(e.target?.id!=='raiseTo')return;
-    const value=jjV124ParseRaiseText(e.target.value);
-    if(value==null)return;
-    const draft=jjV124RememberRaise(value);
-    e.target.value=draft.text;
-    if(typeof jjV185SyncRaiseUi==='function')jjV185SyncRaiseUi();
-  });
 """,
         """  function jjV124DecisionMeta(hero,l){
     const street=JJ_V124_STREET[tableState?.hand?.phase]||String(tableState?.hand?.phase||'').toUpperCase();
