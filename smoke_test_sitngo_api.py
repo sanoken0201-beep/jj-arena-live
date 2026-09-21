@@ -73,14 +73,25 @@ def main():
     assert state['tournament']['bb_ante']==600
     assert state['status']=='playing'
     assert state['hand']['turn_id']
-    # A disconnected actor keeps their seat and is timed out, never removed.
+    # A disconnected actor keeps their seat. The first missed deadline spends a
+    # mandatory timebank card; only a later zero-card deadline forces fold.
     actor=next(p for p in state['seats'] if p['seat']==state['hand']['action_seat'])
     state['hand']['action_deadline']=(datetime.now(timezone.utc)-timedelta(seconds=1)).isoformat()
     rt.save(state)
     asyncio.run(rt.tick(eid))
+    extended=rt.load(eid)
+    assert len(extended['seats'])==2
+    actor=next(p for p in extended['seats'] if p['seat']==extended['hand']['action_seat'])
+    assert actor['timebank_cards_remaining']==2
+    assert extended['hand']['action_clock_source']=='timebank'
+    assert not any('forced fold' in x.lower() for x in extended['hand']['log'])
+    actor['timebank_cards_remaining']=0
+    extended['hand']['action_deadline']=(datetime.now(timezone.utc)-timedelta(seconds=1)).isoformat()
+    rt.save(extended)
+    asyncio.run(rt.tick(eid))
     after=rt.load(eid)
     assert len(after['seats'])==2
-    assert any('fold' in x.lower() for x in after['hand']['log'])
+    assert any('forced fold' in x.lower() for x in after['hand']['log'])
     # Equal starting stacks tie; unequal starting stacks rank higher.
     synthetic={'status':'waiting','hand_no':9,'hand':{'id':'tie','starting_stacks':{'1':100,'2':100,'3':200,'4':500}},
         'seats':[{'user_id':i,'name':str(i),'stack':900 if i==4 else 0} for i in range(1,5)],
