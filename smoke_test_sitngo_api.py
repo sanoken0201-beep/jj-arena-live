@@ -73,8 +73,23 @@ def main():
     assert state['tournament']['bb_ante']==600
     assert state['status']=='playing'
     assert state['hand']['turn_id']
-    # A disconnected actor keeps their seat and is timed out, never removed.
+    # A disconnected actor keeps their seat. Three missed deadlines consume the
+    # mandatory time-bank cards; only the fourth missed deadline force-folds.
     actor=next(p for p in state['seats'] if p['seat']==state['hand']['action_seat'])
+    actor_id=actor['user_id']
+    for remaining in (2,1,0):
+        state=rt.load(eid)
+        assert state['status']=='playing'
+        current=next(p for p in state['seats'] if p['seat']==state['hand']['action_seat'])
+        assert current['user_id']==actor_id
+        state['hand']['action_deadline']=(datetime.now(timezone.utc)-timedelta(seconds=1)).isoformat()
+        rt.save(state)
+        asyncio.run(rt.tick(eid))
+        after=rt.load(eid)
+        current=next(p for p in after['seats'] if p['user_id']==actor_id)
+        assert int(current.get('timebank_cards',-1))==remaining
+        assert not current.get('folded',False)
+    state=rt.load(eid)
     state['hand']['action_deadline']=(datetime.now(timezone.utc)-timedelta(seconds=1)).isoformat()
     rt.save(state)
     asyncio.run(rt.tick(eid))
