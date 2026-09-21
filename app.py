@@ -30,6 +30,7 @@ import sitngo_runtime
 import sitngo_tournament_rules
 import sitngo_process_guard
 import sitngo_resilience
+import poker_timebank
 import read_efficiency
 
 # Configure the root-level Sit&Go extension before browser transforms bind the
@@ -42,6 +43,7 @@ sitngo_tournament_rules.install(sitngo_runtime)
 sitngo_chip_rules.install(sitngo_runtime)
 sitngo_asset_cache.install()
 sitngo_resilience.install(sitngo_runtime)
+poker_timebank.install(runtime_server, runtime_poker_engine, sitngo_runtime)
 
 from served_assets import (
     ASSET_VERSION,
