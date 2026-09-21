@@ -225,7 +225,7 @@ def _install_sitngo_tick(runtime_module) -> None:
             tournament.get("status") == "running"
             and probe.get("status") == "playing"
             and deadline is not None
-            and now_epoch >= deadline + SITNGO_TIMEOUT_GRACE_SECONDS
+            and now_epoch >= deadline
         ):
             async with self.server.get_table_lock(eid):
                 state = self.load(eid)
@@ -234,7 +234,7 @@ def _install_sitngo_tick(runtime_module) -> None:
                 if (
                     state.get("status") == "playing"
                     and deadline is not None
-                    and now_epoch >= deadline + SITNGO_TIMEOUT_GRACE_SECONDS
+                    and now_epoch >= deadline
                 ):
                     turn_id = str(hand.get("turn_id") or "")
                     pending_map = getattr(self, "_pending_action_arrivals", {})
