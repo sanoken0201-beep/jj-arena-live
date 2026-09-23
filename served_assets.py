@@ -70,7 +70,7 @@ from read_efficiency import transform_app_js as transform_read_efficiency_app_js
 ROOT = Path(__file__).resolve().parent
 MATERIALIZED_STATIC = ROOT / "materialized_v1244" / "static"
 BUILD_ROOT = ROOT / ".jj_build"
-ASSET_VERSION = 72
+ASSET_VERSION = 73
 BUILD_FORMAT = 1
 
 _TODAYS_JJ_MARKER = "v2 today's-jj contrast hardening 2026-09-12"
@@ -182,6 +182,13 @@ _PWA_UPDATE_CSS = r'''
   cursor:pointer;
 }
 .jj-update-banner button:disabled{opacity:.65;cursor:wait}
+@media(max-width:760px){
+  .jj-update-banner{
+    top:calc(env(safe-area-inset-top) + 8px);
+    bottom:auto;
+  }
+  .jj-update-banner button{min-height:44px}
+}
 @media(max-width:560px){
   .jj-update-banner{align-items:stretch;flex-direction:column;gap:9px}
   .jj-update-banner button{width:100%}
