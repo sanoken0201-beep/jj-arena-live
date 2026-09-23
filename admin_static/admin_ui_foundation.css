@@ -19,6 +19,8 @@
 @media(max-width:760px){
   :where(button,.soft,.primary,.row-btn,.danger-btn,.ok-btn,input,select,textarea){min-height:44px}
   :where(input,select,textarea){font-size:16px}
+  .topbar{height:auto;min-height:calc(74px + env(safe-area-inset-top));padding-top:env(safe-area-inset-top)}
+  .toast{bottom:calc(18px + env(safe-area-inset-bottom))}
   .mobile-back-link{display:inline-flex;align-items:center}
   .mobile-nav{padding-bottom:max(7px,env(safe-area-inset-bottom))}
   .toolbar{align-items:stretch;flex-wrap:wrap}
