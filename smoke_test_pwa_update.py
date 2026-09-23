@@ -4,7 +4,7 @@ from served_assets import ASSET_VERSION, build_app_js, build_index, build_servic
 
 
 def main() -> None:
-    assert ASSET_VERSION == 72
+    assert ASSET_VERSION == 73
 
     index = build_index()
     js = build_app_js()
@@ -25,6 +25,9 @@ def main() -> None:
     assert "location.reload()" in js
     assert "reg.update().catch(()=>{})" in js
     assert "jj-update-banner" in css
+    assert "top:calc(env(safe-area-inset-top) + 8px)" in css
+    assert "bottom:auto" in css
+    assert ".jj-update-banner button{min-height:44px}" in css
 
     assert f"const CACHE='jj-arena-live-v{ASSET_VERSION}';" in worker
     assert f"'/static/styles.css?v={ASSET_VERSION}'" in worker
