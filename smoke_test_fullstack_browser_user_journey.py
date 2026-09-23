@@ -28,7 +28,7 @@ DRIVER = r'''
     throw new Error(`timeout: ${label}`);
   }
   async function go(view){
-    const mobile = innerWidth <= 700;
+    const mobile = window.matchMedia('(max-width:760px)').matches;
     if(mobile && ['home','ranking','tables'].includes(view)){
       await waitFor(() => document.querySelector(`[data-mobile-view="${view}"]`), `mobile ${view} button`);
       document.querySelector(`[data-mobile-view="${view}"]`).click();
@@ -89,7 +89,7 @@ DRIVER = r'''
 
     checks.noHorizontalOverflow = document.documentElement.scrollWidth <= innerWidth + 2;
 
-    if(innerWidth <= 700){
+    if(window.matchMedia('(max-width:760px)').matches){
       document.querySelector('[data-mobile-more]').click();
       await waitFor(() => document.querySelector('[data-mobile-logout]'), 'mobile logout');
       document.querySelector('[data-mobile-logout]').click();
