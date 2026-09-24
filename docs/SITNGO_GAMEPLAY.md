@@ -12,9 +12,13 @@ determined. Ring and tournament chips never share settlement.
 The existing ring table renderer, cards, raise sizing, pre-actions and connection
 recovery are reused. Tournament actions additionally carry action, hand and turn
 identifiers; delayed or duplicated requests cannot act on a later turn or hand.
-The lobby provides an explicit table/rejoin button and recent results. While one
-Sit&Go is running it can also show the next scheduled, registration-open or
-start-waiting event so an open registration window is not hidden.
+The lobby provides an explicit table/rejoin button and the five most recent completed
+results. Recent-result cards are information summaries: event/date plus each player's
+place and awarded tournament points, with the total prize pool and an optional detail
+button. Completed event data is not age-expired by the lobby; the player view simply
+limits the visible list to the five newest finished events. While one Sit&Go is running
+it can also show the next scheduled, registration-open or start-waiting event so an
+open registration window is not hidden.
 
 ## Tournament chip rules
 
