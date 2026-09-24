@@ -27,6 +27,12 @@ _APP_PATCH = r'''
   const jjSngLevelSummary=levels=>'12ハンド/レベル';
   function jjSngStructureHtml(levels){return `<details class="jj-sng-structure"><summary>ブラインドストラクチャーを見る</summary><div class="jj-sng-levels">${(levels||[]).map(x=>`<div class="jj-sng-level"><span>Lv.${x.level}</span><b>${fmt(x.small_blind)} / ${fmt(x.big_blind)}</b><small>BBA ${fmt(x.bb_ante)} · 12ハンド</small></div>`).join('')}</div></details>`}
   function jjSngEmpty(){return `<article class="card jj-sng-empty"><div class="eyebrow">NO EVENT</div><h4>現在、開催予定はありません</h4><p class="hint">Sit&Goは定期開催ではありません。管理者が大会を設定すると、開始1時間前から先着順で参加受付が始まります。</p></article>`}
+  function jjSngHistoryHtml(event){
+    const results=Array.isArray(event?.tournament?.results)?[...event.tournament.results].sort((a,b)=>Number(a.place)-Number(b.place)||String(a.name||'').localeCompare(String(b.name||''),'ja')):[];
+    const rows=results.length?results.map(x=>{const prize=Number(x.prize_points||0);return `<div class="jj-sng-history-row"><b>${Number(x.place)}位</b><span>${safe(x.name||'—')}</span><strong>${prize>0?'+':''}${fmt(prize)} pt</strong></div>`}).join(''):'<div class="jj-sng-history-empty">結果情報を取得できません。</div>';
+    const detail=event.table_id?`<button type="button" class="soft jj-sng-history-detail" data-sng-open="${safe(event.table_id)}">詳細を見る</button>`:'';
+    return `<article class="card jj-sng-history"><div class="jj-sng-history-head"><div><div class="eyebrow">RESULT</div><h4>${safe(event.name||'JJ Sit&Go')}</h4></div><span>${safe(jjSngLocal(event.starts_at))}</span></div><div class="jj-sng-history-results">${rows}</div><div class="jj-sng-history-foot"><span>賞金総額 ${fmt(Number(event.prize_points||0))} pt</span>${detail}</div></article>`;
+  }
   function jjSngEventHtml(event,levels){
     const status=event.status||'scheduled',registered=!!event.is_registered,full=!!event.full,eventLevels=event.structure||levels||[];
     const registrationOpen=new Date(event.registration_opens_at).getTime(),starts=new Date(event.starts_at).getTime(),now=Date.now();
@@ -45,7 +51,7 @@ _APP_PATCH = r'''
   }
   async function renderSitNGo(){
     const host=$('#sitngoNext');if(!host)return;
-    try{const data=await api('/sitngo/next'),event=data?.event,upcoming=data?.upcoming;if(currentTableId?.startsWith('sng-'))return;const current=event?jjSngEventHtml(event,data.structure):jjSngEmpty(),next=upcoming&&upcoming.id!==event?.id?`<div class="eyebrow jj-sng-next-label">NEXT EVENT</div>${jjSngEventHtml(upcoming,upcoming.structure||data.structure)}`:'';host.innerHTML=current+next+(data.recent||[]).map(x=>jjSngEventHtml(x,x.structure)).join('');jjSngRefreshClocks()}catch(err){host.innerHTML=`<article class="card empty">${safe(err.message)}</article>`}
+    try{const data=await api('/sitngo/next'),event=data?.event,upcoming=data?.upcoming;if(currentTableId?.startsWith('sng-'))return;const current=event?jjSngEventHtml(event,data.structure):jjSngEmpty(),next=upcoming&&upcoming.id!==event?.id?`<div class="eyebrow jj-sng-next-label">NEXT EVENT</div>${jjSngEventHtml(upcoming,upcoming.structure||data.structure)}`:'',recent=data.recent||[],history=recent.length?`<div class="jj-sng-history-label"><div class="eyebrow">HISTORY</div><span>直近5大会</span></div>${recent.map(jjSngHistoryHtml).join('')}`:'';host.innerHTML=current+next+history;jjSngRefreshClocks()}catch(err){host.innerHTML=`<article class="card empty">${safe(err.message)}</article>`}
   }
   function jjSetPlayMode(mode){
     jjPlayMode=mode==='sitngo'?'sitngo':'ring';
@@ -105,6 +111,20 @@ body.jj-sng-playing .jj-empty-seat,body.jj-sng-playing [data-table-presence],bod
 .jj-sng-seat{margin-top:14px;padding:14px;border-radius:12px;background:rgba(216,180,90,.12);text-align:center}
 .jj-sng-seat strong{font-size:1.1rem;margin-left:6px}
 .jj-sng-note{margin-top:14px;color:var(--muted,#9fb2aa)}
+.jj-sng-history-label{display:flex;align-items:end;justify-content:space-between;gap:12px;margin:22px 2px 8px}
+.jj-sng-history-label span{font-size:.74rem;color:var(--muted,#9fb2aa);font-weight:800}
+.jj-sng-history{padding:16px 18px;margin-top:10px}
+.jj-sng-history-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+.jj-sng-history-head h4{margin:3px 0 0;font-size:1rem}
+.jj-sng-history-head>span{font-size:.72rem;color:var(--muted,#9fb2aa);white-space:nowrap}
+.jj-sng-history-results{display:grid;gap:6px;margin-top:12px}
+.jj-sng-history-row{display:grid;grid-template-columns:52px minmax(0,1fr) auto;align-items:center;gap:10px;padding:9px 10px;border-radius:10px;background:rgba(255,255,255,.045)}
+.jj-sng-history-row b{font-variant-numeric:tabular-nums}
+.jj-sng-history-row span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.jj-sng-history-row strong{font-variant-numeric:tabular-nums;white-space:nowrap}
+.jj-sng-history-empty{padding:10px;color:var(--muted,#9fb2aa);font-size:.82rem}
+.jj-sng-history-foot{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:10px;color:var(--muted,#9fb2aa);font-size:.76rem}
+.jj-sng-history-detail{min-height:34px;padding:7px 12px}
 .jj-sng-seats{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px;margin-top:12px}
 .jj-sng-seats span{padding:9px 10px;border-radius:10px;background:rgba(255,255,255,.045);font-size:.78rem}
 .jj-sng-structure{margin-top:16px;border-top:1px solid rgba(255,255,255,.08);padding-top:12px}
@@ -118,6 +138,11 @@ body.jj-sng-playing .jj-empty-seat,body.jj-sng-playing [data-table-presence],bod
   .jj-play-switch{width:100%;display:grid;grid-template-columns:1fr 1fr}
   .jj-play-switch button{width:100%;padding:9px 8px}
   .jj-sng-card,.jj-sng-empty{padding:16px}
+  .jj-sng-history{padding:14px}
+  .jj-sng-history-head{align-items:flex-start}
+  .jj-sng-history-row{grid-template-columns:44px minmax(0,1fr) auto;gap:7px;padding:8px}
+  .jj-sng-history-foot{align-items:stretch;flex-direction:column}
+  .jj-sng-history-detail{width:100%}
   .jj-sng-reg{align-items:stretch;flex-direction:column}
   .jj-sng-seats{grid-template-columns:1fr}
   .jj-sng-levels{grid-template-columns:repeat(2,minmax(0,1fr))}

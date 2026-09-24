@@ -250,6 +250,10 @@ def main() -> None:
     require(sitngo_ui_marker() in js, "player Sit&Go JavaScript marker missing")
     require(sitngo_ui_marker() in css, "player Sit&Go CSS marker missing")
     require("10,000点" not in js and "12 HAND LEVELS" in index and "12ハンド/レベル" in js, "player Sit&Go 12-hand structure copy missing")
+    require(
+        "jjSngHistoryHtml" in js and "直近5大会" in js and "x.prize_points" in js,
+        "player Sit&Go recent-result summary UI missing",
+    )
 
     print("JJ_SITNGO_PHASE1_OK")
 
