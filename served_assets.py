@@ -70,7 +70,7 @@ from read_efficiency import transform_app_js as transform_read_efficiency_app_js
 ROOT = Path(__file__).resolve().parent
 MATERIALIZED_STATIC = ROOT / "materialized_v1244" / "static"
 BUILD_ROOT = ROOT / ".jj_build"
-ASSET_VERSION = 73
+ASSET_VERSION = 74
 BUILD_FORMAT = 1
 
 _TODAYS_JJ_MARKER = "v2 today's-jj contrast hardening 2026-09-12"
@@ -244,6 +244,19 @@ def _read(name: str) -> str:
 
 def build_index() -> str:
     html = _read("index.html")
+    # member point navigation 2026-09-28
+    point_nav = '<button class="nav admin-only" data-view="points">＋ <span>ポイント入力</span></button>'
+    if html.count(point_nav) != 1:
+        raise RuntimeError("member point nav drift")
+    html = html.replace(point_nav, point_nav.replace(" admin-only", ""), 1)
+    point_panel = '<article class="card panel"><div class="eyebrow">ADMIN</div><h3>公式ポイント入力</h3>'
+    if html.count(point_panel) != 1:
+        raise RuntimeError("member point panel drift")
+    html = html.replace(
+        point_panel,
+        '<article class="card panel"><div class="eyebrow">POINT ENTRY</div><h3>公式ポイント入力</h3>',
+        1,
+    )
     html = html.replace('/static/styles.css?v=56', f'/static/styles.css?v={ASSET_VERSION}')
     html = html.replace('/static/app.js?v=56', f'/static/app.js?v={ASSET_VERSION}')
     html = html.replace('← Lobby', '← ロビー')
@@ -264,6 +277,34 @@ def build_index() -> str:
 
 def build_app_js() -> str:
     js = _read("app.js")
+    # member point self-service 2026-09-28
+    member_point_replacements = (
+        ("points:['ADMIN','ポイント入力']", "points:['POINTS','ポイント入力']"),
+        (
+            "if((v==='points'||v==='members')&&me?.role!=='admin')v='home';",
+            "if(v==='members'&&me?.role!=='admin')v='home';",
+        ),
+        (
+            "async function renderPoints(){if(me.role!=='admin')return;const [ents,names]=await Promise.all([api('/entries?limit=40'),api('/ranking-names')]);",
+            "async function renderPoints(){const isAdmin=me?.role==='admin';const [ents,names]=await Promise.all([api('/entries?limit=40'),isAdmin?api('/ranking-names'):Promise.resolve([])]);",
+        ),
+        (
+            "$('#playerNames').innerHTML=names.map(name=>\`<option value=\\"\${safe(name)}\\"></option>\`).join('');if(!$('#pointName').value)$('#pointName').value=me.name;",
+            "$('#playerNames').innerHTML=isAdmin?names.map(name=>\`<option value=\\"\${safe(name)}\\"></option>\`).join(''):'';const pointName=$('#pointName');if(pointName){pointName.readOnly=!isAdmin;if(!isAdmin)pointName.value=me?.ranking_name||me?.name||'';else if(!pointName.value)pointName.value=me?.ranking_name||me?.name||'';}",
+        ),
+        (
+            "post('/entries',payload)",
+            "post(me?.role==='admin'?'/entries':'/member/entries',payload)",
+        ),
+        (
+            "const point=$('#mobilePointNav');if(point)point.classList.toggle('hidden',me?.role!=='admin');",
+            "const point=$('#mobilePointNav');if(point)point.classList.remove('hidden');",
+        ),
+    )
+    for old, new in member_point_replacements:
+        if old not in js:
+            raise RuntimeError(f"member point browser contract drift: {old[:48]}")
+        js = js.replace(old, new)
     js = transform_hand_history_app_js(js)
     js = transform_phase5_app_js(
         transform_phase4_app_js(
