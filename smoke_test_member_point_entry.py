@@ -15,6 +15,13 @@ def main() -> None:
     assert "post(me?.role==='admin'?'/entries':'/member/entries',payload)" in js
     assert "point.classList.remove('hidden')" in js
     assert "pointName.readOnly=!isAdmin" in js
+    assert "<span>POINTS</span>" in js
+    assert 'id="quickPointForm"' in js
+    assert "quickName.readOnly=me?.role!=='admin'" in js
+    assert "if(!me){if(existing)existing.remove();return}" in js
+    assert "if(me?.role==='admin')quickPointLoadNames()" in js
+    assert "if(isMobileUX()){ensureQuickPointHome();$('#homePointShortcut')?.remove()}" in js
+    assert "else{$('#mobileQuickPointCard')?.remove();ensureDesktopPointShortcut()}" in js
 
     member_routes = [
         route for route in app.app.router.routes

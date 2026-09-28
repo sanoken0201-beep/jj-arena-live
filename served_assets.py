@@ -70,7 +70,7 @@ from read_efficiency import transform_app_js as transform_read_efficiency_app_js
 ROOT = Path(__file__).resolve().parent
 MATERIALIZED_STATIC = ROOT / "materialized_v1244" / "static"
 BUILD_ROOT = ROOT / ".jj_build"
-ASSET_VERSION = 74
+ASSET_VERSION = 75
 BUILD_FORMAT = 1
 
 _TODAYS_JJ_MARKER = "v2 today's-jj contrast hardening 2026-09-12"
@@ -330,6 +330,26 @@ def build_app_js() -> str:
         (
             "const point=$('#mobilePointNav');if(point)point.classList.toggle('hidden',me?.role!=='admin');",
             "const point=$('#mobilePointNav');if(point)point.classList.remove('hidden');",
+        ),
+        (
+            '<span>ADMIN</span></div>\n      <form id="quickPointForm"',
+            '<span>POINTS</span></div>\n      <form id="quickPointForm"',
+        ),
+        (
+            "if(me?.role!=='admin'){if(existing)existing.remove();return}",
+            "if(!me){if(existing)existing.remove();return}",
+        ),
+        (
+            "$('#quickPointName').value=me?.ranking_name||me?.name||'';$('#quickPointDate').value=isoLocal();quickPointSetInitials();quickPointLoadNames();",
+            "const quickName=$('#quickPointName');quickName.value=me?.ranking_name||me?.name||'';quickName.readOnly=me?.role!=='admin';$('#quickPointDate').value=isoLocal();quickPointSetInitials();if(me?.role==='admin')quickPointLoadNames();",
+        ),
+        (
+            "$('#quickPointName').addEventListener('focus',quickPointLoadNames,{once:true});",
+            "if(me?.role==='admin')$('#quickPointName').addEventListener('focus',quickPointLoadNames,{once:true});",
+        ),
+        (
+            "if(me?.role==='admin'){ensureQuickPointHome();ensureDesktopPointShortcut()}else{$('#mobileQuickPointCard')?.remove();$('#homePointShortcut')?.remove()}",
+            "if(isMobileUX()){ensureQuickPointHome();$('#homePointShortcut')?.remove()}else{$('#mobileQuickPointCard')?.remove();ensureDesktopPointShortcut()}",
         ),
     )
     for old, new in member_point_replacements:
