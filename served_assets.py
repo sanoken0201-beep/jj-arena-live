@@ -337,7 +337,7 @@ def build_app_js() -> str:
         ),
         (
             "if(me?.role!=='admin'){if(existing)existing.remove();return}",
-            "",
+            "if(!me){if(existing)existing.remove();return}",
         ),
         (
             "$('#quickPointName').value=me?.ranking_name||me?.name||'';$('#quickPointDate').value=isoLocal();quickPointSetInitials();quickPointLoadNames();",
