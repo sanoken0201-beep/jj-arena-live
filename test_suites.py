@@ -29,6 +29,7 @@ TEST_SUITES: dict[str, tuple[str, ...]] = {
         "smoke_test_admin_reversal_safety.py",
         "smoke_test_admin_export_safety.py",
         "smoke_test_non_sng_safety.py",
+        "smoke_test_member_point_entry.py",
     ),
     "ring_gameplay": (
         "smoke_test_ring_action_safety.py",
@@ -133,6 +134,7 @@ PRODUCTION_RELEASE_SELECTION: tuple[tuple[str, tuple[str, ...]], ...] = (
         "smoke_test_admin_export_safety.py",
         "smoke_test_non_sng_safety.py",
         "smoke_test_point_ledger_precision.py",
+        "smoke_test_member_point_entry.py",
     )),
     ("runtime_release", (
         "smoke_test_test_ownership.py",

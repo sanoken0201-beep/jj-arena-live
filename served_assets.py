@@ -70,7 +70,7 @@ from read_efficiency import transform_app_js as transform_read_efficiency_app_js
 ROOT = Path(__file__).resolve().parent
 MATERIALIZED_STATIC = ROOT / "materialized_v1244" / "static"
 BUILD_ROOT = ROOT / ".jj_build"
-ASSET_VERSION = 73
+ASSET_VERSION = 74
 BUILD_FORMAT = 1
 
 _TODAYS_JJ_MARKER = "v2 today's-jj contrast hardening 2026-09-12"
@@ -259,6 +259,19 @@ def build_index() -> str:
     html = transform_sitngo_index(html)
     if SITNGO_UI_MARKER not in html:
         raise RuntimeError("Sit&Go index transform marker missing")
+    # member point navigation 2026-09-28
+    point_nav = '<button class="nav admin-only" data-view="points">＋ <span>ポイント入力</span></button>'
+    if html.count(point_nav) != 1:
+        raise RuntimeError("member point nav drift")
+    html = html.replace(point_nav, point_nav.replace(" admin-only", ""), 1)
+    point_panel = '<article class="card panel"><div class="eyebrow">ADMIN</div><h3>公式ポイント入力</h3>'
+    if html.count(point_panel) != 1:
+        raise RuntimeError("member point panel drift")
+    html = html.replace(
+        point_panel,
+        '<article class="card panel"><div class="eyebrow">POINT ENTRY</div><h3>公式ポイント入力</h3>',
+        1,
+    )
     return html
 
 
@@ -293,6 +306,36 @@ def build_app_js() -> str:
         raise RuntimeError("Sit&Go app transform marker missing")
     js = simple_app_js(js)
     js = transform_read_efficiency_app_js(js)
+    # member point self-service 2026-09-28
+    # Apply after all canonical browser transforms so their drift guards still
+    # validate the immutable source contract before this product-level change.
+    member_point_replacements = (
+        ("points:['ADMIN','ポイント入力']", "points:['POINTS','ポイント入力']"),
+        (
+            "if((v==='points'||v==='members')&&me?.role!=='admin')v='home';",
+            "if(v==='members'&&me?.role!=='admin')v='home';",
+        ),
+        (
+            "async function renderPoints(){if(me.role!=='admin')return;const [ents,names]=await jjReadBundle('/points/dashboard',['entries','ranking_names'],['/entries?limit=40','/ranking-names']);",
+            "async function renderPoints(){const isAdmin=me?.role==='admin';const [ents,names]=await (isAdmin?jjReadBundle('/points/dashboard',['entries','ranking_names'],['/entries?limit=40','/ranking-names']):Promise.all([api('/entries?limit=40'),Promise.resolve([])]));",
+        ),
+        (
+            """$('#playerNames').innerHTML=names.map(name=>`<option value="${safe(name)}"></option>`).join('');if(!$('#pointName').value)$('#pointName').value=me.name;""",
+            """$('#playerNames').innerHTML=isAdmin?names.map(name=>`<option value="${safe(name)}"></option>`).join(''):'';const pointName=$('#pointName');if(pointName){pointName.readOnly=!isAdmin;if(!isAdmin)pointName.value=me?.ranking_name||me?.name||'';else if(!pointName.value)pointName.value=me?.ranking_name||me?.name||'';}""",
+        ),
+        (
+            "post('/entries',payload)",
+            "post(me?.role==='admin'?'/entries':'/member/entries',payload)",
+        ),
+        (
+            "const point=$('#mobilePointNav');if(point)point.classList.toggle('hidden',me?.role!=='admin');",
+            "const point=$('#mobilePointNav');if(point)point.classList.remove('hidden');",
+        ),
+    )
+    for old, new in member_point_replacements:
+        if old not in js:
+            raise RuntimeError(f"member point browser contract drift: {old[:48]}")
+        js = js.replace(old, new)
     if js.count(_PWA_REGISTRATION) != 1:
         raise RuntimeError("service worker registration drift: expected one canonical registration")
     return js.replace(_PWA_REGISTRATION, _PWA_REGISTRATION_REPLACEMENT, 1)
