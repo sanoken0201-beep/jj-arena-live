@@ -289,8 +289,8 @@ def build_app_js() -> str:
             "async function renderPoints(){const isAdmin=me?.role==='admin';const [ents,names]=await Promise.all([api('/entries?limit=40'),isAdmin?api('/ranking-names'):Promise.resolve([])]);",
         ),
         (
-            "$('#playerNames').innerHTML=names.map(name=>\`<option value=\\"\${safe(name)}\\"></option>\`).join('');if(!$('#pointName').value)$('#pointName').value=me.name;",
-            "$('#playerNames').innerHTML=isAdmin?names.map(name=>\`<option value=\\"\${safe(name)}\\"></option>\`).join(''):'';const pointName=$('#pointName');if(pointName){pointName.readOnly=!isAdmin;if(!isAdmin)pointName.value=me?.ranking_name||me?.name||'';else if(!pointName.value)pointName.value=me?.ranking_name||me?.name||'';}",
+            """$('#playerNames').innerHTML=names.map(name=>`<option value="${safe(name)}"></option>`).join('');if(!$('#pointName').value)$('#pointName').value=me.name;""",
+            """$('#playerNames').innerHTML=isAdmin?names.map(name=>`<option value="${safe(name)}"></option>`).join(''):'';const pointName=$('#pointName');if(pointName){pointName.readOnly=!isAdmin;if(!isAdmin)pointName.value=me?.ranking_name||me?.name||'';else if(!pointName.value)pointName.value=me?.ranking_name||me?.name||'';}""",
         ),
         (
             "post('/entries',payload)",
