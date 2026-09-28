@@ -162,6 +162,26 @@ def _poker_config(user=Depends(runtime_server.current_user)):
     }
 
 
+@app.post("/api/member/entries")
+def _member_point_entry(
+    payload: runtime_server.PointEntry,
+    user=Depends(runtime_server.current_user),
+):
+    """Allow signed-in members to submit only their own club result.
+
+    The client-supplied player name is never trusted for member submissions.
+    Administrators keep using the canonical /api/entries route, where selecting
+    another ranking name is an intentional admin capability.
+    """
+    own_name = str(user.get("ranking_name") or user.get("name") or "").strip()
+    if not own_name:
+        raise HTTPException(400, "ランキング名が設定されていません")
+    values = payload.model_dump() if hasattr(payload, "model_dump") else payload.dict()
+    values["name"] = own_name
+    own_payload = runtime_server.PointEntry(**values)
+    return runtime_server.add_entry(own_payload, user)
+
+
 @app.post("/api/tables/{table_id}/leave-after-hand")
 async def _leave_after_hand(
     table_id: str,
