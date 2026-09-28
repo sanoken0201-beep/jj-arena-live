@@ -14,7 +14,7 @@ def main() -> None:
     js = build_app_js()
     css = build_styles()
 
-    require(ASSET_VERSION == 73, "asset version must be bumped for the aggregate-read UI")
+    require(ASSET_VERSION == 74, "asset version must include the member point-entry UI")
     require(SUBTRACTIVE_RED282_MARKER in html, "index marker missing")
     require(SUBTRACTIVE_RED282_MARKER in js, "app marker missing")
     require(SUBTRACTIVE_RED282_MARKER in css, "style marker missing")
