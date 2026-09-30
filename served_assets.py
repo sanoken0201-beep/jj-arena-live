@@ -70,7 +70,7 @@ from read_efficiency import transform_app_js as transform_read_efficiency_app_js
 ROOT = Path(__file__).resolve().parent
 MATERIALIZED_STATIC = ROOT / "materialized_v1244" / "static"
 BUILD_ROOT = ROOT / ".jj_build"
-ASSET_VERSION = 75
+ASSET_VERSION = 76
 BUILD_FORMAT = 1
 
 _TODAYS_JJ_MARKER = "v2 today's-jj contrast hardening 2026-09-12"
@@ -356,6 +356,22 @@ def build_app_js() -> str:
         if old not in js:
             raise RuntimeError(f"member point browser contract drift: {old[:48]}")
         js = js.replace(old, new)
+
+    # ranking summary flicker guard 2026-10-01
+    # Keep already-rendered summary content visible while the same member's
+    # ranking refreshes. First load and account switches still get a skeleton.
+    ranking_loading_old = "    box.innerHTML=jjV1243Skeleton(3);"
+    ranking_loading_new = (
+        "    const jjRankingIdentity=String(me.id||me.ranking_name||me.name||'');"
+        "if(box.dataset.jjRankingIdentity!==jjRankingIdentity){"
+        "box.dataset.jjRankingIdentity=jjRankingIdentity;"
+        "box.innerHTML=jjV1243Skeleton(3);"
+        "}else if(!box.hasChildNodes())box.innerHTML=jjV1243Skeleton(3);"
+    )
+    if js.count(ranking_loading_old) != 1:
+        raise RuntimeError("ranking summary loading-state drift")
+    js = js.replace(ranking_loading_old, ranking_loading_new, 1)
+
     if js.count(_PWA_REGISTRATION) != 1:
         raise RuntimeError("service worker registration drift: expected one canonical registration")
     return js.replace(_PWA_REGISTRATION, _PWA_REGISTRATION_REPLACEMENT, 1)
