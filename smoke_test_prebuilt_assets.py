@@ -41,6 +41,17 @@ def main() -> None:
                 relative: (root / relative).read_bytes()
                 for relative in first["outputs"]
             }
+            compiled_js = (root / "static" / "app.js").read_text(encoding="utf-8")
+            ranking_guard = (
+                "const jjRankingIdentity=String(me.id||me.ranking_name||me.name||'');"
+                "if(box.dataset.jjRankingIdentity!==jjRankingIdentity)"
+            )
+            assert compiled_js.count(ranking_guard) == 1, (
+                "ranking summary refresh must preserve rendered content for the same member"
+            )
+            assert served_assets.ASSET_VERSION == 76, (
+                "browser asset version must advance with the ranking flicker fix"
+            )
             second = served_assets.build_all(root)
             served_assets.validate_built_assets(root)
             assert first == second, "asset manifest is not deterministic"
