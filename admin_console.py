@@ -5,7 +5,7 @@ import sys
 import admin_point_safety
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 from fastapi import Depends, HTTPException
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
@@ -21,6 +21,7 @@ class AdminUserPatch(BaseModel):
     admin_note: str|None=Field(default=None,max_length=1000)
 
 class AdminPointIn(BaseModel):
+    scope:Literal['general','online','club']='general'
     request_id:str=Field(min_length=16,max_length=80,pattern=r"^[A-Za-z0-9_-]+$")
     user_id:int=Field(gt=0)
     direction:str=Field(min_length=3,max_length=20)
@@ -56,6 +57,8 @@ def _ensure_schema(db):
           kind TEXT NOT NULL,reason TEXT NOT NULL,effective_at TEXT NOT NULL,
           created_by {uid} NOT NULL REFERENCES users(id),created_at TEXT NOT NULL,
           reversal_of TEXT REFERENCES point_ledger(id))""")
+        if 'scope' not in _cols(db,con,'point_ledger'):
+            con.execute("ALTER TABLE point_ledger ADD COLUMN scope TEXT NOT NULL DEFAULT 'general' CHECK(scope IN ('general','online','club'))")
         con.execute("CREATE INDEX IF NOT EXISTS idx_point_ledger_user ON point_ledger(user_id,effective_at)")
         con.execute("CREATE INDEX IF NOT EXISTS idx_point_ledger_effective ON point_ledger(effective_at)")
         con.execute(f"""CREATE TABLE IF NOT EXISTS admin_audit_log(

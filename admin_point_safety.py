@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import uuid
+from datetime import datetime
 
 from fastapi import HTTPException
 
@@ -20,6 +21,14 @@ def ensure_schema(db):
 
 
 def apply_point(db, console, p, user):
+    scope = getattr(p, 'scope', 'general')
+    if scope != 'general':
+        try:
+            effective_date = datetime.fromisoformat(p.effective_at)
+        except (ValueError, TypeError):
+            raise HTTPException(400, '修正対象の反映日時を指定してください')
+        if not '2026-09-01' <= effective_date.date().isoformat() < '2027-04-01':
+            raise HTTPException(400, '反映日時は後期シーズン内を指定してください')
     direction = p.direction.strip().lower()
     if direction not in {"credit", "debit"}:
         raise HTTPException(400, "direction must be credit or debit")
@@ -28,9 +37,13 @@ def apply_point(db, console, p, user):
         raise HTTPException(400, "0より大きいポイントを入力してください")
     # An omitted effective_at stays omitted in the identity, not a new timestamp
     # on every retry. The resolved timestamp is stored in the original response.
-    identity = json.dumps({"user_id": p.user_id, "direction": direction,
+    identity_data = {"user_id": p.user_id, "direction": direction,
         "amount": amount, "reason": p.reason.strip(),
-        "effective_at": p.effective_at or None}, sort_keys=True, ensure_ascii=False)
+        "effective_at": p.effective_at or None}
+    # Keep historical general-request identities replay-compatible.
+    if scope != 'general':
+        identity_data['scope'] = scope
+    identity = json.dumps(identity_data, sort_keys=True, ensure_ascii=False)
     with db.connect() as con:
         # First statement takes the SQLite writer lock / PostgreSQL unique-key
         # lock. A concurrent retry waits for commit and sees the saved response.
@@ -57,11 +70,11 @@ def apply_point(db, console, p, user):
         effective = console._effective(p.effective_at, db)
         tx = "pt-" + uuid.uuid4().hex
         con.execute("""INSERT INTO point_ledger
-            (id,user_id,amount,kind,reason,effective_at,created_by,created_at,reversal_of)
-            VALUES (?,?,?,?,?,?,?,?,NULL)""", (tx,p.user_id,signed,
-            "credit" if signed > 0 else "collection",p.reason.strip(),effective,user["id"],console._now(db)))
+            (id,user_id,amount,kind,reason,effective_at,created_by,created_at,reversal_of,scope)
+            VALUES (?,?,?,?,?,?,?,?,NULL,?)""", (tx,p.user_id,signed,
+            "credit" if signed > 0 else "collection",p.reason.strip(),effective,user["id"],console._now(db),scope))
         console._audit(db,int(user["id"]),"point.credit" if signed > 0 else "point.collection",
-            p.user_id,con=con,transaction_id=tx,amount=signed,reason=p.reason.strip(),effective_at=effective)
+            p.user_id,con=con,transaction_id=tx,amount=signed,reason=p.reason.strip(),effective_at=effective,scope=scope)
         result = {"id": tx, "user_id": p.user_id, "amount": signed, "effective_at": effective}
         con.execute("UPDATE admin_point_requests SET response_json=? WHERE actor_id=? AND request_id=?",
                     (json.dumps(result),user["id"],p.request_id))
