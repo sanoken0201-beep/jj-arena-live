@@ -9,6 +9,18 @@ The commit above is only the snapshot used to write this document. At the start 
 
 ## 1. Source-of-truth order
 
+### 2026-10-03: scoped point corrections
+
+Admin point operations now accept `scope=general|online|club` (default general for
+legacy clients and historical rows). Online means ranked Ring points, not Sit&Go
+settlements. Scoped ledger deltas change the corresponding ranking column and
+total exactly once; reversals preserve scope and effective date. Raw hands,
+entries, counts and zero-point ranking membership are preserved. Choose a date
+in the original result month. Existing general offsets are not reclassified;
+cancel an old offset before replacing it with a scoped correction. The home
+ranking bundle now uses the same canonical ledger-aware aggregator as rankings.
+Regression: `smoke_test_scoped_points.py` (SQLite and PostgreSQL in points CI).
+
 When sources conflict, use this order:
 
 1. Current `main` code, tests, schema and deployment configuration.

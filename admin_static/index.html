@@ -56,7 +56,7 @@
         <div class="section-head"><div><div class="eyebrow">OFFICIAL POINTS</div><h2>ポイント付与・回収</h2><p>すべて追記型台帳に記録されます。誤操作は削除せず「取消」で反対取引を作成します。</p></div><button id="exportLedger" class="soft">台帳CSV</button></div>
         <div class="point-grid">
           <article class="panel operation-card"><div class="panel-head"><div><div class="eyebrow">NEW TRANSACTION</div><h3>ポイント操作</h3></div><span class="immutable">AUDITED</span></div>
-            <form id="pointForm" class="form-stack"><label>対象アカウント<select id="pointUser" required></select></label><div class="direction" role="group" aria-label="操作種別"><button type="button" class="active credit" data-direction="credit">＋ 付与</button><button type="button" data-direction="debit">− 回収</button></div><label>ポイント数<input id="pointAmount" type="number" min="0.01" step="0.01" inputmode="decimal" placeholder="100" required></label><label>反映日時<input id="pointEffective" type="datetime-local" required></label><label>理由<textarea id="pointReason" maxlength="500" rows="3" placeholder="例：運営補正、イベント付与、入力誤差修正" required></textarea></label><div class="preview"><span>実行後の差分</span><strong id="pointPreview">+0 pt</strong><small>公式ランキングに反映</small></div><button class="primary full">確認して記録</button></form>
+            <form id="pointForm" class="form-stack"><label>対象アカウント<select id="pointUser" required></select></label><label>修正対象<select id="pointScope" required><option value="general">一般調整（従来どおり）</option><option value="online">オンライン（リング）</option><option value="club">入力分（Club）</option></select></label><p class="field-note">オンライン・入力分は選んだ欄と合計に反映します。元の対戦と同じ月を反映日時に指定してください。既に一般調整で相殺した分は先に取消してください。対戦履歴・参加回数は消えません。Sit&amp;Goの精算は対象外です。</p><div class="direction" role="group" aria-label="操作種別"><button type="button" class="active credit" data-direction="credit">＋ 付与</button><button type="button" data-direction="debit">− 回収</button></div><label>ポイント数<input id="pointAmount" type="number" min="0.01" step="0.01" inputmode="decimal" placeholder="100" required></label><label>反映日時<input id="pointEffective" type="datetime-local" required></label><label>理由<textarea id="pointReason" maxlength="500" rows="3" placeholder="例：運営補正、イベント付与、入力誤差修正" required></textarea></label><div class="preview"><span>実行後の差分</span><strong id="pointPreview">+0 pt</strong><small>公式ランキングに反映</small></div><button class="primary full">確認して記録</button></form>
           </article>
           <article class="panel ledger-panel"><div class="panel-head"><div><div class="eyebrow">LEDGER</div><h3>ポイント台帳</h3></div><button id="refreshLedger" class="text-btn">更新</button></div><div id="ledgerList" class="ledger-list"></div></article>
         </div>
@@ -88,7 +88,7 @@
 
   <dialog id="userDialog"><button class="dialog-close" id="closeUserDialog" aria-label="閉じる">×</button><div id="userDialogBody"></div></dialog>
   <script src="/admin-static/admin_point_requests.js?v=1"></script>
-  <script src="/admin-static/admin.js?v=127"></script>
+  <script src="/admin-static/admin.js?v=128-scoped"></script>
   <script src="/admin-static/admin_delete.js?v=127"></script>
   <script src="/admin-static/admin_sitngo.js?sng=12hands-20260921-2"></script>
 <script src="/admin-static/admin_pin_verify.js?v=127"></script>

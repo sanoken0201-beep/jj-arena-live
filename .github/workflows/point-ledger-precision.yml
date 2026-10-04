@@ -64,6 +64,14 @@ jobs:
       - name: Verify manual point retries and atomic audit (SQLite)
         run: python smoke_test_admin_point_safety.py
 
+      - name: Verify scoped corrections (SQLite)
+        run: python smoke_test_scoped_points.py
+
+      - name: Verify scoped corrections (PostgreSQL)
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/jj_arena_ci
+        run: python smoke_test_scoped_points.py --postgres
+
       - name: Verify manual point retries and atomic audit (PostgreSQL)
         env:
           DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/jj_arena_ci

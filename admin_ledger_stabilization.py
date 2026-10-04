@@ -35,6 +35,8 @@ def _ledger_by_name(db, server, *, month: str | None, season: str) -> dict[str, 
             SELECT COALESCE(NULLIF(u.ranking_name,''),u.name) name,
                    SUM(l.amount) ledger_points,
                    SUM(CASE WHEN l.kind IN ('credit','collection','reversal') THEN l.amount ELSE 0 END) manual_points,
+                   SUM(CASE WHEN l.scope='online' THEN l.amount ELSE 0 END) online_adjustment,
+                   SUM(CASE WHEN l.scope='club' THEN l.amount ELSE 0 END) club_adjustment,
                    SUM(CASE WHEN l.kind='quiz_reward' THEN l.amount ELSE 0 END) quiz_points
             FROM point_ledger l
             JOIN users u ON u.id=l.user_id
@@ -50,7 +52,9 @@ def _ledger_by_name(db, server, *, month: str | None, season: str) -> dict[str, 
         quiz = float(row["quiz_points"] or 0)
         out[str(row["name"])] = {
             "ledger_points": round(ledger, 2),
-            "admin_points": round(manual, 2),
+            "admin_points": round(manual - float(row['online_adjustment'] or 0) - float(row['club_adjustment'] or 0), 2),
+            "online_adjustment": round(float(row['online_adjustment'] or 0), 2),
+            "club_adjustment": round(float(row['club_adjustment'] or 0), 2),
             "quiz_points": round(quiz, 2),
             "other_ledger_points": round(ledger - manual - quiz, 2),
         }
@@ -143,6 +147,9 @@ def install(app, admin_console) -> None:
             )
             # Preserve the original total: it already includes every ledger row.
             row.update(categories)
+            for scope in ('online', 'club'):
+                row[scope + '_raw_points'] = row[scope + '_points']
+                row[scope + '_points'] = round(row[scope + '_points'] + categories.get(scope + '_adjustment', 0), 2)
         return rows
 
     admin_console._rankings = rankings
@@ -251,7 +258,7 @@ def install(app, admin_console) -> None:
         with db.connect() as con:
             rows = con.execute(
                 f"""
-                SELECT l.id,l.user_id,l.amount,l.kind,l.reason,l.effective_at,l.created_at,l.reversal_of,
+                SELECT l.id,l.user_id,l.amount,l.kind,l.reason,l.effective_at,l.created_at,l.reversal_of,l.scope,
                        u.name user_name,COALESCE(NULLIF(u.ranking_name,''),u.name) ranking_name,
                        a.name actor_name,
                        CASE WHEN EXISTS(SELECT 1 FROM point_ledger rv WHERE rv.reversal_of=l.id) THEN 1 ELSE 0 END reversed
@@ -288,8 +295,8 @@ def install(app, admin_console) -> None:
             con.execute(
                 """
                 INSERT INTO point_ledger(
-                    id,user_id,amount,kind,reason,effective_at,created_by,created_at,reversal_of
-                ) VALUES (?,?,?,?,?,?,?,?,?)
+                    id,user_id,amount,kind,reason,effective_at,created_by,created_at,reversal_of,scope
+                ) VALUES (?,?,?,?,?,?,?,?,?,?)
                 """,
                 (
                     reversal_id,
@@ -301,6 +308,7 @@ def install(app, admin_console) -> None:
                     user["id"],
                     created_at,
                     txid,
+                    original['scope'],
                 ),
             )
             admin_console._audit(
@@ -311,6 +319,7 @@ def install(app, admin_console) -> None:
                 transaction_id=reversal_id,
                 reversal_of=txid,
                 amount=amount,
+                scope=original['scope'],
                 con=con,
             )
         return {"id": reversal_id, "reversal_of": txid, "amount": amount}

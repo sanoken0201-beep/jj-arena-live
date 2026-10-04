@@ -79,14 +79,15 @@ def install(app, server, db, *, public_table_limit=None):
     server.me = me
 
     def home_core(user=Depends(server.current_user)):
+        import admin_console
         with db.connect() as con:
             readers = {
-                "rankings": server.rankings,
                 "schedules": server.schedules,
                 "announcements": server.announcements,
             }
             result = {name: _on_connection(reader, db, con, user=user)
                       for name, reader in readers.items()}
+            result['rankings'] = admin_console._rankings(_BoundDB(db, con), server)
             tables = _on_connection(server.tables, db, con, user=user)
             result["tables"] = tables[:public_table_limit] if public_table_limit is not None else tables
             return result
