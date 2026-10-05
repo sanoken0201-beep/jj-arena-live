@@ -1,6 +1,7 @@
 """Dynamic ring config, JST re-entry limit and admin reset regression."""
 from __future__ import annotations
 
+from copy import deepcopy
 from datetime import datetime, timezone
 from unittest.mock import patch
 
@@ -91,6 +92,77 @@ def run() -> None:
             assert int(state["rake_cap"]) == 425
             assert int(state["min_buyin"]) == 5000
             assert int(state["max_buyin"]) == 20000
+
+            # Rake policy is snapshotted at hand start. A config change while a
+            # hand is already running must not rewrite that hand, and the next
+            # hand must pick up the new percentage/cap.
+            first_policy_state = deepcopy(state)
+            first_policy_state["status"] = "waiting"
+            first_policy_state["hand"] = {}
+            first_policy_state["seats"] = []
+            first_policy_state["hand_no"] = 0
+            server.seat_player(
+                first_policy_state,
+                user_id=int(admin_user["id"]),
+                name=admin_user["name"],
+                seat=0,
+                stack=15000,
+            )
+            server.seat_player(
+                first_policy_state,
+                user_id=uid,
+                name=user["name"],
+                seat=1,
+                stack=15000,
+            )
+            server.start_hand(first_policy_state)
+            assert abs(float(first_policy_state["hand"]["rake_percent_snapshot"]) - 0.075) < 1e-12
+            assert abs(float(first_policy_state["hand"]["rake_cap_bb_snapshot"]) - 4.25) < 1e-12
+
+            changed_policy = json_response(_request(
+                client,
+                admin_cookies,
+                "PATCH",
+                "/api/admin/console/ring-config",
+                json={"rake_percent": 2.5, "rake_cap_bb": 1.5},
+            ))
+            assert changed_policy["rake_percent"] == 2.5
+            assert changed_policy["rake_cap_bb"] == 1.5
+            assert abs(float(first_policy_state["hand"]["rake_percent_snapshot"]) - 0.075) < 1e-12
+            assert abs(float(first_policy_state["hand"]["rake_cap_bb_snapshot"]) - 4.25) < 1e-12
+
+            next_policy_state = deepcopy(server.load_table(table_id))
+            next_policy_state["status"] = "waiting"
+            next_policy_state["hand"] = {}
+            next_policy_state["seats"] = []
+            next_policy_state["hand_no"] = 0
+            server.seat_player(
+                next_policy_state,
+                user_id=int(admin_user["id"]),
+                name=admin_user["name"],
+                seat=0,
+                stack=15000,
+            )
+            server.seat_player(
+                next_policy_state,
+                user_id=uid,
+                name=user["name"],
+                seat=1,
+                stack=15000,
+            )
+            server.start_hand(next_policy_state)
+            assert abs(float(next_policy_state["hand"]["rake_percent_snapshot"]) - 0.025) < 1e-12
+            assert abs(float(next_policy_state["hand"]["rake_cap_bb_snapshot"]) - 1.5) < 1e-12
+
+            restored_policy = json_response(_request(
+                client,
+                admin_cookies,
+                "PATCH",
+                "/api/admin/console/ring-config",
+                json={"rake_percent": 7.5, "rake_cap_bb": 4.25},
+            ))
+            assert restored_policy["rake_percent"] == 7.5
+            assert restored_policy["rake_cap_bb"] == 4.25
 
             player_cfg = json_response(_request(client, member_cookies, "POST", "/api/poker-config"))
             assert player_cfg["rake_percent"] == 7.5
@@ -208,8 +280,9 @@ def run() -> None:
             _insert_hand(db, "ring-rake-1", 9001, 1.25)
             _insert_hand(db, "ring-rake-2", 9002, 0.75)
             rake = json_response(_request(client, admin_cookies, "GET", "/api/admin/console/ring-rake"))
-            assert rake["current"] == {"rake_bb": 2.0, "rake_points": 200.0, "hands": 2}
-            assert rake["all_time"]["rake_points"] == 200.0
+            assert rake["points_per_bb"] == 3.0
+            assert rake["current"] == {"rake_bb": 2.0, "rake_points": 6.0, "hands": 2}
+            assert rake["all_time"]["rake_points"] == 6.0
 
             settled = json_response(_request(
                 client,
@@ -219,15 +292,30 @@ def run() -> None:
                 json={"note": "smoke rakeback"},
             ))
             assert settled["current"]["rake_points"] == 0.0
-            assert settled["last_reset"]["settled_rake_points"] == 200.0
+            assert settled["last_reset"]["settled_rake_points"] == 6.0
+            assert settled["last_reset"]["points_per_bb"] == 3.0
             assert settled["last_reset"]["hand_count"] == 2
+
+            # Existing settlement rows from the broken release may contain a
+            # 100x stored point value and no conversion-rate snapshot. The API
+            # must repair the display from authoritative BB rather than repeat it.
+            with db.connect() as con:
+                con.execute(
+                    "UPDATE ring_rake_settlements SET settled_rake_points=?,points_per_bb=NULL WHERE id=?",
+                    (200.0, settled["last_reset"]["id"]),
+                )
+            legacy_display = json_response(_request(
+                client, admin_cookies, "GET", "/api/admin/console/ring-rake"
+            ))
+            assert legacy_display["last_reset"]["settled_rake_points"] == 6.0
+            assert legacy_display["last_reset"]["points_per_bb"] == 3.0
 
             _insert_hand(db, "ring-rake-3", 9003, 0.50)
             _insert_hand(db, "ring-rake-void", 9004, 1.00, voided=1)
             rake = json_response(_request(client, admin_cookies, "GET", "/api/admin/console/ring-rake"))
-            assert rake["current"]["rake_points"] == 50.0
+            assert rake["current"]["rake_points"] == 1.5
             assert rake["current"]["hands"] == 1
-            assert rake["all_time"]["rake_points"] == 250.0
+            assert rake["all_time"]["rake_points"] == 7.5
 
             json_response(_request(
                 client, admin_cookies, "POST", "/api/admin/console/ring-rake/reset", json={}
