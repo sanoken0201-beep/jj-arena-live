@@ -40,10 +40,16 @@ def _json(value):
     return json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
 
 
-def build_daily_questions(day):
+def build_daily_questions(day, extra_questions=None):
     ordinal = date.fromisoformat(day).toordinal()
+    extras_by_category = {}
+    for extra in extra_questions or []:
+        category = str(extra.get("category") or "")
+        if category in POOLS:
+            extras_by_category.setdefault(category, []).append(extra)
     questions = []
     for slot, (category, pool) in enumerate(POOLS.items(), 1):
+        pool = list(pool) + extras_by_category.get(category, [])
         # A fixed permutation avoids immediate repeats across cycle boundaries.
         # Each category visits every item once before repeating it.
         ordered = sorted(pool, key=lambda q: hashlib.sha256((category + q["key"]).encode()).hexdigest())
@@ -120,11 +126,29 @@ def _lock_user(con, db, uid):
         raise HTTPException(403, "このアカウントは利用できません")
 
 
+def _custom_questions(con):
+    try:
+        rows = con.execute(
+            "SELECT question_json FROM quiz_custom_questions WHERE enabled=1 ORDER BY created_at,id"
+        ).fetchall()
+    except Exception:
+        return []
+    questions = []
+    for row in rows:
+        try:
+            item = json.loads(row["question_json"])
+        except Exception:
+            continue
+        if item.get("category") in POOLS and item.get("key"):
+            questions.append(item)
+    return questions
+
+
 def _daily_set(con, day):
     row = con.execute("SELECT bank_version,questions_json FROM quiz_daily_sets WHERE quiz_date=?", (day,)).fetchone()
     generated = None
     if not row:
-        generated = _json(build_daily_questions(day))
+        generated = _json(build_daily_questions(day, _custom_questions(con)))
         con.execute("""INSERT INTO quiz_daily_sets(
             quiz_date,bank_version,questions_json,correct_reward,incorrect_reward)
             VALUES (?,?,?,?,?) ON CONFLICT(quiz_date) DO NOTHING""",
@@ -134,7 +158,7 @@ def _daily_set(con, day):
         # A readability fix must take effect on the same JST day. Already answered
         # rows retain their own question_json; only the shared set and outstanding
         # unanswered rows are refreshed when the user next loads the quiz.
-        generated = generated or _json(build_daily_questions(day))
+        generated = generated or _json(build_daily_questions(day, _custom_questions(con)))
         con.execute("UPDATE quiz_daily_sets SET bank_version=?,questions_json=? WHERE quiz_date=?",
                     (BANK_VERSION, generated, day))
         row = {"bank_version": BANK_VERSION, "questions_json": generated}
