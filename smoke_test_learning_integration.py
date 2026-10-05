@@ -36,7 +36,7 @@ MATERIALIZED = (ROOT / "materialized_v1244").resolve()
 def isolated_production_app(database_url=""):
     modules = (
         "app", "app_materialized", "server", "db", "poker_engine", "admin_console", "admin_delete",
-        "admin_pin_verification", "admin_ledger_stabilization", "learning_content",
+        "admin_pin_verification", "admin_ledger_stabilization", "learning_content", "quiz_admin_ai",
         "online_results_cleanup", "hand_analytics", "hand_analytics_hardening",
     )
     previous_modules = {name: sys.modules.pop(name) for name in modules if name in sys.modules}
