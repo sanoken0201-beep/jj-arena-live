@@ -384,7 +384,7 @@ def _register_routes(app, server, db) -> None:
                 return await original_sit(table_id, server.SeatIn(seat=payload.seat), user)
             event = _reserve_buyin(db, uid, table_id, "seat", force_reentry=False)
             try:
-                return await original_sit(table_id, payload, user)
+                return await original_sit(table_id, server.SeatIn(seat=payload.seat), user)
             except Exception:
                 _undo_buyin(db, event["id"])
                 raise
@@ -411,7 +411,7 @@ def _register_routes(app, server, db) -> None:
         async with _user_lock(uid):
             event = _reserve_buyin(db, uid, table_id, "presence_rebuy", force_reentry=True)
             try:
-                return await original_presence(table_id, payload, user)
+                return await original_presence(table_id, server.TablePresenceIn(mode=payload.mode), user)
             except Exception:
                 _undo_buyin(db, event["id"])
                 raise
