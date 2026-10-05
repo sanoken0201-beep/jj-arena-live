@@ -52,8 +52,17 @@ def main() -> None:
             assert "ring variable buy-in ui 2026-10-05" in compiled_js, (
                 "compiled browser asset must contain the variable Ring buy-in UI"
             )
-            assert served_assets.ASSET_VERSION == 78, (
-                "browser asset version must advance with the Ring buy-in UI"
+            assert 'class="lobby-card jj-sub-single-table"' in compiled_js, (
+                "variable buy-in lobby must preserve the single-table layout contract"
+            )
+            assert "rakeLabel.className='jj-ring-rake'" in compiled_js, (
+                "Ring rake display must preserve the structured pot presentation"
+            )
+            assert "potEl.textContent='Pot '" not in compiled_js, (
+                "Ring adapter must not flatten the canonical pot markup"
+            )
+            assert served_assets.ASSET_VERSION == 79, (
+                "browser asset version must advance with the post-refactor UI repair"
             )
             second = served_assets.build_all(root)
             served_assets.validate_built_assets(root)
@@ -82,6 +91,10 @@ def main() -> None:
 
             served_assets.BUILD_ROOT = root
             assert served_assets.ensure_runtime_assets() == root
+            runtime_manifest = served_assets.validate_built_assets(root)
+            assert runtime_manifest.get("browser_output_contract") == "canonical-prebuilt-v1", (
+                "local/test runtime must use the same finalized browser pipeline as production"
+            )
 
         print("JJ_PREBUILT_ASSET_CONTRACT_OK")
     finally:
