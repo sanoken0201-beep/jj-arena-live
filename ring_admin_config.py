@@ -265,12 +265,26 @@ def ring_status(db) -> dict[str, Any]:
     }
 
 
-def decorate_table_summaries(server, rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+def decorate_table_summaries(
+    server,
+    rows: list[dict[str, Any]],
+    *,
+    con=None,
+) -> list[dict[str, Any]]:
     decorated = []
     for raw in rows:
         item = dict(raw)
         try:
-            state = server.load_table(str(item["id"]))
+            if con is None:
+                state = server.load_table(str(item["id"]))
+            else:
+                row = con.execute(
+                    "SELECT state_json FROM tables WHERE id=?",
+                    (str(item["id"]),),
+                ).fetchone()
+                if not row:
+                    raise KeyError(item["id"])
+                state = json.loads(row["state_json"])
             minimum, maximum, bb = _buyin_bounds(state)
             min_bb = max(1, minimum // bb)
             max_bb = max(min_bb, maximum // bb)
