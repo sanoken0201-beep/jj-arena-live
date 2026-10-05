@@ -53,7 +53,7 @@ def transform_app_js(source: str) -> str:
     )
     value = value.replace(
         "'6-max · 0.5/1bb · 150bb · rake 10% / 5bb cap';",
-        "\`6-max · 0.5/1bb · 150bb · rake ${fmt(Number(tableState.rake_percent||0)*100)}% / ${bb(Number(tableState.rake_cap||0))} cap\`;",
+        "`6-max · 0.5/1bb · 150bb · rake ${fmt(Number(tableState.rake_percent||0)*100)}% / ${bb(Number(tableState.rake_cap||0))} cap`;",
     )
     value = value.replace(
         "pot*0.10,Number(tableState.rake_cap||500)",
