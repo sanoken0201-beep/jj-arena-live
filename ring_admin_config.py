@@ -590,62 +590,193 @@ def rake_summary(db) -> dict:
 
 
 def _register_routes(app, server, db) -> None:
-    original_sit = server.sit
-    original_join = server.join_table
-    original_presence = server.update_table_presence
-    original_rebuy = server.rebuy
-
     @app.post("/api/tables/{table_id}/seat", include_in_schema=False)
     async def limited_seat(table_id: str, payload: RingSeatIn, user=Depends(server.current_user)):
         uid = int(user["id"])
         async with _user_lock(uid):
-            state = server.load_table(table_id)
-            if any(int(player.get("user_id", -1)) == uid for player in state.get("seats", [])):
-                return await original_sit(table_id, server.SeatIn(seat=payload.seat), user)
-            event = _reserve_buyin(db, uid, table_id, "seat", force_reentry=False)
-            try:
-                return await original_sit(table_id, server.SeatIn(seat=payload.seat), user)
-            except Exception:
-                _undo_buyin(db, event["id"])
-                raise
+            async with server.table_membership_lock:
+                other = server.seated_table_for_user(uid, exclude=table_id)
+                if other:
+                    raise HTTPException(400, "別のテーブルに着席中です")
+                async with server.get_table_lock(table_id):
+                    state = server.load_table(table_id)
+                    if server._jj_table_user(state, uid):
+                        raise HTTPException(400, "すでに着席しています")
+                    cfg = get_config(db)
+                    stack, _chosen_bb = _resolve_buyin_stack(state, cfg, payload.buyin_bb)
+                    event = _reserve_buyin(db, uid, table_id, "seat", force_reentry=False)
+                    try:
+                        server.seat_player(
+                            state,
+                            user_id=uid,
+                            name=user["name"],
+                            seat=payload.seat,
+                            stack=stack,
+                        )
+                        server.save_table(state)
+                    except Exception:
+                        _undo_buyin(db, event["id"])
+                        raise
+        await server.hub.broadcast(table_id)
+        return server.public_state(state, uid)
 
     @app.post("/api/tables/{table_id}/join", include_in_schema=False)
-    async def limited_join(table_id: str, user=Depends(server.current_user)):
+    async def limited_join(
+        table_id: str,
+        payload: RingJoinIn | None = None,
+        user=Depends(server.current_user),
+    ):
         uid = int(user["id"])
+        requested = payload.buyin_bb if payload is not None else None
         async with _user_lock(uid):
-            state = server.load_table(table_id)
-            if any(int(player.get("user_id", -1)) == uid for player in state.get("seats", [])):
-                return await original_join(table_id, user)
-            event = _reserve_buyin(db, uid, table_id, "join", force_reentry=False)
-            try:
-                return await original_join(table_id, user)
-            except Exception:
-                _undo_buyin(db, event["id"])
-                raise
+            async with server.table_membership_lock:
+                async with server.get_table_lock(table_id):
+                    state = server.load_table(table_id)
+                    existing = server._jj_table_user(state, uid)
+                    if existing:
+                        return server.public_state(state, uid)
+
+                other = server.seated_table_for_user(uid, exclude=table_id)
+                if other:
+                    raise HTTPException(400, "別のテーブルに着席中です")
+
+                async with server.get_table_lock(table_id):
+                    state = server.load_table(table_id)
+                    existing = server._jj_table_user(state, uid)
+                    if existing:
+                        return server.public_state(state, uid)
+                    occupied = {int(player.get("seat", -1)) for player in state.get("seats", [])}
+                    free = [
+                        seat
+                        for seat in range(int(state.get("max_seats", 6)))
+                        if seat not in occupied
+                    ]
+                    if not free:
+                        raise HTTPException(409, "このテーブルは満席です")
+                    button = int(state.get("button_seat", -1))
+                    free.sort(
+                        key=lambda seat: (
+                            (seat - button) % int(state.get("max_seats", 6))
+                        )
+                    )
+                    chosen = free[0]
+                    cfg = get_config(db)
+                    stack, _chosen_bb = _resolve_buyin_stack(state, cfg, requested)
+                    live_session = bool(state.get("session_active")) or state.get("status") == "playing"
+                    event = _reserve_buyin(db, uid, table_id, "join", force_reentry=False)
+                    try:
+                        server.seat_player(
+                            state,
+                            user_id=uid,
+                            name=user["name"],
+                            seat=chosen,
+                            stack=stack,
+                        )
+                        player = server._jj_table_user(state, uid)
+                        if player and live_session:
+                            player["sitting_out"] = False
+                            player["sit_out_next"] = False
+                            player["ready"] = False
+                            player["in_hand"] = False
+                            player["folded"] = False
+                            player["all_in"] = False
+                            player["round_bet"] = 0
+                            player["contributed"] = 0
+                            player["cards"] = []
+                        server.save_table(state)
+                    except Exception:
+                        _undo_buyin(db, event["id"])
+                        raise
+        await server.hub.broadcast(table_id)
+        return server.public_state(state, uid)
 
     @app.post("/api/tables/{table_id}/presence", include_in_schema=False)
     async def limited_presence(table_id: str, payload: RingPresenceIn, user=Depends(server.current_user)):
         if payload.mode != "rebuy":
-            return await original_presence(table_id, server.TablePresenceIn(mode=payload.mode), user)
+            return await server.update_table_presence(
+                table_id,
+                server.TablePresenceIn(mode=payload.mode),
+                user,
+            )
         uid = int(user["id"])
         async with _user_lock(uid):
-            event = _reserve_buyin(db, uid, table_id, "presence_rebuy", force_reentry=True)
-            try:
-                return await original_presence(table_id, server.TablePresenceIn(mode=payload.mode), user)
-            except Exception:
-                _undo_buyin(db, event["id"])
-                raise
+            async with server.get_table_lock(table_id):
+                state = server.load_table(table_id)
+                player = server._jj_table_user(state, uid)
+                if not player:
+                    raise HTTPException(400, "このテーブルに着席していません")
+                if state.get("status") == "playing":
+                    raise HTTPException(400, "ハンド終了後にRebuyしてください")
+                if int(player.get("stack", 0)) != 0:
+                    raise HTTPException(400, "Rebuyは0bbのときだけ利用できます")
+                cfg = get_config(db)
+                stack, _chosen_bb = _resolve_buyin_stack(state, cfg, payload.buyin_bb)
+                event = _reserve_buyin(db, uid, table_id, "presence_rebuy", force_reentry=True)
+                try:
+                    player.update({
+                        "stack": stack,
+                        "in_hand": False,
+                        "folded": False,
+                        "all_in": False,
+                        "round_bet": 0,
+                        "contributed": 0,
+                        "cards": [],
+                        "sitting_out": False,
+                        "sit_out_next": False,
+                        "ready": False,
+                    })
+                    active = server._jj_table_active_players(state)
+                    if len(active) < 2 and state.get("status") != "playing":
+                        state["session_active"] = False
+                        state["next_hand_at_epoch"] = None
+                    server.save_table(state)
+                except Exception:
+                    _undo_buyin(db, event["id"])
+                    raise
+        await server.hub.broadcast(table_id)
+        return server.public_state(state, uid)
 
     @app.post("/api/tables/{table_id}/rebuy", include_in_schema=False)
-    async def limited_rebuy(table_id: str, user=Depends(server.current_user)):
+    async def limited_rebuy(
+        table_id: str,
+        payload: RingJoinIn | None = None,
+        user=Depends(server.current_user),
+    ):
         uid = int(user["id"])
+        requested = payload.buyin_bb if payload is not None else None
         async with _user_lock(uid):
-            event = _reserve_buyin(db, uid, table_id, "rebuy", force_reentry=True)
-            try:
-                return await original_rebuy(table_id, user)
-            except Exception:
-                _undo_buyin(db, event["id"])
-                raise
+            async with server.get_table_lock(table_id):
+                state = server.load_table(table_id)
+                if state.get("status") == "playing":
+                    raise HTTPException(400, "ハンド中はリバイできません")
+                player = server._jj_table_user(state, uid)
+                if not player:
+                    raise HTTPException(400, "着席していません")
+                if int(player.get("stack", 0)) != 0:
+                    raise HTTPException(400, "Rebuyは0bbのときだけ利用できます")
+                cfg = get_config(db)
+                stack, _chosen_bb = _resolve_buyin_stack(state, cfg, requested)
+                event = _reserve_buyin(db, uid, table_id, "rebuy", force_reentry=True)
+                try:
+                    player.update({
+                        "stack": stack,
+                        "in_hand": False,
+                        "folded": False,
+                        "all_in": False,
+                        "round_bet": 0,
+                        "contributed": 0,
+                        "cards": [],
+                        "sitting_out": False,
+                        "sit_out_next": False,
+                        "ready": False,
+                    })
+                    server.touch_presence(table_id, uid)
+                    server.save_table(state)
+                except Exception:
+                    _undo_buyin(db, event["id"])
+                    raise
+        await server.hub.broadcast(table_id)
+        return server.public_state(state, uid)
 
     for path, method, endpoint in (
         ("/api/tables/{table_id}/seat", "POST", limited_seat),
@@ -668,19 +799,26 @@ def _register_routes(app, server, db) -> None:
             percent = Decimal(str(before["rake_percent"])) if payload.rake_percent is None else payload.rake_percent
             cap = Decimal(str(before["rake_cap_bb"])) if payload.rake_cap_bb is None else payload.rake_cap_bb
             limit = before["daily_reentry_limit"] if payload.daily_reentry_limit is None else payload.daily_reentry_limit
+            minimum = before["min_buyin_bb"] if payload.min_buyin_bb is None else int(payload.min_buyin_bb)
+            maximum = before["max_buyin_bb"] if payload.max_buyin_bb is None else int(payload.max_buyin_bb)
+            if minimum > maximum:
+                raise HTTPException(400, "ミニマムバイインはMAXバイイン以下にしてください")
             bps = _scaled_exact(percent, 100, "レーキ率")
             cap100 = _scaled_exact(cap, 100, "cap")
             stamp = _now().isoformat()
             con.execute(
                 """UPDATE ring_runtime_config
-                   SET rake_bps=?,rake_cap_hundredths_bb=?,daily_reentry_limit=?,updated_by=?,updated_at=?
+                   SET rake_bps=?,rake_cap_hundredths_bb=?,daily_reentry_limit=?,
+                       min_buyin_bb=?,max_buyin_bb=?,updated_by=?,updated_at=?
                    WHERE id=1""",
-                (bps, cap100, int(limit), int(user["id"]), stamp),
+                (bps, cap100, int(limit), minimum, maximum, int(user["id"]), stamp),
             )
             after = {
                 "rake_percent": float(Decimal(bps) / Decimal(100)),
                 "rake_cap_bb": float(Decimal(cap100) / Decimal(100)),
                 "daily_reentry_limit": int(limit),
+                "min_buyin_bb": minimum,
+                "max_buyin_bb": maximum,
                 "updated_by": int(user["id"]),
                 "updated_at": stamp,
             }
@@ -702,11 +840,79 @@ def _register_routes(app, server, db) -> None:
         for table_id, _name in getattr(db, "FIXED_TABLES", ()):
             async with server.get_table_lock(table_id):
                 state = server.load_table(table_id)
+                _apply_state_buyins(state, after)
                 if state.get("status") != "playing":
                     _apply_state_rake(state, after)
-                    server.save_table(state)
+                server.save_table(state)
             await server.hub.broadcast(table_id)
         return after
+
+    @app.get("/api/admin/console/ring-rake", include_in_schema=False)
+    def admin_ring_rake(user=Depends(server.admin_user)):
+        return rake_summary(db)
+
+    @app.post("/api/admin/console/ring-rake/reset", include_in_schema=False)
+    async def reset_ring_rake(payload: RakeResetIn = RakeResetIn(), user=Depends(server.admin_user)):
+        table_ids = [table_id for table_id, _name in getattr(db, "FIXED_TABLES", ())]
+        locks = [server.get_table_lock(table_id) for table_id in table_ids]
+        async with _rake_reset_lock:
+            for lock in locks:
+                await lock.acquire()
+            try:
+                with db.connect() as con:
+                    previous = _latest_rake_settlement(con)
+                    boundaries = (previous or {}).get("boundaries") or {}
+                    current_bb, hand_count = _rake_window(con, boundaries)
+                    if current_bb <= 0:
+                        raise HTTPException(409, "未精算のレーキはありません")
+                    multiplier = Decimal(str(int(getattr(db, "TABLE_BB", 100) or 100)))
+                    settled_points = current_bb * multiplier
+                    new_boundaries = _current_rake_boundaries(con)
+                    settlement_id = "ring-rake-" + uuid.uuid4().hex
+                    stamp = _now().isoformat()
+                    note = payload.note.strip() or "オフライン活動でレーキバック"
+                    con.execute(
+                        """INSERT INTO ring_rake_settlements(
+                             id,boundaries_json,settled_rake_bb,settled_rake_points,
+                             hand_count,note,created_by,created_at)
+                           VALUES (?,?,?,?,?,?,?,?)""",
+                        (
+                            settlement_id,
+                            json.dumps(new_boundaries, ensure_ascii=False, sort_keys=True),
+                            float(current_bb),
+                            float(settled_points),
+                            int(hand_count),
+                            note,
+                            int(user["id"]),
+                            stamp,
+                        ),
+                    )
+                    con.execute(
+                        """INSERT INTO ring_config_audit(
+                             id,action,actor_id,target_user_id,before_json,after_json,created_at)
+                           VALUES (?,?,?,?,?,?,?)""",
+                        (
+                            "ring-audit-" + uuid.uuid4().hex,
+                            "rake_settlement_reset",
+                            int(user["id"]),
+                            None,
+                            json.dumps({
+                                "rake_bb": _round_amount(current_bb),
+                                "rake_points": _round_amount(settled_points),
+                                "hands": int(hand_count),
+                            }, ensure_ascii=False, sort_keys=True),
+                            json.dumps({
+                                "rake_bb": 0,
+                                "rake_points": 0,
+                                "settlement_id": settlement_id,
+                            }, ensure_ascii=False, sort_keys=True),
+                            stamp,
+                        ),
+                    )
+            finally:
+                for lock in reversed(locks):
+                    lock.release()
+        return rake_summary(db)
 
     @app.get("/api/admin/console/ring-reentries", include_in_schema=False)
     def admin_reentries(user=Depends(server.admin_user)):
