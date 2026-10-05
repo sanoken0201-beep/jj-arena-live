@@ -332,6 +332,21 @@ def _install_hand_snapshot(server, db, poker_engine) -> None:
     server._jj_ring_config_start_installed = True
 
 
+def _install_waiting_table_policy(server, db) -> None:
+    """Refresh the advertised policy as soon as a hand/session returns to waiting."""
+    if getattr(server, "_jj_ring_config_save_installed", False):
+        return
+    original_save = server.save_table
+
+    def save_table_with_config(state: dict):
+        if state.get("status") != "playing":
+            _apply_state_rake(state, get_config(db))
+        return original_save(state)
+
+    server.save_table = save_table_with_config
+    server._jj_ring_config_save_installed = True
+
+
 def _install_hand_history_policy(db) -> None:
     with db.connect() as con:
         if db.IS_POSTGRES:
@@ -565,6 +580,7 @@ def install(app, server, db, poker_engine) -> None:
     _ensure_schema(db)
     _install_hand_history_policy(db)
     _install_hand_snapshot(server, db, poker_engine)
+    _install_waiting_table_policy(server, db)
     _apply_waiting_tables(db)
     _seed_today_initial_buyins(db)
     _register_routes(app, server, db)
