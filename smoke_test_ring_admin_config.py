@@ -229,6 +229,20 @@ def run() -> None:
             assert rake["current"]["hands"] == 1
             assert rake["all_time"]["rake_points"] == 250.0
 
+            json_response(_request(
+                client, admin_cookies, "POST", "/api/admin/console/ring-rake/reset", json={}
+            ))
+            empty_reset = _request(
+                client, admin_cookies, "POST", "/api/admin/console/ring-rake/reset", json={}
+            )
+            assert empty_reset.status_code == 409, empty_reset.text
+            with db.connect() as con:
+                assert int(con.execute("SELECT COUNT(*) n FROM online_hands").fetchone()["n"]) == 4
+                assert int(con.execute("SELECT COUNT(*) n FROM ring_rake_settlements").fetchone()["n"]) == 2
+                assert int(con.execute(
+                    "SELECT COUNT(*) n FROM ring_config_audit WHERE action='rake_settlement_reset'"
+                ).fetchone()["n"]) == 2
+
             # JST calendar rollover starts a fresh daily counter without a cron reset.
             _bust(server, table_id, uid)
             clock.return_value = datetime(2026, 10, 5, 15, 0, tzinfo=timezone.utc)  # JST 2026-10-06 00:00
