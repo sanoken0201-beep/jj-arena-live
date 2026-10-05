@@ -338,8 +338,8 @@ def install(app, db, server, poker_engine) -> None:
             await lock.acquire()
         try:
             now = db.utcnow()
+            before_min, before_max = _settings(db)
             with db.connect() as con:
-                before_min, before_max = _settings(db)
                 for table_id in table_ids:
                     row = con.execute(
                         "SELECT state_json FROM tables WHERE id=?", (table_id,)
@@ -391,6 +391,8 @@ def install(app, db, server, poker_engine) -> None:
         finally:
             for lock in reversed(locks):
                 lock.release()
+        for table_id in table_ids:
+            await server.hub.broadcast(table_id)
         return ring_status(db)
 
     @app.post("/api/admin/console/ring/rake-reset")
