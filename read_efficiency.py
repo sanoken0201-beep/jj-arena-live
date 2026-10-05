@@ -56,7 +56,7 @@ class _SettlementConnection:
         return Result()
 
 
-def install(app, server, db, *, public_table_limit=None):
+def install(app, server, db, *, public_table_limit=None, table_decorator=None):
     # Keep the browser transform importable in dependency-free asset jobs.
     from fastapi import Depends
 
@@ -89,7 +89,10 @@ def install(app, server, db, *, public_table_limit=None):
                       for name, reader in readers.items()}
             result['rankings'] = admin_console._rankings(_BoundDB(db, con), server)
             tables = _on_connection(server.tables, db, con, user=user)
-            result["tables"] = tables[:public_table_limit] if public_table_limit is not None else tables
+            tables = tables[:public_table_limit] if public_table_limit is not None else tables
+            if table_decorator is not None:
+                tables = table_decorator(tables, con=con)
+            result["tables"] = tables
             return result
 
     def points_dashboard(user=Depends(server.admin_user)):
