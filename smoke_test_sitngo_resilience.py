@@ -20,6 +20,15 @@ def main() -> None:
     runtime = service.runtime
     with db.connect() as con:
         admin = int(con.execute("SELECT id FROM users WHERE role='admin' ORDER BY id LIMIT 1").fetchone()["id"])
+        # The PostgreSQL CI job intentionally reuses one database across Sit&Go
+        # smoke scripts. Retire any non-terminal fixture left by an earlier
+        # script so this resilience test owns the single-tournament runtime.
+        con.execute(
+            """UPDATE sitngo_events
+               SET status='finished',updated_at=?
+               WHERE status IN ('scheduled','registration_open','starting','running')""",
+            (db.utcnow(),),
+        )
 
     users = [add_member(7300 + i) for i in range(2)]
     starts = datetime.now(timezone.utc) + timedelta(minutes=10)
