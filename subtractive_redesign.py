@@ -169,7 +169,7 @@ _CSS_PATCH = r'''
 #actionBar .jj-sub-manual-stepper label{display:flex;align-items:center;gap:6px}
 #actionBar .jj-sub-manual-stepper input#raiseTo{min-width:110px;text-align:center;font-variant-numeric:tabular-nums}
 #actionBar .jj-sub-bet-hint{flex-basis:100%;text-align:center;color:#9fb2aa;font-size:.64rem;line-height:1.35}
-#tablesView .jj-sub-single-table{max-width:720px;margin-inline:auto}
+#tablesView .jj-sub-single-table{grid-column:1/-1;width:min(100%,720px);max-width:720px;margin-inline:auto}
 @media(max-width:760px){
   #pokerRoom .poker-layout{display:block!important}
   #actionBar .jj-sub-manual-stepper input#raiseTo{min-width:96px;font-size:1rem}
