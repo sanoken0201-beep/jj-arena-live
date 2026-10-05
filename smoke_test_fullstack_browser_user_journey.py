@@ -84,6 +84,12 @@ DRIVER = r'''
     document.querySelector('[data-open-table="jj-table-a"]').click();
     await waitFor(() => !document.getElementById('pokerRoom').classList.contains('hidden') && document.querySelector('#seatLayer [data-seat="0"]'), 'poker room');
     document.querySelector('#seatLayer [data-seat="0"]').click();
+    await waitFor(() => document.getElementById('jjRingSeatForm'), 'buy-in modal');
+    const buyinInput = document.querySelector('#jjRingSeatForm [name="buyin_bb"]');
+    if(!buyinInput || Number(buyinInput.value) < Number(buyinInput.min) || Number(buyinInput.value) > Number(buyinInput.max)){
+      throw new Error('invalid buy-in selector');
+    }
+    document.getElementById('jjRingSeatForm').requestSubmit();
     await waitFor(() => document.getElementById('seatLayer').textContent.includes('YOU'), 'seat confirmed');
     checks.pokerSeat = document.getElementById('roomTitle').textContent.includes('JJ Table A');
     document.getElementById('backLobby').click();

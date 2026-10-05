@@ -214,7 +214,7 @@ def _single_public_table_list(user=Depends(runtime_server.current_user)):
     only the first canonical table.
     """
     tables = runtime_server.tables(user)
-    return tables[:1]
+    return ring_admin_config.decorate_table_summaries(db, tables[:1])
 
 
 def _prioritize_single_public_table_route() -> None:
@@ -271,6 +271,11 @@ read_efficiency.install(
     runtime_server,
     db,
     public_table_limit=1,
+    table_decorator=lambda rows, con=None: ring_admin_config.decorate_table_summaries(
+        db,
+        rows,
+        con=con,
+    ),
 )
 _materialized._prioritize_extension_routes(app, _materialized._CORE_ROUTE_IDS)
 ring_admin_config.prioritize_routes(app)

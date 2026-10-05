@@ -69,6 +69,8 @@ def _strip_phase4c_extensions(payload: dict) -> dict:
         ("http", "/api/admin/console/quiz/questions/{question_id}", ("PATCH",), "set_question_status"),
         ("http", "/api/admin/console/ring-config", ("GET",), "admin_ring_config"),
         ("http", "/api/admin/console/ring-config", ("PATCH",), "update_ring_config"),
+        ("http", "/api/admin/console/ring-rake", ("GET",), "admin_ring_rake"),
+        ("http", "/api/admin/console/ring-rake/reset", ("POST",), "reset_ring_rake"),
         ("http", "/api/admin/console/ring-reentries", ("GET",), "admin_reentries"),
         ("http", "/api/admin/console/ring-reentries/{user_id}/reset", ("POST",), "reset_reentries"),
         ("http", "/api/tables/{table_id}/seat", ("POST",), "limited_seat"),
@@ -114,6 +116,7 @@ def _strip_phase4c_extensions(payload: dict) -> dict:
         "ring_runtime_config",
         "ring_buyin_events",
         "ring_reentry_resets",
+        "ring_rake_settlements",
         "ring_config_audit",
     }
     missing_tables = extension_tables - set(columns)
