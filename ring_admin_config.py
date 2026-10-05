@@ -21,6 +21,14 @@ _ROUTE_ENDPOINTS: list[tuple[str, str, object]] = []
 _user_buyin_locks: dict[int, asyncio.Lock] = {}
 
 
+class RingSeatIn(BaseModel):
+    seat: int = Field(ge=0, le=5)
+
+
+class RingPresenceIn(BaseModel):
+    mode: str = Field(pattern="^(sitout|cancel_sitout|return|rebuy|unready)$")
+
+
 class RingConfigPatch(BaseModel):
     rake_percent: Decimal | None = Field(default=None, ge=0, le=100)
     rake_cap_bb: Decimal | None = Field(default=None, ge=0, le=100)
@@ -368,12 +376,12 @@ def _register_routes(app, server, db) -> None:
     original_rebuy = server.rebuy
 
     @app.post("/api/tables/{table_id}/seat", include_in_schema=False)
-    async def limited_seat(table_id: str, payload: server.SeatIn, user=Depends(server.current_user)):
+    async def limited_seat(table_id: str, payload: RingSeatIn, user=Depends(server.current_user)):
         uid = int(user["id"])
         async with _user_lock(uid):
             state = server.load_table(table_id)
             if any(int(player.get("user_id", -1)) == uid for player in state.get("seats", [])):
-                return await original_sit(table_id, payload, user)
+                return await original_sit(table_id, server.SeatIn(seat=payload.seat), user)
             event = _reserve_buyin(db, uid, table_id, "seat", force_reentry=False)
             try:
                 return await original_sit(table_id, payload, user)
@@ -396,9 +404,9 @@ def _register_routes(app, server, db) -> None:
                 raise
 
     @app.post("/api/tables/{table_id}/presence", include_in_schema=False)
-    async def limited_presence(table_id: str, payload: server.TablePresenceIn, user=Depends(server.current_user)):
+    async def limited_presence(table_id: str, payload: RingPresenceIn, user=Depends(server.current_user)):
         if payload.mode != "rebuy":
-            return await original_presence(table_id, payload, user)
+            return await original_presence(table_id, server.TablePresenceIn(mode=payload.mode), user)
         uid = int(user["id"])
         async with _user_lock(uid):
             event = _reserve_buyin(db, uid, table_id, "presence_rebuy", force_reentry=True)
