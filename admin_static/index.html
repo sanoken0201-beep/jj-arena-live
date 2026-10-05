@@ -75,9 +75,11 @@
       </section>
 
       <section id="settingsView" class="view">
-        <div class="section-head"><div><div class="eyebrow">POLICY</div><h2>ポイント制度設定</h2><p>制度値の変更も監査ログへ残ります。既存の確定済みハンドを遡って書き換えません。</p></div></div>
+        <div class="section-head"><div><div class="eyebrow">POLICY</div><h2>制度設定</h2><p>制度値の変更も監査ログへ残ります。既存の確定済みハンドや現在の着席スタックは遡って書き換えません。</p></div></div>
         <div class="settings-grid">
           <article class="panel"><div class="eyebrow">ONLINE CONVERSION</div><h3>オンラインポイント換算</h3><form id="settingsForm" class="form-stack"><label>1 BB あたりのポイント<input id="settingRate" type="number" min="0.01" max="100" step="0.01" required></label><p class="field-note">変更後に確定するオンラインハンドから適用。過去のハンド結果は保持されます。</p><label>管理者による1回の付与・回収上限<input id="settingLimit" type="number" min="1" max="1000000" step="1" required></label><button class="primary">設定を保存</button></form></article>
+          <article class="panel"><div class="eyebrow">RING BUY-IN</div><h3>オンライン卓バイイン</h3><form id="ringBuyinForm" class="form-stack"><label>ミニマムバイイン（BB）<input id="ringMinBuyin" type="number" min="1" max="1000" step="1" inputmode="numeric" required></label><label>MAXバイイン（BB）<input id="ringMaxBuyin" type="number" min="1" max="1000" step="1" inputmode="numeric" required></label><p class="field-note">変更後の新規着席・リバイから適用します。すでに着席しているプレイヤーのスタックは変更しません。</p><button class="primary">バイイン設定を保存</button></form></article>
+          <article class="panel"><div class="eyebrow">RAKEBACK</div><h3>レーキ精算</h3><div class="detail-kpis"><div><span>未精算レーキ</span><b id="ringRakeCurrentPoints">—</b></div><div><span>未精算（BB）</span><b id="ringRakeCurrentBb">—</b></div><div><span>累計レーキ</span><b id="ringRakeAllTimePoints">—</b></div></div><p id="ringRakeMeta" class="field-note">読込中...</p><button id="ringRakeReset" class="danger-btn" type="button">レーキバック済みにしてリセット</button><p class="field-note">過去ハンドやレーキ履歴は削除しません。リセット時点までを精算済みとして記録し、その後のレーキだけを新しく集計します。</p></article>
           <article class="panel policy-card"><div class="eyebrow">GUARDRAILS</div><h3>運営ルール</h3><dl><div><dt>現金・換金</dt><dd>なし</dd></div><div><dt>ポイント修正</dt><dd>追記型台帳</dd></div><div><dt>誤操作</dt><dd>取消取引で復元</dd></div><div><dt>アカウント削除</dt><dd>管理者のみ・履歴保持</dd></div><div><dt>後期期間</dt><dd id="policySeason">—</dd></div></dl></article>
         </div>
       </section>
@@ -88,7 +90,7 @@
 
   <dialog id="userDialog"><button class="dialog-close" id="closeUserDialog" aria-label="閉じる">×</button><div id="userDialogBody"></div></dialog>
   <script src="/admin-static/admin_point_requests.js?v=1"></script>
-  <script src="/admin-static/admin.js?v=128-scoped"></script>
+  <script src="/admin-static/admin.js?v=129-ring"></script>
   <script src="/admin-static/admin_delete.js?v=127"></script>
   <script src="/admin-static/admin_sitngo.js?sng=12hands-20260921-2"></script>
 <script src="/admin-static/admin_pin_verify.js?v=127"></script>
