@@ -362,7 +362,7 @@ def build_app_js() -> str:
     quiz_reward_replacements = (
         (
             '回答報酬 <b>+${Number(q.reward||10)}pt</b> · 同じ問題は1回だけ',
-            '正解 <b>+${Number(q.reward_correct||q.reward||10)}pt</b> / 不正解 <b>+${Number(q.reward_incorrect??q.reward||10)}pt</b> · 同じ問題は1回だけ',
+            '正解 <b>+${Number(q.reward_correct ?? q.reward ?? 10)}pt</b> / 不正解 <b>+${Number(q.reward_incorrect ?? q.reward ?? 10)}pt</b> · 同じ問題は1回だけ',
         ),
         (
             '回答すると <b>+${Number(q.reward||10)}pt</b> · 同じ問題への加点は1回だけ',
