@@ -70,28 +70,31 @@ DRIVER = r'''
     await waitFor(() => document.getElementById('rankBody').textContent.includes('ブラウザユーザー'), 'ranking row');
     checks.rankingAfterQuiz = document.getElementById('rankBody').textContent.includes(quizAward);
 
-    await go('discussion');
-    document.getElementById('newThreadBtn').click();
-    await waitFor(() => document.getElementById('threadForm'), 'thread modal');
-    document.querySelector('#threadForm [name="title"]').value = 'ブラウザからの戦略相談';
-    document.querySelector('#threadForm [name="body"]').value = 'ユーザー導線のE2Eテストです。';
-    document.getElementById('threadForm').requestSubmit();
-    await waitFor(() => document.getElementById('threads').textContent.includes('ブラウザからの戦略相談'), 'thread visible');
-    checks.discussion = true;
+    checks.retiredDiscussionAbsent = !document.querySelector('.sidebar .nav[data-view="discussion"]');
 
     await go('tables');
     await waitFor(() => document.querySelector('[data-open-table="jj-table-a"]'), 'table A open');
+    const tableHost=document.getElementById('tableCards'),lobbyCard=tableHost.querySelector('.jj-sub-single-table');
+    const hostRect=tableHost.getBoundingClientRect(),lobbyRect=lobbyCard?.getBoundingClientRect();
+    checks.singleTableLayout=!!lobbyRect&&lobbyRect.width<=722&&Math.abs((lobbyRect.left+lobbyRect.right-hostRect.left-hostRect.right)/2)<=3;
     document.querySelector('[data-open-table="jj-table-a"]').click();
     await waitFor(() => !document.getElementById('pokerRoom').classList.contains('hidden') && document.querySelector('#seatLayer [data-seat="0"]'), 'poker room');
+    const metaRect=document.getElementById('roomMeta').getBoundingClientRect();
+    checks.roomMetaContained=window.matchMedia('(max-width:760px)').matches||metaRect.right<=innerWidth+1;
     document.querySelector('#seatLayer [data-seat="0"]').click();
     await waitFor(() => document.getElementById('jjRingSeatForm'), 'buy-in modal');
     const buyinInput = document.querySelector('#jjRingSeatForm [name="buyin_bb"]');
+    const modalRect=document.getElementById('modal').getBoundingClientRect();
+    checks.buyinModalContained=modalRect.left>=-1&&modalRect.right<=innerWidth+1&&modalRect.bottom<=innerHeight+1;
+    checks.buyinInputTouch=!window.matchMedia('(max-width:760px)').matches||buyinInput?.getBoundingClientRect().height>=44;
     if(!buyinInput || Number(buyinInput.value) < Number(buyinInput.min) || Number(buyinInput.value) > Number(buyinInput.max)){
       throw new Error('invalid buy-in selector');
     }
     document.getElementById('jjRingSeatForm').requestSubmit();
     await waitFor(() => document.getElementById('seatLayer').textContent.includes('YOU'), 'seat confirmed');
     checks.pokerSeat = document.getElementById('roomTitle').textContent.includes('JJ Table A');
+    const pot=document.getElementById('potDisplay');
+    checks.structuredPot=!!pot?.querySelector('b')&&!!pot?.querySelector('.jj-ring-rake')&&pot.getBoundingClientRect().right<=innerWidth+1;
     document.getElementById('backLobby').click();
     await waitFor(() => !document.getElementById('lobbyPanel').classList.contains('hidden'), 'back lobby');
 
@@ -137,8 +140,11 @@ DRIVER = r'''
 '''
 
 
-def injected_index() -> str:
-    text = (STATIC / "index.html").read_text(encoding="utf-8")
+def injected_index(production) -> str:
+    # Exercise the exact canonical browser entrypoint production serves. Using
+    # materialized_v1244/static/index.html here used to resurrect retired nav
+    # and bypass post-build browser consolidation.
+    text = production._patched_index()
     assert "</body>" in text
     return text.replace("</body>", DRIVER + "</body>")
 
@@ -172,7 +178,7 @@ def build_test_app():
 
     @wrapper.get("/", include_in_schema=False)
     def root():
-        return HTMLResponse(injected_index())
+        return HTMLResponse(injected_index(production))
 
     wrapper.mount("/", production.app)
     return wrapper
