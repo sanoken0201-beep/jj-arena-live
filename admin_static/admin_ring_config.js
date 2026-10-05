@@ -22,12 +22,13 @@
   }
 
   async function loadRake(){
-    const d=await api('/admin/console/ring-rake'),cur=d.current||{},all=d.all_time||{},last=d.last_reset;
+    const d=await api('/admin/console/ring-rake'),cur=d.current||{},all=d.all_time||{},last=d.last_reset,rate=Number(d.points_per_bb||0);
     $('#ringRakeCurrentPoints').textContent=fmt(cur.rake_points)+' 点';
     $('#ringRakeCurrentBb').textContent=fmt(cur.rake_bb)+' BB';
     $('#ringRakeAllTimePoints').textContent=fmt(all.rake_points)+' 点';
-    $('#ringRakeMeta').textContent=(last?`最終リセット ${dt(last.created_at)} · ${fmt(last.settled_rake_points)}点を精算`:'まだリセット履歴はありません')+` · 未精算 ${fmt(cur.hands)}ハンド`;
-    $('#ringRakeReset').disabled=Number(cur.rake_points||0)<=0;
+    $('#ringRakeAllTimeBb').textContent=fmt(all.rake_bb)+' BB';
+    $('#ringRakeMeta').textContent=(last?`最終リセット ${dt(last.created_at)} · ${fmt(last.settled_rake_bb)}BB → ${fmt(last.settled_rake_points)}点で精算`:'まだリセット履歴はありません')+` · 換算 ${fmt(rate)}点/BB · 未精算 ${fmt(cur.hands)}ハンド`;
+    $('#ringRakeReset').disabled=Number(cur.rake_bb||0)<=0;
     return d;
   }
 
@@ -58,9 +59,9 @@
     $('#ringRakeReset')?.addEventListener('click',async()=>{
       let d;
       try{d=await loadRake()}catch(err){alert(err.message);return}
-      const points=Number(d?.current?.rake_points||0);
-      if(points<=0)return alert('未精算のレーキはありません');
-      if(!confirm(`未精算レーキ ${fmt(points)}点をオフラインでレーキバック済みとしてリセットしますか？履歴は保持されます。`))return;
+      const points=Number(d?.current?.rake_points||0),bb=Number(d?.current?.rake_bb||0),rate=Number(d?.points_per_bb||0);
+      if(bb<=0)return alert('未精算のレーキはありません');
+      if(!confirm(`未精算レーキ ${fmt(bb)}BB（${fmt(rate)}点/BB = ${fmt(points)}点）をオフラインでレーキバック済みとしてリセットしますか？履歴は保持されます。`))return;
       const note=prompt('精算メモ','オフライン活動でレーキバック');
       if(note===null)return;
       const button=$('#ringRakeReset');button.disabled=true;
