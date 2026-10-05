@@ -25,10 +25,12 @@ def main(paid=False):
     def launch(count):
         nonlocal clock
         clock+=300
-        with patch.object(sitngo,'_utcnow',return_value=datetime.fromtimestamp(clock,timezone.utc)):
+        with patch.object(sitngo,'_utcnow',side_effect=lambda: datetime.fromtimestamp(clock,timezone.utc)):
             event=service.create_event(sitngo.SitNGoCreateIn(name='Gameplay',entry_fee='10.01' if paid else '0',starts_at=datetime.fromtimestamp(clock+120,timezone.utc).isoformat()),admin)
+            opens=datetime.fromisoformat(event['registration_opens_at']).timestamp()
+            clock=max(clock,opens+.1)
             for uid in users[:count]: service.register(event['id'],uid)
-            clock+=121
+            clock=max(clock,datetime.fromisoformat(event['starts_at']).timestamp()+1)
             with patch('time.time',return_value=clock): service.reconcile(datetime.fromtimestamp(clock,timezone.utc))
         return event['id']
     for count in ((2,3,4,5,6) if paid else (2,4,6)):
