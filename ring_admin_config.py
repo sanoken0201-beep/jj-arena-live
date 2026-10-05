@@ -15,28 +15,44 @@ JST = ZoneInfo("Asia/Tokyo")
 DEFAULT_RAKE_PERCENT = Decimal("5.00")
 DEFAULT_RAKE_CAP_BB = Decimal("3.00")
 DEFAULT_DAILY_REENTRY_LIMIT = 3
+DEFAULT_MIN_BUYIN_BB = 150
+DEFAULT_MAX_BUYIN_BB = 150
+MAX_CONFIGURED_BUYIN_BB = 1000
 
 _INSTALLED = False
 _ROUTE_ENDPOINTS: list[tuple[str, str, object]] = []
 _user_buyin_locks: dict[int, asyncio.Lock] = {}
+_rake_reset_lock = asyncio.Lock()
 
 
 class RingSeatIn(BaseModel):
     seat: int = Field(ge=0, le=5)
+    buyin_bb: int | None = Field(default=None, ge=1, le=MAX_CONFIGURED_BUYIN_BB)
+
+
+class RingJoinIn(BaseModel):
+    buyin_bb: int | None = Field(default=None, ge=1, le=MAX_CONFIGURED_BUYIN_BB)
 
 
 class RingPresenceIn(BaseModel):
     mode: str = Field(pattern="^(sitout|cancel_sitout|return|rebuy|unready)$")
+    buyin_bb: int | None = Field(default=None, ge=1, le=MAX_CONFIGURED_BUYIN_BB)
 
 
 class RingConfigPatch(BaseModel):
     rake_percent: Decimal | None = Field(default=None, ge=0, le=100)
     rake_cap_bb: Decimal | None = Field(default=None, ge=0, le=100)
     daily_reentry_limit: int | None = Field(default=None, ge=0, le=50)
+    min_buyin_bb: int | None = Field(default=None, ge=1, le=MAX_CONFIGURED_BUYIN_BB)
+    max_buyin_bb: int | None = Field(default=None, ge=1, le=MAX_CONFIGURED_BUYIN_BB)
 
 
 class ReentryResetIn(BaseModel):
     reason: str = Field(default="管理者による当日リエントリー回数リセット", min_length=1, max_length=300)
+
+
+class RakeResetIn(BaseModel):
+    note: str = Field(default="オフライン活動でレーキバック", max_length=300)
 
 
 def _now() -> datetime:
@@ -70,8 +86,19 @@ def _ensure_schema(db) -> None:
             rake_bps INTEGER NOT NULL,
             rake_cap_hundredths_bb INTEGER NOT NULL,
             daily_reentry_limit INTEGER NOT NULL,
+            min_buyin_bb INTEGER NOT NULL DEFAULT 150,
+            max_buyin_bb INTEGER NOT NULL DEFAULT 150,
             updated_by {uid} REFERENCES users(id),
             updated_at TEXT NOT NULL)""")
+        if db.IS_POSTGRES:
+            con.execute("ALTER TABLE ring_runtime_config ADD COLUMN IF NOT EXISTS min_buyin_bb INTEGER NOT NULL DEFAULT 150")
+            con.execute("ALTER TABLE ring_runtime_config ADD COLUMN IF NOT EXISTS max_buyin_bb INTEGER NOT NULL DEFAULT 150")
+        else:
+            config_columns = {str(row["name"]) for row in con.execute("PRAGMA table_info(ring_runtime_config)").fetchall()}
+            if "min_buyin_bb" not in config_columns:
+                con.execute("ALTER TABLE ring_runtime_config ADD COLUMN min_buyin_bb INTEGER NOT NULL DEFAULT 150")
+            if "max_buyin_bb" not in config_columns:
+                con.execute("ALTER TABLE ring_runtime_config ADD COLUMN max_buyin_bb INTEGER NOT NULL DEFAULT 150")
         con.execute(f"""CREATE TABLE IF NOT EXISTS ring_buyin_events(
             id TEXT PRIMARY KEY,
             user_id {uid} NOT NULL REFERENCES users(id),
@@ -90,6 +117,16 @@ def _ensure_schema(db) -> None:
             previous_count INTEGER NOT NULL,
             reason TEXT NOT NULL)""")
         con.execute("CREATE INDEX IF NOT EXISTS idx_ring_reset_user_day ON ring_reentry_resets(user_id,jst_date,reset_at)")
+        con.execute(f"""CREATE TABLE IF NOT EXISTS ring_rake_settlements(
+            id TEXT PRIMARY KEY,
+            boundaries_json TEXT NOT NULL,
+            settled_rake_bb NUMERIC NOT NULL,
+            settled_rake_points NUMERIC NOT NULL,
+            hand_count INTEGER NOT NULL,
+            note TEXT NOT NULL DEFAULT '',
+            created_by {uid} REFERENCES users(id),
+            created_at TEXT NOT NULL)""")
+        con.execute("CREATE INDEX IF NOT EXISTS idx_ring_rake_settlement_created ON ring_rake_settlements(created_at)")
         con.execute(f"""CREATE TABLE IF NOT EXISTS ring_config_audit(
             id TEXT PRIMARY KEY,
             action TEXT NOT NULL,
@@ -103,12 +140,15 @@ def _ensure_schema(db) -> None:
             stamp = _now().isoformat()
             con.execute(
                 """INSERT INTO ring_runtime_config(
-                    id,rake_bps,rake_cap_hundredths_bb,daily_reentry_limit,updated_by,updated_at)
-                    VALUES (1,?,?,?,?,?)""",
+                    id,rake_bps,rake_cap_hundredths_bb,daily_reentry_limit,
+                    min_buyin_bb,max_buyin_bb,updated_by,updated_at)
+                    VALUES (1,?,?,?,?,?,?,?)""",
                 (
                     _scaled_exact(DEFAULT_RAKE_PERCENT, 100, "レーキ率"),
                     _scaled_exact(DEFAULT_RAKE_CAP_BB, 100, "cap"),
                     DEFAULT_DAILY_REENTRY_LIMIT,
+                    DEFAULT_MIN_BUYIN_BB,
+                    DEFAULT_MAX_BUYIN_BB,
                     None,
                     stamp,
                 ),
@@ -117,7 +157,8 @@ def _ensure_schema(db) -> None:
 
 def _config_row(con) -> dict:
     row = con.execute(
-        """SELECT rake_bps,rake_cap_hundredths_bb,daily_reentry_limit,updated_by,updated_at
+        """SELECT rake_bps,rake_cap_hundredths_bb,daily_reentry_limit,
+                  min_buyin_bb,max_buyin_bb,updated_by,updated_at
            FROM ring_runtime_config WHERE id=1"""
     ).fetchone()
     if not row:
@@ -130,6 +171,8 @@ def _public_config(row: dict) -> dict:
         "rake_percent": float(Decimal(int(row["rake_bps"])) / Decimal(100)),
         "rake_cap_bb": float(Decimal(int(row["rake_cap_hundredths_bb"])) / Decimal(100)),
         "daily_reentry_limit": int(row["daily_reentry_limit"]),
+        "min_buyin_bb": int(row["min_buyin_bb"]),
+        "max_buyin_bb": int(row["max_buyin_bb"]),
         "updated_by": row.get("updated_by"),
         "updated_at": row.get("updated_at"),
     }
@@ -260,6 +303,29 @@ def _user_lock(user_id: int) -> asyncio.Lock:
     return lock
 
 
+def _resolve_buyin_bb(cfg: dict, requested_bb: int | None) -> int:
+    minimum = int(cfg["min_buyin_bb"])
+    maximum = int(cfg["max_buyin_bb"])
+    if minimum > maximum:
+        raise RuntimeError("ring buy-in config is invalid")
+    chosen = max(minimum, min(DEFAULT_MAX_BUYIN_BB, maximum)) if requested_bb is None else int(requested_bb)
+    if chosen < minimum or chosen > maximum:
+        raise HTTPException(400, f"バイインは {minimum}bb〜{maximum}bb の範囲で指定してください")
+    return chosen
+
+
+def _resolve_buyin_stack(state: dict, cfg: dict, requested_bb: int | None) -> tuple[int, int]:
+    chosen = _resolve_buyin_bb(cfg, requested_bb)
+    bb = max(1, int(state.get("big_blind") or 100))
+    return chosen * bb, chosen
+
+
+def _apply_state_buyins(state: dict, cfg: dict) -> None:
+    bb = max(1, int(state.get("big_blind") or 1))
+    state["min_buyin"] = int(cfg["min_buyin_bb"]) * bb
+    state["max_buyin"] = int(cfg["max_buyin_bb"]) * bb
+
+
 def _apply_state_rake(state: dict, cfg: dict) -> None:
     bb = max(1, int(state.get("big_blind") or 1))
     percent = Decimal(str(cfg["rake_percent"])) / Decimal(100)
@@ -285,9 +351,9 @@ def _apply_waiting_tables(db) -> None:
             if row["id"] not in fixed:
                 continue
             state = json.loads(row["state_json"])
-            if state.get("status") == "playing":
-                continue
-            _apply_state_rake(state, cfg)
+            _apply_state_buyins(state, cfg)
+            if state.get("status") != "playing":
+                _apply_state_rake(state, cfg)
             con.execute(
                 "UPDATE tables SET state_json=?,updated_at=? WHERE id=?",
                 (json.dumps(state, ensure_ascii=False), _now().isoformat(), row["id"]),
@@ -351,7 +417,9 @@ def _install_waiting_table_policy(server, db) -> None:
 
     def save_table_with_config(state: dict):
         if state.get("status") != "playing":
-            _apply_state_rake(state, get_config(db))
+            cfg = get_config(db)
+            _apply_state_buyins(state, cfg)
+            _apply_state_rake(state, cfg)
         return original_save(state)
 
     server.save_table = save_table_with_config
@@ -396,6 +464,129 @@ def _install_hand_history_policy(db) -> None:
 
     record_with_policy._jj_ring_config_wrapped = True
     db._record_online_hand = record_with_policy
+
+
+def decorate_table_summaries(db, rows: list[dict], *, con=None) -> list[dict]:
+    if con is None:
+        cfg = get_config(db)
+    else:
+        cfg = _public_config(_config_row(con))
+    minimum = int(cfg["min_buyin_bb"])
+    maximum = int(cfg["max_buyin_bb"])
+    default = max(minimum, min(DEFAULT_MAX_BUYIN_BB, maximum))
+    out = []
+    for raw in rows:
+        item = dict(raw)
+        bb = max(1, int(item.get("big_blind") or getattr(db, "TABLE_BB", 100) or 100))
+        item.update(
+            min_buyin_bb=minimum,
+            max_buyin_bb=maximum,
+            default_buyin_bb=default,
+            starting_stack=default * bb,
+            starting_stack_bb=default,
+        )
+        out.append(item)
+    return out
+
+
+def _to_decimal(value) -> Decimal:
+    try:
+        return Decimal(str(value or 0))
+    except Exception:
+        return Decimal("0")
+
+
+def _round_amount(value: Decimal) -> float:
+    return float(value.quantize(Decimal("0.01")))
+
+
+def _latest_rake_settlement(con) -> dict | None:
+    row = con.execute(
+        """SELECT id,boundaries_json,settled_rake_bb,settled_rake_points,
+                  hand_count,note,created_by,created_at
+           FROM ring_rake_settlements ORDER BY created_at DESC,id DESC LIMIT 1"""
+    ).fetchone()
+    if not row:
+        return None
+    item = dict(row)
+    try:
+        item["boundaries"] = json.loads(item.pop("boundaries_json") or "{}")
+    except Exception:
+        item["boundaries"] = {}
+        item.pop("boundaries_json", None)
+    return item
+
+
+def _rake_window(con, boundaries: dict) -> tuple[Decimal, int]:
+    total = Decimal("0")
+    hands = 0
+    rows = con.execute("SELECT DISTINCT table_id FROM online_hands ORDER BY table_id").fetchall()
+    for row in rows:
+        table_id = str(row["table_id"])
+        try:
+            boundary = int(boundaries.get(table_id, 0) or 0)
+        except (TypeError, ValueError):
+            boundary = 0
+        current = con.execute(
+            """SELECT COALESCE(SUM(rake_bb),0) rake_bb,COUNT(*) hands
+               FROM online_hands
+               WHERE table_id=? AND hand_no>? AND COALESCE(voided,0)=0""",
+            (table_id, boundary),
+        ).fetchone()
+        total += _to_decimal(current["rake_bb"])
+        hands += int(current["hands"] or 0)
+    return total, hands
+
+
+def _all_time_rake(con) -> tuple[Decimal, int]:
+    row = con.execute(
+        "SELECT COALESCE(SUM(rake_bb),0) rake_bb,COUNT(*) hands FROM online_hands WHERE COALESCE(voided,0)=0"
+    ).fetchone()
+    return _to_decimal(row["rake_bb"]), int(row["hands"] or 0)
+
+
+def _current_rake_boundaries(con) -> dict[str, int]:
+    rows = con.execute(
+        "SELECT table_id,COALESCE(MAX(hand_no),0) hand_no FROM online_hands GROUP BY table_id ORDER BY table_id"
+    ).fetchall()
+    return {str(row["table_id"]): int(row["hand_no"] or 0) for row in rows}
+
+
+def rake_summary(db) -> dict:
+    with db.connect() as con:
+        last = _latest_rake_settlement(con)
+        boundaries = (last or {}).get("boundaries") or {}
+        current_bb, current_hands = _rake_window(con, boundaries)
+        all_bb, all_hands = _all_time_rake(con)
+        recent = con.execute(
+            """SELECT id,settled_rake_bb,settled_rake_points,hand_count,note,created_at
+               FROM ring_rake_settlements ORDER BY created_at DESC,id DESC LIMIT 10"""
+        ).fetchall()
+    multiplier = Decimal(str(int(getattr(db, "TABLE_BB", 100) or 100)))
+    last_public = None
+    if last:
+        last_public = {
+            "id": last["id"],
+            "settled_rake_bb": float(last["settled_rake_bb"] or 0),
+            "settled_rake_points": float(last["settled_rake_points"] or 0),
+            "hand_count": int(last["hand_count"] or 0),
+            "note": str(last["note"] or ""),
+            "created_at": last["created_at"],
+        }
+    return {
+        "current": {
+            "rake_bb": _round_amount(current_bb),
+            "rake_points": _round_amount(current_bb * multiplier),
+            "hands": current_hands,
+        },
+        "all_time": {
+            "rake_bb": _round_amount(all_bb),
+            "rake_points": _round_amount(all_bb * multiplier),
+            "hands": all_hands,
+        },
+        "last_reset": last_public,
+        "recent_resets": [dict(row) for row in recent],
+    }
 
 
 def _register_routes(app, server, db) -> None:
