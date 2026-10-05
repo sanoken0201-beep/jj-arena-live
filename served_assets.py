@@ -70,7 +70,7 @@ from read_efficiency import transform_app_js as transform_read_efficiency_app_js
 ROOT = Path(__file__).resolve().parent
 MATERIALIZED_STATIC = ROOT / "materialized_v1244" / "static"
 BUILD_ROOT = ROOT / ".jj_build"
-ASSET_VERSION = 76
+ASSET_VERSION = 77
 BUILD_FORMAT = 1
 
 _TODAYS_JJ_MARKER = "v2 today's-jj contrast hardening 2026-09-12"
@@ -356,6 +356,23 @@ def build_app_js() -> str:
         if old not in js:
             raise RuntimeError(f"member point browser contract drift: {old[:48]}")
         js = js.replace(old, new)
+
+    # daily quiz reward split 2026-10-05
+    # The API owns scoring; browser copy only presents the server-provided rule.
+    quiz_reward_replacements = (
+        (
+            '回答報酬 <b>+${Number(q.reward||10)}pt</b> · 同じ問題は1回だけ',
+            '正解 <b>+${Number(q.reward_correct ?? q.reward ?? 10)}pt</b> / 不正解 <b>+${Number(q.reward_incorrect ?? q.reward ?? 10)}pt</b> · 同じ問題は1回だけ',
+        ),
+        (
+            '回答すると <b>+${Number(q.reward||10)}pt</b> · 同じ問題への加点は1回だけ',
+            '正解 <b>+${Number(q.reward_correct ?? q.reward ?? 10)}pt</b> / 不正解 <b>+${Number(q.reward_incorrect ?? q.reward ?? 10)}pt</b> · 同じ問題への加点は1回だけ',
+        ),
+    )
+    for old, new in quiz_reward_replacements:
+        if old not in js:
+            raise RuntimeError(f"daily quiz reward copy drift: {old[:48]}")
+        js = js.replace(old, new, 1)
 
     # ranking summary flicker guard 2026-10-01
     # Keep already-rendered summary content visible while the same member's

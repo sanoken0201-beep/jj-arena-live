@@ -68,9 +68,9 @@ def apply(module, db, hand_analytics) -> None:
             try:
                 with target_db.connect() as con:
                     rows = con.execute(
-                        """SELECT q.id,q.user_id,q.quiz_date,q.slot,q.answered_at created_at,u.name user_name
+                        """SELECT q.id,q.user_id,q.quiz_date,q.slot,q.reward_awarded,q.answered_at created_at,u.name user_name
                            FROM quiz_daily_answers q JOIN users u ON u.id=q.user_id
-                           WHERE q.reward_awarded=10 AND q.answered_at>=?
+                           WHERE q.reward_awarded IN (5,10) AND q.answered_at>=?
                              AND NOT EXISTS(
                                SELECT 1 FROM point_ledger l WHERE l.id=('dq3-' || q.id)
                              )
@@ -84,7 +84,7 @@ def apply(module, db, hand_analytics) -> None:
                         "severity": "critical",
                         "user_id": int(d.get("user_id") or 0),
                         "user_name": str(d.get("user_name") or "—"),
-                        "detail": f"{d.get('quiz_date')} #{d.get('slot')} は10pt獲得済みですが対応するLedgerがありません。",
+                        "detail": f"{d.get('quiz_date')} #{d.get('slot')} は{int(d.get('reward_awarded') or 0)}pt獲得済みですが対応するLedgerがありません。",
                         "detected_at": str(d.get("created_at") or module._now().isoformat()),
                     })
             except Exception:

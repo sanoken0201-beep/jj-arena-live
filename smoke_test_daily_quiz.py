@@ -70,7 +70,7 @@ def run(postgres=False):
         clock.return_value = datetime(2026, 9, 11, 14, 59, 59, tzinfo=timezone.utc)
         suffix = uuid.uuid4().hex[:8]
         name_suffix = ''.join('アイウエオカキクケコサシスセソタ'[int(c,16)] for c in suffix)
-        with TestClient(app) as a, TestClient(app) as b, TestClient(app) as anon:
+        with TestClient(app, base_url="https://testserver") as a, TestClient(app, base_url="https://testserver") as b, TestClient(app, base_url="https://testserver") as anon:
             uid = login(a, 'クイズア'+name_suffix, '123456')['id']
             other = login(b, 'クイズイ'+name_suffix, '234567')['id']
             json_response(anon.get('/api/quiz/question'), 401)
@@ -78,9 +78,20 @@ def run(postgres=False):
             json_response(anon.get('/api/admin/console/quiz-stats'), 401)
 
             def get():
-                with TestClient(app) as tab:
+                with TestClient(app, base_url="https://testserver") as tab:
                     tab.cookies.update(a.cookies)
                     return json_response(tab.get('/api/quiz/question'))
+
+            def persisted_answer(question_id, *, correct=True):
+                with db.connect() as con:
+                    row = con.execute(
+                        'SELECT question_json FROM quiz_daily_answers WHERE id=?',
+                        (question_id,),
+                    ).fetchone()
+                snapshot = json.loads(row['question_json'])
+                if correct:
+                    return snapshot['correct']
+                return next(choice['value'] for choice in snapshot['choices'] if choice['value'] != snapshot['correct'])
 
             with ThreadPoolExecutor(max_workers=8) as pool:
                 opened = list(pool.map(lambda _: get(), range(16)))
@@ -89,20 +100,21 @@ def run(postgres=False):
             assert q['date'] == '2026-09-11' and 'correct' not in q and 'explanation' not in q
             qb = json_response(b.get('/api/quiz/question'))
             assert qb['id'] != q['id'] and qb['prompt'] == q['prompt']
-            payload = {'question_id': q['id'], 'answer': q['choices'][0]['value']}
+            assert q['reward_correct'] == 10 and q['reward_incorrect'] == 5
+            payload = {'question_id': q['id'], 'answer': persisted_answer(q['id'], correct=False)}
             json_response(b.post('/api/quiz/answer', json=payload), 404)
             json_response(a.post('/api/quiz/answer', json={**payload, 'answer': 'INVALID'}), 400)
             json_response(a.post('/api/quiz/answer', json={**payload, 'question_id': 'dqa-unknown'}), 404)
 
             # Answer uses its persisted snapshot even after a bank/deployment change.
             def send(_):
-                with TestClient(app) as tab:
+                with TestClient(app, base_url="https://testserver") as tab:
                     tab.cookies.update(a.cookies)
                     return json_response(tab.post('/api/quiz/answer', json=payload))
             with patch.object(dq, 'build_daily_questions', side_effect=AssertionError('daily set must be persisted')):
                 with ThreadPoolExecutor(max_workers=8) as pool:
                     results = list(pool.map(send, range(16)))
-                assert sum(r['awarded'] for r in results) == 10
+                assert sum(r['awarded'] for r in results) == 5
                 assert sum(not r['already_answered'] for r in results) == 1
                 assert len({r['correct'] for r in results}) == 1
                 duplicate = json_response(a.post('/api/quiz/answer', json={**payload, 'answer': q['choices'][1]['value']}))
@@ -111,13 +123,13 @@ def run(postgres=False):
                 for number in range(2, 11):
                     q = get()
                     assert q['slot'] == number
-                    r = json_response(a.post('/api/quiz/answer', json={'question_id': q['id'], 'answer': q['choices'][0]['value']}))
-                    assert r['awarded'] == 10 and r['progress']['earned'] == number*10
+                    r = json_response(a.post('/api/quiz/answer', json={'question_id': q['id'], 'answer': persisted_answer(q['id'])}))
+                    assert r['awarded'] == 10 and r['progress']['earned'] == 5 + (number-1)*10
                 for _ in range(12):
                     assert get()['done'] is True
             with db.connect() as con:
                 rows = con.execute("SELECT * FROM point_ledger WHERE user_id=? AND kind='quiz_reward'", (uid,)).fetchall()
-                assert len(rows) == 10 and sum(float(r['amount']) for r in rows) == 100
+                assert len(rows) == 10 and sum(float(r['amount']) for r in rows) == 95
                 stats = dq.question_statistics(con)
                 assert sum(s['attempts'] for s in stats['questions']) >= 10
                 count = con.execute('SELECT COUNT(*) n FROM quiz_daily_answers WHERE user_id=? AND answer IS NOT NULL', (uid,)).fetchone()['n']
@@ -137,7 +149,7 @@ def run(postgres=False):
                             ('legacy-'+suffix, other, 80, 'quiz_reward', 'test', stamp, other, stamp))
             for expected in (90, 100):
                 qb = json_response(b.get('/api/quiz/question'))
-                rb = json_response(b.post('/api/quiz/answer', json={'question_id': qb['id'], 'answer': qb['choices'][0]['value']}))
+                rb = json_response(b.post('/api/quiz/answer', json={'question_id': qb['id'], 'answer': persisted_answer(qb['id'])}))
                 assert rb['progress']['earned'] == expected
             assert json_response(b.get('/api/quiz/question'))['done']
 
@@ -153,7 +165,7 @@ def run(postgres=False):
             def broken():
                 with original_connect() as con:
                     yield BrokenConnection(con)
-            body = {'question_id': tomorrow['id'], 'answer': tomorrow['choices'][0]['value']}
+            body = {'question_id': tomorrow['id'], 'answer': persisted_answer(tomorrow['id'])}
             with patch.object(db, 'connect', broken):
                 try:
                     a.post('/api/quiz/answer', json=body)

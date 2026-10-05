@@ -49,7 +49,7 @@ def main() -> None:
             assert compiled_js.count(ranking_guard) == 1, (
                 "ranking summary refresh must preserve rendered content for the same member"
             )
-            assert served_assets.ASSET_VERSION == 76, (
+            assert served_assets.ASSET_VERSION == 77, (
                 "browser asset version must advance with the ranking flicker fix"
             )
             second = served_assets.build_all(root)

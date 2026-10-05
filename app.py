@@ -31,6 +31,7 @@ import sitngo_process_guard
 import sitngo_resilience
 import timebank_rules
 import ring_action_safety
+import ring_admin_config
 import read_efficiency
 
 # Configure the root-level Sit&Go extension before browser transforms bind the
@@ -151,14 +152,14 @@ def _action_timeout_seconds() -> int:
 
 @app.post("/api/poker-config")
 def _poker_config(user=Depends(runtime_server.current_user)):
+    ring = ring_admin_config.player_config(db, int(user["id"]))
     return {
         "action_timeout_seconds": _action_timeout_seconds(),
         "timebank_cards": timebank_rules.TIMEBANK_CARDS,
         "timebank_card_seconds": timebank_rules.TIMEBANK_CARD_SECONDS,
         "timebank_forced_use": True,
         "ranking_points_per_bb": 3,
-        "rake_percent": 5,
-        "rake_cap_bb": 3,
+        **ring,
     }
 
 
@@ -272,6 +273,7 @@ read_efficiency.install(
     public_table_limit=1,
 )
 _materialized._prioritize_extension_routes(app, _materialized._CORE_ROUTE_IDS)
+ring_admin_config.prioritize_routes(app)
 
 
 __all__ = [

@@ -38,7 +38,7 @@ def _append_query(value: str, base: str) -> str:
 
 
 def transform_index(source: str, asset_version: int) -> str:
-    value = source.replace("rake 10%・5bb cap", "rake 5%・3bb cap")
+    value = source.replace("rake 10%・5bb cap", "rake 管理者設定")
     # Preserve the exact asset cache-busting contract that app.py historically
     # applied at request time to both browser assets.
     value = _append_query(value, f"/static/app.js?v={asset_version}")
@@ -49,12 +49,15 @@ def transform_index(source: str, asset_version: int) -> str:
 def transform_app_js(source: str) -> str:
     value = source.replace(
         "RAKE 10% · ${fmt(t.rake_cap_bb)}bb CAP",
-        "RAKE 5% · ${fmt(t.rake_cap_bb)}bb CAP",
+        "RAKE ${fmt(Number(t.rake_percent||0)*100)}% · ${fmt(t.rake_cap_bb)}bb CAP",
     )
-    value = value.replace("rake 10% / 5bb cap", "rake 5% / 3bb cap")
+    value = value.replace(
+        "'6-max · 0.5/1bb · 150bb · rake 10% / 5bb cap';",
+        "`6-max · 0.5/1bb · 150bb · rake ${fmt(Number(tableState.rake_percent||0)*100)}% / ${bb(Number(tableState.rake_cap||0))} cap`;",
+    )
     value = value.replace(
         "pot*0.10,Number(tableState.rake_cap||500)",
-        "pot*0.05,Number(tableState.rake_cap||300)",
+        "pot*Number(tableState.rake_percent||0),Number(tableState.rake_cap||0)",
     )
     value = remove_fast_fold(value)
     if MARKER not in value:

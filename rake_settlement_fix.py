@@ -17,6 +17,7 @@ JJ Arena rake rules:
 
 import json
 import sys
+from decimal import Decimal
 from typing import Any
 
 _INSTALLED = False
@@ -32,14 +33,24 @@ def _chip(value: Any) -> int:
 
 
 def apply_rake_policy(state: dict[str, Any]) -> bool:
-    """Apply the configured 5% / 3bb policy without changing settlement logic."""
+    """Apply the hand-start policy snapshot, falling back to legacy 5% / 3bb.
+
+    Admin configuration can change while a hand is running. Settlement must
+    therefore use the policy captured when that hand started instead of the
+    latest global setting.
+    """
     big_blind = max(1, _chip(state.get("big_blind")))
-    cap = big_blind * RAKE_CAP_BB
+    hand = state.get("hand") or {}
+    snapshot_percent = hand.get("rake_percent_snapshot")
+    snapshot_cap_bb = hand.get("rake_cap_bb_snapshot")
+    percent = RAKE_PERCENT if snapshot_percent is None else float(snapshot_percent)
+    cap_bb = Decimal(str(RAKE_CAP_BB if snapshot_cap_bb is None else snapshot_cap_bb))
+    cap = int(Decimal(big_blind) * cap_bb)
     changed = (
-        float(state.get("rake_percent", -1)) != RAKE_PERCENT
+        float(state.get("rake_percent", -1)) != percent
         or _chip(state.get("rake_cap")) != cap
     )
-    state["rake_percent"] = RAKE_PERCENT
+    state["rake_percent"] = percent
     state["rake_cap"] = cap
     return changed
 

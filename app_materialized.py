@@ -23,12 +23,14 @@ import hand_analytics_hardening
 import hand_history_visibility
 import learning_content
 import daily_quiz
+import quiz_admin_ai
 import online_results_cleanup
 import operations_learning
 import operations_learning_hardening
 import point_ledger_precision
 import poker_lifecycle_fix
 import rake_settlement_fix
+import ring_admin_config
 import rake_integrity_runtime_audit
 import ranking_mapping_guard
 import resilience
@@ -159,6 +161,8 @@ security_hardening.install(app, runtime_server, db)
 admin_api_consolidation.install(app, runtime_server)
 learning_content.install(app)
 daily_quiz.install(app, runtime_server, db)
+quiz_admin_ai.install(app, runtime_server, db)
+ring_admin_config.install(app, runtime_server, db, runtime_poker_engine)
 hand_analytics.install(app, runtime_server, db)
 if rake_integrity_runtime_audit.should_run(db, os.environ):
     # Production-only, SELECT-only persisted-rake audit. It runs after the

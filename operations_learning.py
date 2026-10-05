@@ -138,8 +138,8 @@ def _quiz_anomalies(db) -> list[dict[str, Any]]:
 
     for r in rows:
         amount = float(r.get("amount") or 0)
-        if amount != 10:
-            add("quiz_reward_amount", r, f"quiz_reward が {amount:g}pt です（通常10pt）。", "critical")
+        if amount not in (5, 10):
+            add("quiz_reward_amount", r, f"quiz_reward が {amount:g}pt です（通常5ptまたは10pt）。", "critical")
         dt = _parse(r.get("effective_at")) or _parse(r.get("created_at"))
         if dt:
             per_day[(int(r["user_id"]), dt.astimezone(JST).date().isoformat())].append(r)

@@ -166,10 +166,32 @@ def main():
     assert legacy["checks"]["hand_conservation_or_completeness"] == 0
     assert legacy["checks"]["legacy_hand_conservation_or_completeness"] == 0
 
+    dynamic_hand = {
+        "hand_id": "configured-rake",
+        "table_id": "jj-table-a",
+        "gross_pot_bb": 10.0,
+        "rake_bb": 0.75,
+        "rake_percent": 0.075,
+        "rake_cap_bb": 2.5,
+        "played_at": "2026-10-05T10:00:00+00:00",
+        "month": "2026-10",
+        "voided": 0,
+    }
+    dynamic_results = [
+        {"id":"configured-rake:1","hand_id":"configured-rake","table_id":"jj-table-a","user_id":1,"result_bb":4.625,"points":13.88,"month":"2026-10"},
+        {"id":"configured-rake:2","hand_id":"configured-rake","table_id":"jj-table-a","user_id":2,"result_bb":-5.375,"points":-16.12,"month":"2026-10"},
+    ]
+    dynamic_history = [{"hand_id":"configured-rake","reached_street":"flop","player_count":2}]
+    configured = audit.audit_rows([_table()], [dynamic_hand], dynamic_results, dynamic_history)
+    assert configured["status"] == "ok", configured
+    assert configured["policy_windows"] == {"configured_policy": 1}
+    assert configured["checks"]["current_rake_formula_violation"] == 0
+    assert configured["checks"]["current_rake_bound_violation"] == 0
+
     bad_table = _table()
     bad_table["state_json"] = json.dumps({
         "big_blind": 100,
-        "rake_percent": 0.10,
+        "rake_percent": 1.50,
         "rake_cap": 500,
     })
     bad_policy = audit.audit_rows([bad_table], _hands(), _results(), _history())

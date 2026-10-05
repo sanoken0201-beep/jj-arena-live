@@ -43,6 +43,11 @@ TEST_SUITES: dict[str, tuple[str, ...]] = {
         "smoke_test_poker_control_audit.py",
         "smoke_test_network_recovery_browser.py",
         "smoke_test_rake_settlement_fix.py",
+        "smoke_test_ring_admin_config.py",
+    ),
+    "learning": (
+        "smoke_test_daily_quiz.py",
+        "smoke_test_quiz_admin_ai.py",
     ),
     "browser_contract": (
         "smoke_test_prebuilt_assets.py",
@@ -137,6 +142,10 @@ PRODUCTION_RELEASE_SELECTION: tuple[tuple[str, tuple[str, ...]], ...] = (
         "smoke_test_point_ledger_precision.py",
         "smoke_test_member_point_entry.py",
     )),
+    ("learning", (
+        "smoke_test_daily_quiz.py",
+        "smoke_test_quiz_admin_ai.py",
+    )),
     ("runtime_release", (
         "smoke_test_test_ownership.py",
         "smoke_test_feature_lifecycle.py",
@@ -158,6 +167,7 @@ PRODUCTION_RELEASE_SELECTION: tuple[tuple[str, tuple[str, ...]], ...] = (
         "smoke_test_bet_precision.py",
         "smoke_test_single_public_table.py",
         "smoke_test_rake_settlement_fix.py",
+        "smoke_test_ring_admin_config.py",
     )),
     ("sitngo", (
         "smoke_test_sitngo_phase1.py",
