@@ -43,6 +43,7 @@ TEST_SUITES: dict[str, tuple[str, ...]] = {
         "smoke_test_poker_control_audit.py",
         "smoke_test_network_recovery_browser.py",
         "smoke_test_rake_settlement_fix.py",
+        "smoke_test_ring_admin_config.py",
     ),
     "browser_contract": (
         "smoke_test_prebuilt_assets.py",
