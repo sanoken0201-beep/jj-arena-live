@@ -66,11 +66,12 @@ from sitngo_ui import (
 
 from poker_simple import transform_app_js as simple_app_js, transform_styles as simple_styles
 from read_efficiency import transform_app_js as transform_read_efficiency_app_js
+from ring_buyin_browser import MARKER as RING_BUYIN_MARKER, transform_app_js as transform_ring_buyin_app_js
 
 ROOT = Path(__file__).resolve().parent
 MATERIALIZED_STATIC = ROOT / "materialized_v1244" / "static"
 BUILD_ROOT = ROOT / ".jj_build"
-ASSET_VERSION = 76
+ASSET_VERSION = 77
 BUILD_FORMAT = 1
 
 _TODAYS_JJ_MARKER = "v2 today's-jj contrast hardening 2026-09-12"
@@ -374,7 +375,11 @@ def build_app_js() -> str:
 
     if js.count(_PWA_REGISTRATION) != 1:
         raise RuntimeError("service worker registration drift: expected one canonical registration")
-    return js.replace(_PWA_REGISTRATION, _PWA_REGISTRATION_REPLACEMENT, 1)
+    js = js.replace(_PWA_REGISTRATION, _PWA_REGISTRATION_REPLACEMENT, 1)
+    js = transform_ring_buyin_app_js(js)
+    if RING_BUYIN_MARKER not in js:
+        raise RuntimeError("Ring buy-in browser transform marker missing")
+    return js
 
 
 def build_styles() -> str:
@@ -512,6 +517,7 @@ __all__ = [
     "PHASE5_MOBILE_MARKER",
     "PHASE6_MARKER",
     "PLAYER_UX_MARKER",
+    "RING_BUYIN_MARKER",
     "SITNGO_UI_MARKER",
     "SUBTRACTIVE_RED282_MARKER",
     "build_all",
