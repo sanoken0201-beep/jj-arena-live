@@ -62,11 +62,20 @@ def _dt(value: Any) -> datetime:
     return dt.astimezone(timezone.utc)
 
 
-def _expected_rake_bb(gross_pot_bb: float, played_at: datetime, reached_street: str | None) -> float:
+def _expected_rake_bb(
+    gross_pot_bb: float,
+    played_at: datetime,
+    reached_street: str | None,
+    rake_fraction: float | None = None,
+    rake_cap_bb: float | None = None,
+) -> float:
     if reached_street == "preflop":
         return 0.0
     # Ring tables use BB=100. online_hands persists gross_pot_bb to two
     # decimals, which exactly represents integer chip pots at BB=100.
+    if rake_fraction is not None and rake_cap_bb is not None:
+        chip_rake = math.floor(gross_pot_bb * 100.0 * rake_fraction + 1e-9)
+        return min(chip_rake / 100.0, max(0.0, rake_cap_bb))
     if played_at >= RAKE_5_3_AT:
         return min(math.floor(gross_pot_bb * 5.0 + 1e-9) / 100.0, 3.0)
     return min(math.floor(gross_pot_bb * 10.0 + 1e-9) / 100.0, 5.0)
@@ -80,7 +89,7 @@ def _read_rows(db) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[dic
             con.execute("SET TRANSACTION READ ONLY")
         tables = [_dict(r) for r in con.execute("SELECT id,name,state_json FROM tables").fetchall()]
         hands = [_dict(r) for r in con.execute(
-            "SELECT hand_id,table_id,gross_pot_bb,rake_bb,played_at,month,voided FROM online_hands"
+            "SELECT hand_id,table_id,gross_pot_bb,rake_bb,played_at,month,voided,rake_percent,rake_cap_bb FROM online_hands"
         ).fetchall()]
         results = [_dict(r) for r in con.execute(
             "SELECT id,hand_id,table_id,user_id,result_bb,points,month FROM online_hand_results"
@@ -114,7 +123,16 @@ def audit_rows(
         if "rake_percent" not in state:
             continue
         bb = max(0, int(state.get("big_blind") or 0))
-        if abs(_float(state.get("rake_percent")) - 0.05) > 1e-12 or int(state.get("rake_cap") or -1) != bb * 3:
+        fraction = _float(state.get("rake_percent"))
+        cap = int(state.get("rake_cap") or 0)
+        hand = state.get("hand") or {}
+        snapshot_fraction = hand.get("rake_percent_snapshot")
+        snapshot_cap_bb = hand.get("rake_cap_bb_snapshot")
+        invalid = fraction < 0 or fraction > 1 or cap < 0
+        if state.get("status") == "playing" and snapshot_fraction is not None and snapshot_cap_bb is not None:
+            expected_cap = int(bb * float(snapshot_cap_bb))
+            invalid = invalid or abs(fraction - float(snapshot_fraction)) > 1e-12 or cap != expected_cap
+        if invalid:
             flag("fixed_table_policy_violation", row.get("id"))
 
     hands_by_id = {str(row.get("hand_id")): row for row in hands if row.get("hand_id") is not None}
@@ -150,7 +168,11 @@ def audit_rows(
         reached = str(hist.get("reached_street") or "") if hist else None
         player_count = int(hist.get("player_count") or 0) if hist else 0
 
-        if played_at < UNCALLED_FIX_AT:
+        explicit_fraction = None if hand.get("rake_percent") is None else _float(hand.get("rake_percent"))
+        explicit_cap = None if hand.get("rake_cap_bb") is None else _float(hand.get("rake_cap_bb"))
+        if explicit_fraction is not None and explicit_cap is not None:
+            policy_windows["configured_policy"] += 1
+        elif played_at < UNCALLED_FIX_AT:
             policy_windows["legacy_before_uncalled_fix"] += 1
             flag("legacy_uncalled_risk_window_hands", hid)
         elif played_at < RAKE_5_3_AT:
@@ -174,7 +196,7 @@ def audit_rows(
                 flag("legacy_hand_conservation_or_completeness", hid)
 
         if hist:
-            expected = _expected_rake_bb(gross, played_at, reached)
+            expected = _expected_rake_bb(gross, played_at, reached, explicit_fraction, explicit_cap)
             if abs(rake - expected) > 0.001:
                 flag("rake_formula_violation", hid)
                 if played_at >= NOFLOP_FIX_AT:
@@ -184,7 +206,8 @@ def audit_rows(
         elif played_at >= NOFLOP_FIX_AT:
             flag("current_missing_analytics_history", hid)
 
-        if played_at >= RAKE_5_3_AT and (rake < -0.001 or rake > 3.001 or rake - gross > 0.001):
+        current_cap = explicit_cap if explicit_cap is not None else (3.0 if played_at >= RAKE_5_3_AT else 5.0)
+        if played_at >= RAKE_5_3_AT and (rake < -0.001 or rake > current_cap + 0.001 or rake - gross > 0.001):
             flag("current_rake_bound_violation", hid)
 
         if reached == "preflop":
