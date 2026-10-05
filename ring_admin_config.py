@@ -370,10 +370,13 @@ def _install_hand_history_policy(db) -> None:
             fraction = hand.get("rake_percent_snapshot")
             cap_bb = hand.get("rake_cap_bb_snapshot")
             if fraction is None:
-                fraction = state.get("rake_percent")
+                fraction = state.get("rake_percent", getattr(db, "RAKE_PERCENT", 0.05))
             if cap_bb is None:
-                bb = max(1, int(state.get("big_blind") or 1))
-                cap_bb = Decimal(int(state.get("rake_cap") or 0)) / Decimal(bb)
+                bb = max(1, int(state.get("big_blind") or getattr(db, "TABLE_BB", 1) or 1))
+                if state.get("rake_cap") is not None:
+                    cap_bb = Decimal(int(state.get("rake_cap") or 0)) / Decimal(bb)
+                else:
+                    cap_bb = Decimal(str(getattr(db, "RAKE_CAP_BB", 3)))
             con.execute(
                 "UPDATE online_hands SET rake_percent=?,rake_cap_bb=? WHERE hand_id=?",
                 (float(fraction), float(cap_bb), result["hand_id"]),
