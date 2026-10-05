@@ -183,6 +183,17 @@ def _has_buyin_today(con, user_id: int, day: str) -> bool:
     ).fetchone())
 
 
+def _ordered_buyin_stamp(con, user_id: int, day: str) -> str:
+    """Return a timestamp that is strictly after the latest admin reset."""
+    stamp = _now()
+    reset_at = _latest_reset(con, user_id, day)
+    if reset_at:
+        reset_stamp = datetime.fromisoformat(reset_at)
+        if stamp <= reset_stamp:
+            stamp = reset_stamp + timedelta(microseconds=1)
+    return stamp.isoformat()
+
+
 def usage(db, user_id: int, day: str | None = None) -> dict:
     day = day or _jst_day()
     with db.connect() as con:
@@ -212,10 +223,10 @@ def player_config(db, user_id: int) -> dict:
 
 def _reserve_buyin(db, user_id: int, table_id: str, source: str, *, force_reentry: bool) -> dict:
     day = _jst_day()
-    stamp = _now().isoformat()
     event_id = "ring-buyin-" + uuid.uuid4().hex
     with db.connect() as con:
         _lock_user_row(con, db, user_id)
+        stamp = _ordered_buyin_stamp(con, user_id, day)
         cfg = _config_row(con)
         is_reentry = force_reentry or _has_buyin_today(con, user_id, day)
         used = _reentry_used(con, user_id, day)
