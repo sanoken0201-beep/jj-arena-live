@@ -179,7 +179,7 @@ def main():
     }
     dynamic_results = [
         {"id":"configured-rake:1","hand_id":"configured-rake","table_id":"jj-table-a","user_id":1,"result_bb":4.625,"points":13.88,"month":"2026-10"},
-        {"id":"configured-rake:2","hand_id":"configured-rake","table_id":"jj-table-a","user_id":2,"result_bb":-5.375,"points":-16.13,"month":"2026-10"},
+        {"id":"configured-rake:2","hand_id":"configured-rake","table_id":"jj-table-a","user_id":2,"result_bb":-5.375,"points":-16.12,"month":"2026-10"},
     ]
     dynamic_history = [{"hand_id":"configured-rake","reached_street":"flop","player_count":2}]
     configured = audit.audit_rows([_table()], [dynamic_hand], dynamic_results, dynamic_history)
