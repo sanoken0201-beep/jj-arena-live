@@ -122,13 +122,16 @@ DRIVER = r'''
     checks.logout = true;
 
     document.getElementById('loginName').value = 'ブラウザユーザー';
+    const loginToast=document.getElementById('toast');
+    loginToast.classList.remove('show');
+    loginToast.textContent='';
     document.getElementById('loginPin').value = '999999';
     document.getElementById('pinForm').requestSubmit();
     await waitFor(() =>
       !document.getElementById('authView').classList.contains('hidden') &&
       document.getElementById('appView').classList.contains('hidden') &&
-      document.getElementById('toast').classList.contains('show') &&
-      document.getElementById('toast').textContent.trim().length > 0,
+      loginToast.classList.contains('show') &&
+      loginToast.textContent.includes('違います'),
       'wrong pin feedback'
     );
     checks.wrongPinRejected = true;
