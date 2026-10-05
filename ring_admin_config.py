@@ -869,7 +869,12 @@ def _register_routes(app, server, db) -> None:
                     settled_points = current_bb * multiplier
                     new_boundaries = _current_rake_boundaries(con)
                     settlement_id = "ring-rake-" + uuid.uuid4().hex
-                    stamp = _now().isoformat()
+                    stamp_dt = _now()
+                    if previous and previous.get("created_at"):
+                        previous_stamp = datetime.fromisoformat(str(previous["created_at"]))
+                        if stamp_dt <= previous_stamp:
+                            stamp_dt = previous_stamp + timedelta(microseconds=1)
+                    stamp = stamp_dt.isoformat()
                     note = payload.note.strip() or "オフライン活動でレーキバック"
                     con.execute(
                         """INSERT INTO ring_rake_settlements(
