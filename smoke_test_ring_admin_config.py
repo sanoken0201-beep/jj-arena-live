@@ -28,6 +28,22 @@ def _bust(server, table_id: str, user_id: int) -> None:
     server.save_table(state)
 
 
+def _stack(server, table_id: str, user_id: int) -> int:
+    state = server.load_table(table_id)
+    player = next(p for p in state["seats"] if int(p["user_id"]) == int(user_id))
+    return int(player["stack"])
+
+
+def _insert_hand(db, hand_id: str, hand_no: int, rake_bb: float, *, voided: int = 0) -> None:
+    with db.connect() as con:
+        con.execute(
+            """INSERT INTO online_hands(
+                 hand_id,table_id,hand_no,gross_pot_bb,rake_bb,played_at,month,voided
+               ) VALUES (?,?,?,?,?,?,?,?)""",
+            (hand_id, "jj-table-a", hand_no, 20, rake_bb, db.utcnow(), "2026-10", voided),
+        )
+
+
 def run() -> None:
     with isolated_production_app() as production:
         import ring_admin_config as ring
