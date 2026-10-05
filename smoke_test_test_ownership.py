@@ -45,6 +45,7 @@ def main() -> None:
         "auth_security",
         "points_integrity",
         "ring_gameplay",
+        "learning",
         "browser_contract",
         "runtime_release",
         "sitngo",
