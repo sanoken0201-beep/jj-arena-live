@@ -15,7 +15,10 @@ from quiz_readability import make_readable
 
 JST = ZoneInfo("Asia/Tokyo")
 DAILY_QUIZ_SIZE = 10
-DAILY_QUIZ_REWARD = 10
+DAILY_QUIZ_CORRECT_REWARD = 10
+DAILY_QUIZ_INCORRECT_REWARD = 5
+# Compatibility name for code that treats "reward" as the maximum per question.
+DAILY_QUIZ_REWARD = DAILY_QUIZ_CORRECT_REWARD
 BANK_VERSION = "2026-09-11-v2-readable"
 MIN_STAT_SAMPLES = 30
 
@@ -60,16 +63,51 @@ def build_daily_questions(day):
 def _ensure_schema(db):
     uid = "BIGINT" if db.IS_POSTGRES else "INTEGER"
     with db.connect() as con:
-        con.execute("CREATE TABLE IF NOT EXISTS quiz_daily_sets(quiz_date TEXT PRIMARY KEY, bank_version TEXT NOT NULL, questions_json TEXT NOT NULL)")
+        con.execute("""CREATE TABLE IF NOT EXISTS quiz_daily_sets(
+            quiz_date TEXT PRIMARY KEY, bank_version TEXT NOT NULL, questions_json TEXT NOT NULL,
+            correct_reward INTEGER NOT NULL DEFAULT 10, incorrect_reward INTEGER NOT NULL DEFAULT 10)""")
         con.execute(f"""CREATE TABLE IF NOT EXISTS quiz_daily_answers(
             id TEXT PRIMARY KEY, user_id {uid} NOT NULL REFERENCES users(id),
             quiz_date TEXT NOT NULL REFERENCES quiz_daily_sets(quiz_date),
             slot INTEGER NOT NULL CHECK(slot BETWEEN 1 AND 10),
             question_key TEXT NOT NULL, revision TEXT NOT NULL, question_json TEXT NOT NULL,
             answer TEXT, is_correct INTEGER CHECK(is_correct IN (0,1)),
-            reward_awarded INTEGER NOT NULL DEFAULT 0 CHECK(reward_awarded IN (0,10)),
+            reward_awarded INTEGER NOT NULL DEFAULT 0 CHECK(reward_awarded IN (0,5,10)),
             created_at TEXT NOT NULL, answered_at TEXT,
             UNIQUE(user_id,quiz_date,slot), UNIQUE(user_id,quiz_date,question_key))""")
+        # Existing daily sets keep the reward contract they started with. New sets
+        # created after this release explicitly use 10pt correct / 5pt incorrect.
+        if db.IS_POSTGRES:
+            con.execute("ALTER TABLE quiz_daily_sets ADD COLUMN IF NOT EXISTS correct_reward INTEGER NOT NULL DEFAULT 10")
+            con.execute("ALTER TABLE quiz_daily_sets ADD COLUMN IF NOT EXISTS incorrect_reward INTEGER NOT NULL DEFAULT 10")
+            con.execute("ALTER TABLE quiz_daily_answers DROP CONSTRAINT IF EXISTS quiz_daily_answers_reward_awarded_check")
+            con.execute("ALTER TABLE quiz_daily_answers ADD CONSTRAINT quiz_daily_answers_reward_awarded_check CHECK(reward_awarded IN (0,5,10))")
+        else:
+            set_columns = {str(r["name"]) for r in con.execute("PRAGMA table_info(quiz_daily_sets)").fetchall()}
+            if "correct_reward" not in set_columns:
+                con.execute("ALTER TABLE quiz_daily_sets ADD COLUMN correct_reward INTEGER NOT NULL DEFAULT 10")
+            if "incorrect_reward" not in set_columns:
+                con.execute("ALTER TABLE quiz_daily_sets ADD COLUMN incorrect_reward INTEGER NOT NULL DEFAULT 10")
+            ddl = con.execute("SELECT sql FROM sqlite_master WHERE type='table' AND name='quiz_daily_answers'").fetchone()
+            ddl_text = str(ddl["sql"] or "") if ddl else ""
+            compact = "".join(ddl_text.split())
+            if "CHECK(reward_awardedIN(0,10))" in compact:
+                con.execute("ALTER TABLE quiz_daily_answers RENAME TO quiz_daily_answers_reward_v1")
+                con.execute(f"""CREATE TABLE quiz_daily_answers(
+                    id TEXT PRIMARY KEY, user_id {uid} NOT NULL REFERENCES users(id),
+                    quiz_date TEXT NOT NULL REFERENCES quiz_daily_sets(quiz_date),
+                    slot INTEGER NOT NULL CHECK(slot BETWEEN 1 AND 10),
+                    question_key TEXT NOT NULL, revision TEXT NOT NULL, question_json TEXT NOT NULL,
+                    answer TEXT, is_correct INTEGER CHECK(is_correct IN (0,1)),
+                    reward_awarded INTEGER NOT NULL DEFAULT 0 CHECK(reward_awarded IN (0,5,10)),
+                    created_at TEXT NOT NULL, answered_at TEXT,
+                    UNIQUE(user_id,quiz_date,slot), UNIQUE(user_id,quiz_date,question_key))""")
+                con.execute("""INSERT INTO quiz_daily_answers(
+                    id,user_id,quiz_date,slot,question_key,revision,question_json,answer,is_correct,
+                    reward_awarded,created_at,answered_at)
+                    SELECT id,user_id,quiz_date,slot,question_key,revision,question_json,answer,is_correct,
+                    reward_awarded,created_at,answered_at FROM quiz_daily_answers_reward_v1""")
+                con.execute("DROP TABLE quiz_daily_answers_reward_v1")
         con.execute("CREATE INDEX IF NOT EXISTS idx_quiz_daily_stats ON quiz_daily_answers(question_key,revision)")
 
 
@@ -87,8 +125,10 @@ def _daily_set(con, day):
     generated = None
     if not row:
         generated = _json(build_daily_questions(day))
-        con.execute("INSERT INTO quiz_daily_sets(quiz_date,bank_version,questions_json) VALUES (?,?,?) ON CONFLICT(quiz_date) DO NOTHING",
-                    (day, BANK_VERSION, generated))
+        con.execute("""INSERT INTO quiz_daily_sets(
+            quiz_date,bank_version,questions_json,correct_reward,incorrect_reward)
+            VALUES (?,?,?,?,?) ON CONFLICT(quiz_date) DO NOTHING""",
+                    (day, BANK_VERSION, generated, DAILY_QUIZ_CORRECT_REWARD, DAILY_QUIZ_INCORRECT_REWARD))
         row = con.execute("SELECT bank_version,questions_json FROM quiz_daily_sets WHERE quiz_date=?", (day,)).fetchone()
     if row and str(row["bank_version"]) != BANK_VERSION:
         # A readability fix must take effect on the same JST day. Already answered
@@ -99,6 +139,16 @@ def _daily_set(con, day):
                     (BANK_VERSION, generated, day))
         row = {"bank_version": BANK_VERSION, "questions_json": generated}
     return json.loads(row["questions_json"])
+
+
+def _reward_rules(con, day):
+    row = con.execute(
+        "SELECT correct_reward,incorrect_reward FROM quiz_daily_sets WHERE quiz_date=?",
+        (day,),
+    ).fetchone()
+    if not row:
+        raise HTTPException(409, "今日のクイズ設定を読み直してください")
+    return int(row["correct_reward"]), int(row["incorrect_reward"])
 
 
 def _progress(con, uid, day):
@@ -120,17 +170,17 @@ def _progress(con, uid, day):
                 carried_answers=carried_answers)
 
 
-def _public(q, uid, day, progress):
+def _public(q, uid, day, progress, correct_reward, incorrect_reward):
     identifier = "dqa-" + hashlib.sha256(f'{uid}:{day}:{q["slot"]}'.encode()).hexdigest()[:32]
     return dict(id=identifier, date=day, slot=q["slot"], category=q["category"],
                 category_label=q["category_label"], prompt=q["prompt"], choices=q["choices"],
-                glossary=q.get("glossary") or [], reward=10, progress=progress, done=False)
+                glossary=q.get("glossary") or [], reward=correct_reward, reward_correct=correct_reward, reward_incorrect=incorrect_reward, progress=progress, done=False)
 
 
 def _result(row, q, progress, duplicate):
     return dict(ok=True, already_answered=duplicate, correct=bool(row["is_correct"]),
                 correct_answer=q["correct"], correct_label=next(c["label"] for c in q["choices"] if c["value"]==q["correct"]),
-                explanation=q["explanation"], awarded=0 if duplicate else 10, progress=progress)
+                explanation=q["explanation"], awarded=0 if duplicate else int(row["reward_awarded"]), progress=progress)
 
 
 def question_statistics(con):
@@ -171,15 +221,17 @@ def install(app, server, db):
             day = today_jst()  # Decide the day after any lock wait.
             questions = _daily_set(con, day)
             progress = _progress(con, uid, day)
-            if not progress["remaining"] or progress["earned"] + 10 > 100:
-                return dict(done=True,date=day,progress=progress,reward=10)
+            correct_reward, incorrect_reward = _reward_rules(con, day)
+            if not progress["remaining"]:
+                return dict(done=True,date=day,progress=progress,reward=correct_reward,
+                            reward_correct=correct_reward,reward_incorrect=incorrect_reward)
             rows = con.execute("SELECT slot,answer,revision FROM quiz_daily_answers WHERE user_id=? AND quiz_date=?",(uid,day)).fetchall()
             answered = {int(r["slot"]) for r in rows if r["answer"] is not None}
             # Preserve an outstanding question when another tab refreshes.
             pending = [int(r["slot"]) for r in rows if r["answer"] is None]
             slot = min(pending) if pending else next(i for i in range(1,11) if i not in answered)
             q = questions[slot-1]
-            public = _public(q,uid,day,progress)
+            public = _public(q,uid,day,progress,correct_reward,incorrect_reward)
             # If today's set was regenerated for a readability fix, replace only an
             # unanswered pending row. Already answered question snapshots stay intact.
             con.execute("""UPDATE quiz_daily_answers SET question_key=?,revision=?,question_json=?
@@ -208,15 +260,18 @@ def install(app, server, db):
             progress = _progress(con,uid,day)
             if row["answer"] is not None:
                 return _result(row,q,progress,True)
-            if not progress["remaining"] or progress["earned"] + 10 > 100:
+            if not progress["remaining"]:
                 raise HTTPException(409,"本日の上限に達しました。今日の問題を読み直してください")
+            correct_reward, incorrect_reward = _reward_rules(con, day)
+            is_correct = int(payload.answer==q["correct"])
+            reward = correct_reward if is_correct else incorrect_reward
             # The user row lock serializes tabs/processes; constraints and a unique
             # ledger ID also protect against retries. Both writes commit together.
             con.execute("""INSERT INTO point_ledger(id,user_id,amount,kind,reason,effective_at,created_by,created_at,reversal_of)
-                VALUES (?,?,?,?,?,?,?,?,NULL)""", ("dq3-"+row["id"],uid,10,"quiz_reward",f'今日のクイズ {day} #{row["slot"]}',now.isoformat(),uid,now.isoformat()))
-            con.execute("""UPDATE quiz_daily_answers SET answer=?,is_correct=?,reward_awarded=10,answered_at=?
-                WHERE id=? AND answer IS NULL""",(payload.answer,int(payload.answer==q["correct"]),now.isoformat(),row["id"]))
-            updated = dict(row,answer=payload.answer,is_correct=int(payload.answer==q["correct"]))
+                VALUES (?,?,?,?,?,?,?,?,NULL)""", ("dq3-"+row["id"],uid,reward,"quiz_reward",f'今日のクイズ {day} #{row["slot"]}',now.isoformat(),uid,now.isoformat()))
+            con.execute("""UPDATE quiz_daily_answers SET answer=?,is_correct=?,reward_awarded=?,answered_at=?
+                WHERE id=? AND answer IS NULL""",(payload.answer,is_correct,reward,now.isoformat(),row["id"]))
+            updated = dict(row,answer=payload.answer,is_correct=is_correct,reward_awarded=reward)
             return _result(updated,q,_progress(con,uid,day),False)
 
     @app.get("/api/admin/console/quiz-stats", include_in_schema=False)
