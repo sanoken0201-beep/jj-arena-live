@@ -197,6 +197,14 @@ def _points_contract(now):
     response=client.post('/api/admin/sitngo',json=body)
     assert response.status_code==200,response.text
     assert response.json()['entry_fee']==20.5 and response.json()['payout_percentages']['6'][-1]=='100'
+    # The PostgreSQL workflow shares its disposable database across processes.
+    # These fixtures settle prizes directly, so mirror the normal runtime's
+    # finished status instead of letting a later test start them again.
+    with db.connect() as con:
+        for settled_id in (tied, tiny, custom):
+            con.execute("UPDATE sitngo_events SET status='finished',updated_at=? WHERE id=?",
+                        (db.utcnow(), settled_id))
+    service.cancel_event(response.json()['id'], 'test cleanup', admin)
     print('JJ_SITNGO_POINTS_OK')
 
 if __name__=='__main__':main()
