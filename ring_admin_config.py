@@ -122,10 +122,17 @@ def _ensure_schema(db) -> None:
             boundaries_json TEXT NOT NULL,
             settled_rake_bb NUMERIC NOT NULL,
             settled_rake_points NUMERIC NOT NULL,
+            points_per_bb NUMERIC,
             hand_count INTEGER NOT NULL,
             note TEXT NOT NULL DEFAULT '',
             created_by {uid} REFERENCES users(id),
             created_at TEXT NOT NULL)""")
+        if db.IS_POSTGRES:
+            con.execute("ALTER TABLE ring_rake_settlements ADD COLUMN IF NOT EXISTS points_per_bb NUMERIC")
+        else:
+            settlement_columns = {str(row["name"]) for row in con.execute("PRAGMA table_info(ring_rake_settlements)").fetchall()}
+            if "points_per_bb" not in settlement_columns:
+                con.execute("ALTER TABLE ring_rake_settlements ADD COLUMN points_per_bb NUMERIC")
         con.execute("CREATE INDEX IF NOT EXISTS idx_ring_rake_settlement_created ON ring_rake_settlements(created_at)")
         con.execute(f"""CREATE TABLE IF NOT EXISTS ring_config_audit(
             id TEXT PRIMARY KEY,
@@ -500,9 +507,19 @@ def _round_amount(value: Decimal) -> float:
     return float(value.quantize(Decimal("0.01")))
 
 
+def _rake_points_per_bb(db) -> Decimal:
+    """Use the same BB→ranking-point conversion as online results.
+
+    TABLE_BB is a chip denomination (100 chips per BB), not a point multiplier.
+    Keeping those concepts separate prevents a 100x-looking rakeback display.
+    """
+    value = _to_decimal(getattr(db, "ONLINE_POINTS_PER_BB", 3))
+    return value if value > 0 else Decimal("3")
+
+
 def _latest_rake_settlement(con) -> dict | None:
     row = con.execute(
-        """SELECT id,boundaries_json,settled_rake_bb,settled_rake_points,
+        """SELECT id,boundaries_json,settled_rake_bb,settled_rake_points,points_per_bb,
                   hand_count,note,created_by,created_at
            FROM ring_rake_settlements ORDER BY created_at DESC,id DESC LIMIT 1"""
     ).fetchone()
@@ -559,21 +576,33 @@ def rake_summary(db) -> dict:
         current_bb, current_hands = _rake_window(con, boundaries)
         all_bb, all_hands = _all_time_rake(con)
         recent = con.execute(
-            """SELECT id,settled_rake_bb,settled_rake_points,hand_count,note,created_at
+            """SELECT id,settled_rake_bb,settled_rake_points,points_per_bb,hand_count,note,created_at
                FROM ring_rake_settlements ORDER BY created_at DESC,id DESC LIMIT 10"""
         ).fetchall()
-    multiplier = Decimal(str(int(getattr(db, "TABLE_BB", 100) or 100)))
-    last_public = None
-    if last:
-        last_public = {
-            "id": last["id"],
-            "settled_rake_bb": float(last["settled_rake_bb"] or 0),
-            "settled_rake_points": float(last["settled_rake_points"] or 0),
-            "hand_count": int(last["hand_count"] or 0),
-            "note": str(last["note"] or ""),
-            "created_at": last["created_at"],
+    multiplier = _rake_points_per_bb(db)
+
+    def settlement_public(raw) -> dict:
+        item = dict(raw)
+        rake_bb = _to_decimal(item.get("settled_rake_bb"))
+        stored_rate = item.get("points_per_bb")
+        rate = multiplier if stored_rate is None else _to_decimal(stored_rate)
+        if rate <= 0:
+            rate = multiplier
+        return {
+            "id": item["id"],
+            "settled_rake_bb": _round_amount(rake_bb),
+            # Legacy rows created by the broken 100x conversion may contain an
+            # inflated stored value. Recompute from BB using the snapshotted
+            # conversion rate when available, or the current canonical rate.
+            "settled_rake_points": _round_amount(rake_bb * rate),
+            "points_per_bb": _round_amount(rate),
+            "hand_count": int(item["hand_count"] or 0),
+            "note": str(item["note"] or ""),
+            "created_at": item["created_at"],
         }
+
     return {
+        "points_per_bb": _round_amount(multiplier),
         "current": {
             "rake_bb": _round_amount(current_bb),
             "rake_points": _round_amount(current_bb * multiplier),
@@ -584,8 +613,8 @@ def rake_summary(db) -> dict:
             "rake_points": _round_amount(all_bb * multiplier),
             "hands": all_hands,
         },
-        "last_reset": last_public,
-        "recent_resets": [dict(row) for row in recent],
+        "last_reset": settlement_public(last) if last else None,
+        "recent_resets": [settlement_public(row) for row in recent],
     }
 
 
@@ -865,7 +894,7 @@ def _register_routes(app, server, db) -> None:
                     current_bb, hand_count = _rake_window(con, boundaries)
                     if current_bb <= 0:
                         raise HTTPException(409, "未精算のレーキはありません")
-                    multiplier = Decimal(str(int(getattr(db, "TABLE_BB", 100) or 100)))
+                    multiplier = _rake_points_per_bb(db)
                     settled_points = current_bb * multiplier
                     new_boundaries = _current_rake_boundaries(con)
                     settlement_id = "ring-rake-" + uuid.uuid4().hex
@@ -878,14 +907,15 @@ def _register_routes(app, server, db) -> None:
                     note = payload.note.strip() or "オフライン活動でレーキバック"
                     con.execute(
                         """INSERT INTO ring_rake_settlements(
-                             id,boundaries_json,settled_rake_bb,settled_rake_points,
+                             id,boundaries_json,settled_rake_bb,settled_rake_points,points_per_bb,
                              hand_count,note,created_by,created_at)
-                           VALUES (?,?,?,?,?,?,?,?)""",
+                           VALUES (?,?,?,?,?,?,?,?,?)""",
                         (
                             settlement_id,
                             json.dumps(new_boundaries, ensure_ascii=False, sort_keys=True),
                             float(current_bb),
                             float(settled_points),
+                            float(multiplier),
                             int(hand_count),
                             note,
                             int(user["id"]),
