@@ -252,7 +252,7 @@ def build_index() -> str:
     html = html.replace('Waiting for players', '着席者を待っています')
     html = html.replace(
         'JJ内の練習用プレイマネーテーブルです。A/Bの2卓のみ、6-max、0.5/1bb、着席時150bb固定。各ハンドは10% rake・5bb capで、結果は1bb=3ptとして後期ランキングへ自動反映されます。テーブル画面との接続・操作が15分ない場合、ハンド終了後に自動離席します。',
-        'プレイマネー｜6-max｜0.5/1bb｜150bb固定｜rake 10%・5bb cap｜ランキング 1bb=3pt｜15分無操作でハンド終了後に自動離席',
+        'プレイマネー｜6-max｜0.5/1bb｜バイイン可変｜rake 10%・5bb cap｜ランキング 1bb=3pt｜15分無操作でハンド終了後に自動離席',
     )
     html = transform_subtractive_index(html)
     if SUBTRACTIVE_RED282_MARKER not in html:
