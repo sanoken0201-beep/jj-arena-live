@@ -115,6 +115,19 @@ def _ensure_schema(db):
                     reward_awarded,created_at,answered_at FROM quiz_daily_answers_reward_v1""")
                 con.execute("DROP TABLE quiz_daily_answers_reward_v1")
         con.execute("CREATE INDEX IF NOT EXISTS idx_quiz_daily_stats ON quiz_daily_answers(question_key,revision)")
+        # If today's set exists but nobody has answered it yet, it is safe to
+        # adopt the new reward contract immediately. Once the first answer exists,
+        # the day's contract is frozen to avoid unequal scoring within one JST day.
+        day = today_jst()
+        answered = con.execute(
+            "SELECT 1 FROM quiz_daily_answers WHERE quiz_date=? AND answer IS NOT NULL LIMIT 1",
+            (day,),
+        ).fetchone()
+        if not answered:
+            con.execute(
+                "UPDATE quiz_daily_sets SET correct_reward=?,incorrect_reward=? WHERE quiz_date=?",
+                (DAILY_QUIZ_CORRECT_REWARD, DAILY_QUIZ_INCORRECT_REWARD, day),
+            )
 
 
 def _lock_user(con, db, uid):
