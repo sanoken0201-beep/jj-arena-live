@@ -21,10 +21,10 @@ def main() -> None:
 
     require('data-view="schedule"' not in html, "schedule must leave primary navigation")
     require('data-view="discussion"' not in html, "discussion must leave primary navigation")
-    require("1 TABLE · 6-MAX · 150BB" in html, "single-table lobby copy missing")
+    require("1 TABLE · 6-MAX · VARIABLE BUY-IN" in html, "single-table variable-buy-in lobby copy missing")
     require("6-max固定・0.5/1bb・1卓。" in html, "Home table copy must reflect one public table")
     require("お知らせ / 活動予定" in html, "announcement/calendar merged heading missing")
-    require("rake 10%・5bb cap" not in html, "lobby rake explanation should not be displayed")
+    require("rake 10%・5bb cap" not in html, "lobby rake explanation should not be displayed")\n    require("150bb固定" not in html, "fixed buy-in copy must not survive variable buy-in support")
 
     require("const raw=await api('/tables')" in js, "single-table lobby renderer missing")
     require("tables[0]" in js, "single public table selection missing")
