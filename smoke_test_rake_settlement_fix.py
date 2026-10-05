@@ -87,6 +87,22 @@ def test_formula_exhaustive(engine):
         assert int(engine._rake_amount(state, pot)) == expected
 
 
+def test_hand_snapshot_policy(engine):
+    state = {
+        "big_blind": 100,
+        "rake_percent": 0.01,
+        "rake_cap": 100,
+        "hand": {
+            "board": ["2c", "3d", "4h"],
+            "rake_percent_snapshot": 0.075,
+            "rake_cap_bb_snapshot": 2.5,
+        },
+    }
+    assert int(engine._rake_amount(state, 10_000)) == 250
+    assert abs(float(state["rake_percent"]) - 0.075) < 1e-12
+    assert int(state["rake_cap"]) == 250
+
+
 def test_uncalled_refunds():
     for source, expected, refund in (
         ([1000, 500], [500, 500], 500),
@@ -238,7 +254,8 @@ def test_production_policy_and_persistence():
     js = app._patched_app_js()
     assert f"/static/app.js?v={app.ASSET_VERSION}&{BROWSER_CACHE_QUERY}" in index
     assert "rake 10%・5bb cap" not in index
-    assert "pot*0.05,Number(tableState.rake_cap||300)" in js
+    assert "pot*Number(tableState.rake_percent||0),Number(tableState.rake_cap||0)" in js
+    assert "RAKE ${fmt(Number(t.rake_percent||0)*100)}%" in js
     assert "pot*0.10,Number(tableState.rake_cap||500)" not in js
 
     now = db.utcnow()
@@ -286,6 +303,7 @@ def main():
     fix._INSTALLED = False
     fix.install(engine)
     test_formula_exhaustive(engine)
+    test_hand_snapshot_policy(engine)
     test_uncalled_refunds()
     test_sidepot_allocation(engine)
     test_showdown_chop_odd_chip_and_cap(engine)
