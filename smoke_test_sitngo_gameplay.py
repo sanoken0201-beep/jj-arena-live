@@ -21,7 +21,8 @@ def main(paid=False):
         with db.connect() as con:
             for uid in users:
                 con.execute("INSERT INTO point_ledger(id,user_id,amount,kind,reason,effective_at,created_by,created_at) VALUES (?,?,?,?,?,?,?,?)",(f'fund-{uid}',uid,'1000.00','credit','test',db.utcnow(),admin,db.utcnow()))
-    clock=time.time()
+    # Keep simulated launches away from JST midnight irrespective of CI time.
+    clock=datetime(2026, 1, 1, 3, 0, tzinfo=timezone.utc).timestamp()
     def launch(count):
         nonlocal clock
         clock+=300

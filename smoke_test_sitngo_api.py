@@ -3,11 +3,12 @@ import os
 import tempfile
 from pathlib import Path
 from datetime import datetime, timedelta, timezone
+from unittest.mock import patch
 
 os.environ.pop('DATABASE_URL',None)
 _tmp=tempfile.TemporaryDirectory(prefix='jj-sng-api-')
 os.environ['JJ_DB_PATH']=str(Path(_tmp.name)/'api.sqlite3')
-from smoke_test_sitngo_phase1 import add_member, production_app as prod, sitngo
+from smoke_test_sitngo_phase1 import add_member, production_app as prod, registration_moment, sitngo
 from fastapi.testclient import TestClient
 
 
@@ -17,9 +18,12 @@ def main():
     with prod.db.connect() as con:
         admin=int(con.execute("SELECT id FROM users WHERE role='admin' LIMIT 1").fetchone()['id'])
     users=[add_member(300+i) for i in range(3)]
-    event=service.create_event(sitngo.SitNGoCreateIn(starts_at=(datetime.now(timezone.utc)+timedelta(minutes=2)).isoformat()),admin)
-    for uid in users[:2]: service.register(event['id'],uid)
-    service.reconcile(datetime.now(timezone.utc)+timedelta(minutes=3))
+    starts=datetime.now(timezone.utc)+timedelta(minutes=2)
+    event=service.create_event(sitngo.SitNGoCreateIn(starts_at=starts.isoformat()),admin)
+    # Follow the event's actual registration window even across JST midnight.
+    with patch.object(sitngo, '_utcnow', return_value=registration_moment(event)):
+        for uid in users[:2]: service.register(event['id'],uid)
+    service.reconcile(starts+timedelta(seconds=1))
     eid=event['id']
     client=TestClient(prod.app,base_url='https://testserver')
     assert client.get('/api/tables/'+eid).status_code==401

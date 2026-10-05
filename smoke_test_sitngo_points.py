@@ -11,13 +11,21 @@ import smoke_test_sitngo_gameplay as gameplay
 
 def main():
     gameplay.main(paid=True)
+    # Financial contracts must not depend on whether a 20-minute future event
+    # crosses JST midnight (registration never opens on the preceding day).
+    now = datetime(2026, 1, 1, 3, 0, tzinfo=timezone.utc)
+    with patch.object(sitngo, '_utcnow', return_value=now):
+        _points_contract(now)
+
+
+def _points_contract(now):
     db=production_app.db; service=production_app.app.state.jj_sitngo
     with db.connect() as con:
         admin=con.execute("SELECT id FROM users WHERE role='admin' LIMIT 1").fetchone()['id']
     uid=add_member(999)
     def event(fee='10.01'):
         return service.create_event(sitngo.SitNGoCreateIn(name='Paid tests',entry_fee=fee,
-            starts_at=(datetime.now(timezone.utc)+timedelta(minutes=20)).isoformat()),admin)['id']
+            starts_at=(now+timedelta(minutes=20)).isoformat()),admin)['id']
     for invalid in ('-1','1.001','NaN','Infinity','1000000.01'):
         try: event(invalid)
         except ValidationError: pass
@@ -44,7 +52,7 @@ def main():
         assert con.execute("SELECT COUNT(*) n FROM point_ledger WHERE user_id=? AND kind='sitngo_refund'",(uid,)).fetchone()['n']==2
     short=event();service.register(short,uid)
     with db.connect() as con:assert service.points.balance(con,uid)==-1001
-    service.reconcile(datetime.now(timezone.utc)+timedelta(minutes=21))
+    service.reconcile(now+timedelta(minutes=21))
     with db.connect() as con:assert service.points.balance(con,uid)==0
     # Transaction rollback after ledger insertion must also roll back registration.
     rollback=event(); original=service.points.write
@@ -61,7 +69,7 @@ def main():
     # Paid events fail closed before the first card if the registered field and
     # locked entry escrow do not match exactly.
     guard_users=[add_member(91200+i) for i in range(2)]
-    guard_start=datetime.now(timezone.utc)+timedelta(minutes=2)
+    guard_start=now+timedelta(minutes=2)
     guarded=service.create_event(sitngo.SitNGoCreateIn(
         name='Escrow guard',entry_fee='10.01',starts_at=guard_start.isoformat()),admin)['id']
     with db.connect() as con:
@@ -90,7 +98,7 @@ def main():
     # Persisted payout terms are revalidated at read/start time. Corrupt JSON
     # cannot silently launch a tournament that would become unpayable later.
     config_users=[add_member(91300+i) for i in range(2)]
-    config_start=datetime.now(timezone.utc)+timedelta(minutes=3)
+    config_start=now+timedelta(minutes=3)
     corrupt=service.create_event(sitngo.SitNGoCreateIn(
         name='Payout config guard',entry_fee='0',starts_at=config_start.isoformat()),admin)['id']
     for u in config_users:service.register(corrupt,u)
@@ -169,7 +177,7 @@ def main():
     service.cancel_event(eid,'test',admin)
     # Persisted custom rates, including a zero first prize, reach the ledger.
     custom=service.create_event(sitngo.SitNGoCreateIn(entry_fee='10.01',payout_percentages=rates,
-        starts_at=(datetime.now(timezone.utc)+timedelta(minutes=20)).isoformat()),admin)['id']
+        starts_at=(now+timedelta(minutes=20)).isoformat()),admin)['id']
     with db.connect() as con:
         for i,u in enumerate(ids):service.points.write(con,custom,u,1001,'credit',f'custom-funding-{i}')
     for u in ids:service.register(custom,u)
@@ -181,7 +189,7 @@ def main():
         assert cents(con.execute("SELECT SUM(amount) n FROM point_ledger WHERE kind IN ('sitngo_entry','sitngo_refund','sitngo_prize')").fetchone()['n'])==0
     from fastapi.testclient import TestClient
     client=TestClient(production_app.app,base_url='https://testserver')
-    body={'starts_at':(datetime.now(timezone.utc)+timedelta(minutes=20)).isoformat(),'entry_fee':'20.50','payout_percentages':rates}
+    body={'starts_at':(now+timedelta(minutes=20)).isoformat(),'entry_fee':'20.50','payout_percentages':rates}
     assert client.post('/api/admin/sitngo',json=body).status_code==401
     token=db.create_session(uid);client.headers['Authorization']='Bearer '+token
     assert client.post('/api/admin/sitngo',json=body).status_code==403
@@ -189,6 +197,14 @@ def main():
     response=client.post('/api/admin/sitngo',json=body)
     assert response.status_code==200,response.text
     assert response.json()['entry_fee']==20.5 and response.json()['payout_percentages']['6'][-1]=='100'
+    # The PostgreSQL workflow shares its disposable database across processes.
+    # These fixtures settle prizes directly, so mirror the normal runtime's
+    # finished status instead of letting a later test start them again.
+    with db.connect() as con:
+        for settled_id in (tied, tiny, custom):
+            con.execute("UPDATE sitngo_events SET status='finished',updated_at=? WHERE id=?",
+                        (db.utcnow(), settled_id))
+    service.cancel_event(response.json()['id'], 'test cleanup', admin)
     print('JJ_SITNGO_POINTS_OK')
 
 if __name__=='__main__':main()
