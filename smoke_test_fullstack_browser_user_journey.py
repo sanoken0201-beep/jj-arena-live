@@ -87,8 +87,16 @@ DRIVER = r'''
     // settled geometry rather than treating the first animation frame as overflow.
     await sleep(220);
     const buyinInput = document.querySelector('#jjRingSeatForm [name="buyin_bb"]');
-    const modalRect=document.getElementById('modal').getBoundingClientRect();
-    checks.buyinModalContained=modalRect.left>=-1&&modalRect.right<=innerWidth+1&&modalRect.bottom<=innerHeight+1;
+    const modal=document.getElementById('modal'),modalRect=modal.getBoundingClientRect();
+    const viewport={innerWidth,innerHeight,clientWidth:document.documentElement.clientWidth,clientHeight:document.documentElement.clientHeight,visualWidth:window.visualViewport?.width||null,visualHeight:window.visualViewport?.height||null};
+    const modalStyle=getComputedStyle(modal);
+    const modalContained=modalRect.left>=-1&&modalRect.right<=innerWidth+1&&modalRect.bottom<=innerHeight+1;
+    checks.buyinModalContained=modalContained;
+    if(!modalContained)checks.modalGeometry=JSON.stringify({
+      rect:{left:modalRect.left,right:modalRect.right,top:modalRect.top,bottom:modalRect.bottom,width:modalRect.width,height:modalRect.height},
+      viewport,
+      style:{position:modalStyle.position,top:modalStyle.top,right:modalStyle.right,bottom:modalStyle.bottom,left:modalStyle.left,margin:modalStyle.margin,transform:modalStyle.transform}
+    });
     checks.buyinInputTouch=!window.matchMedia('(max-width:760px)').matches||buyinInput?.getBoundingClientRect().height>=44;
     if(!buyinInput || Number(buyinInput.value) < Number(buyinInput.min) || Number(buyinInput.value) > Number(buyinInput.max)){
       throw new Error('invalid buy-in selector');
