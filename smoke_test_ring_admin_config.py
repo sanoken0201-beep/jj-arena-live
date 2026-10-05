@@ -71,22 +71,45 @@ def run() -> None:
                 admin_cookies,
                 "PATCH",
                 "/api/admin/console/ring-config",
-                json={"rake_percent": 7.5, "rake_cap_bb": 4.25, "daily_reentry_limit": 2},
+                json={
+                    "rake_percent": 7.5,
+                    "rake_cap_bb": 4.25,
+                    "daily_reentry_limit": 2,
+                    "min_buyin_bb": 50,
+                    "max_buyin_bb": 200,
+                },
             ))
             assert config["rake_percent"] == 7.5
             assert config["rake_cap_bb"] == 4.25
             assert config["daily_reentry_limit"] == 2
+            assert config["min_buyin_bb"] == 50
+            assert config["max_buyin_bb"] == 200
 
             # Waiting tables immediately advertise the new policy.
             state = server.load_table(table_id)
             assert abs(float(state["rake_percent"]) - 0.075) < 1e-12
             assert int(state["rake_cap"]) == 425
+            assert int(state["min_buyin"]) == 5000
+            assert int(state["max_buyin"]) == 20000
 
             player_cfg = json_response(_request(client, member_cookies, "POST", "/api/poker-config"))
             assert player_cfg["rake_percent"] == 7.5
             assert player_cfg["rake_cap_bb"] == 4.25
             assert player_cfg["daily_reentry_limit"] == 2
+            assert player_cfg["min_buyin_bb"] == 50
+            assert player_cfg["max_buyin_bb"] == 200
             assert player_cfg["reentries"]["used"] == 0
+
+            tables = json_response(_request(client, member_cookies, "GET", "/api/tables"))
+            assert tables[0]["min_buyin_bb"] == 50
+            assert tables[0]["max_buyin_bb"] == 200
+            assert tables[0]["default_buyin_bb"] == 150
+
+            too_low = _request(
+                client, member_cookies, "POST", f"/api/tables/{table_id}/join",
+                json={"buyin_bb": 40},
+            )
+            assert too_low.status_code == 400, too_low.text
 
             # First seating of the JST day is the initial buy-in, not a re-entry.
             joined = json_response(_request(client, member_cookies, "POST", f"/api/tables/{table_id}/join"))
