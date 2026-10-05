@@ -14,7 +14,7 @@ def main() -> None:
     js = build_app_js()
     css = build_styles()
 
-    require(ASSET_VERSION == 78, "asset version must include the Ring buy-in UI")
+    require(ASSET_VERSION == 79, "asset version must include the post-refactor Ring UI repair")
     require(SUBTRACTIVE_RED282_MARKER in html, "index marker missing")
     require(SUBTRACTIVE_RED282_MARKER in js, "app marker missing")
     require(SUBTRACTIVE_RED282_MARKER in css, "style marker missing")
