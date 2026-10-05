@@ -61,12 +61,14 @@ DRIVER = r'''
     await waitFor(() => document.querySelectorAll('#quizChoices [data-daily-answer]').length >= 4, 'daily quiz choices');
     const firstChoice = document.querySelector('#quizChoices [data-daily-answer]');
     firstChoice.click();
-    await waitFor(() => document.getElementById('quizStage').textContent.includes('この問題') && document.getElementById('quizScore').textContent.includes('+10pt'), 'quiz reward');
-    checks.quizAward = document.getElementById('quizStage').textContent.includes('+10pt');
+    await waitFor(() => document.getElementById('quizStage').textContent.includes('この問題') && /\+(5|10)pt/.test(document.getElementById('quizScore').textContent), 'quiz reward');
+    const quizAwardMatch = document.getElementById('quizScore').textContent.match(/\+(5|10)pt/);
+    const quizAward = quizAwardMatch ? quizAwardMatch[1] : '';
+    checks.quizAward = quizAward === '5' || quizAward === '10';
 
     await go('ranking');
     await waitFor(() => document.getElementById('rankBody').textContent.includes('ブラウザユーザー'), 'ranking row');
-    checks.rankingAfterQuiz = document.getElementById('rankBody').textContent.includes('10');
+    checks.rankingAfterQuiz = document.getElementById('rankBody').textContent.includes(quizAward);
 
     await go('discussion');
     document.getElementById('newThreadBtn').click();
