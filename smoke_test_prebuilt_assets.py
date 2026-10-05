@@ -89,6 +89,7 @@ def main() -> None:
                 raise AssertionError("production silently compiled missing browser assets at runtime")
             assert not missing.exists(), "production fail-closed path created runtime build output"
 
+            os.environ.pop("RENDER", None)
             served_assets.BUILD_ROOT = root
             assert served_assets.ensure_runtime_assets() == root
             runtime_manifest = served_assets.validate_built_assets(root)
