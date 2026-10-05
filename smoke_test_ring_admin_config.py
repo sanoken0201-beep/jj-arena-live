@@ -112,15 +112,23 @@ def run() -> None:
             assert too_low.status_code == 400, too_low.text
 
             # First seating of the JST day is the initial buy-in, not a re-entry.
-            joined = json_response(_request(client, member_cookies, "POST", f"/api/tables/{table_id}/join"))
+            joined = json_response(_request(
+                client, member_cookies, "POST", f"/api/tables/{table_id}/join",
+                json={"buyin_bb": 100},
+            ))
             assert any(int(p["user_id"]) == uid for p in joined["seats"])
+            assert _stack(server, table_id, uid) == 10000
             usage = ring.usage(db, uid)
             assert usage["date"] == "2026-10-05"
             assert usage["used"] == 0 and usage["total_buyins"] == 1
 
             # Two re-entries are allowed; the third is rejected server-side.
             _bust(server, table_id, uid)
-            json_response(_request(client, member_cookies, "POST", f"/api/tables/{table_id}/rebuy"))
+            json_response(_request(
+                client, member_cookies, "POST", f"/api/tables/{table_id}/rebuy",
+                json={"buyin_bb": 180},
+            ))
+            assert _stack(server, table_id, uid) == 18000
             assert ring.usage(db, uid)["used"] == 1
 
             _bust(server, table_id, uid)
@@ -129,8 +137,9 @@ def run() -> None:
                 member_cookies,
                 "POST",
                 f"/api/tables/{table_id}/presence",
-                json={"mode": "rebuy"},
+                json={"mode": "rebuy", "buyin_bb": 120},
             ))
+            assert _stack(server, table_id, uid) == 12000
             assert ring.usage(db, uid)["used"] == 2
 
             _bust(server, table_id, uid)
