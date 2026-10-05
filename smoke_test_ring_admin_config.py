@@ -142,6 +142,17 @@ def run() -> None:
             assert _stack(server, table_id, uid) == 12000
             assert ring.usage(db, uid)["used"] == 2
 
+            # A policy change affects future buy-ins but never rewrites an existing stack.
+            tightened = json_response(_request(
+                client,
+                admin_cookies,
+                "PATCH",
+                "/api/admin/console/ring-config",
+                json={"min_buyin_bb": 80, "max_buyin_bb": 100},
+            ))
+            assert tightened["min_buyin_bb"] == 80 and tightened["max_buyin_bb"] == 100
+            assert _stack(server, table_id, uid) == 12000
+
             _bust(server, table_id, uid)
             blocked = _request(client, member_cookies, "POST", f"/api/tables/{table_id}/rebuy")
             assert blocked.status_code == 409, blocked.text
@@ -167,7 +178,14 @@ def run() -> None:
             assert ring.usage(db, uid)["used"] == 0
 
             # Reset keeps history but starts a new counting window for the same date.
-            json_response(_request(client, member_cookies, "POST", f"/api/tables/{table_id}/rebuy"))
+            json_response(_request(
+                client,
+                member_cookies,
+                "POST",
+                f"/api/tables/{table_id}/rebuy",
+                json={"buyin_bb": 90},
+            ))
+            assert _stack(server, table_id, uid) == 9000
             assert ring.usage(db, uid)["used"] == 1
             with db.connect() as con:
                 events = int(con.execute(
