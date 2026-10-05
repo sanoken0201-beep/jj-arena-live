@@ -14,7 +14,7 @@ from pydantic import BaseModel, Field, field_validator
 from quiz_bank import CATEGORY_LABELS, POOLS
 
 OPENAI_RESPONSES_URL = "https://api.openai.com/v1/responses"
-DEFAULT_QUIZ_MODEL = "gpt-5.6-luna"
+DEFAULT_QUIZ_MODEL = "gpt-6-luna"
 
 
 class QuizQuestionIn(BaseModel):
