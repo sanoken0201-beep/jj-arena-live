@@ -507,7 +507,7 @@ def validate_built_assets(output_root: Path | str = BUILD_ROOT) -> dict:
 
 
 def ensure_runtime_assets() -> Path:
-    """Return the canonical finalized assets; production never compiles at runtime."""
+    """Return canonical finalized assets; production never compiles them at runtime."""
     try:
         manifest = validate_built_assets(BUILD_ROOT)
         if manifest.get("browser_output_contract") != "canonical-prebuilt-v1":
