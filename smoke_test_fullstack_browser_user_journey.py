@@ -83,6 +83,9 @@ DRIVER = r'''
     checks.roomMetaContained=window.matchMedia('(max-width:760px)').matches||metaRect.right<=innerWidth+1;
     document.querySelector('#seatLayer [data-seat="0"]').click();
     await waitFor(() => document.getElementById('jjRingSeatForm'), 'buy-in modal');
+    // The mobile sheet intentionally animates upward from +18px; inspect its
+    // settled geometry rather than treating the first animation frame as overflow.
+    await sleep(220);
     const buyinInput = document.querySelector('#jjRingSeatForm [name="buyin_bb"]');
     const modalRect=document.getElementById('modal').getBoundingClientRect();
     checks.buyinModalContained=modalRect.left>=-1&&modalRect.right<=innerWidth+1&&modalRect.bottom<=innerHeight+1;
