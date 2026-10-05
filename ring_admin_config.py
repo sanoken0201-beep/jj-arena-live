@@ -132,6 +132,16 @@ def get_config(db) -> dict:
         return _public_config(_config_row(con))
 
 
+def _lock_user_row(con, db, user_id: int) -> None:
+    if db.IS_POSTGRES:
+        row = con.execute("SELECT id FROM users WHERE id=? FOR UPDATE", (user_id,)).fetchone()
+    else:
+        con.execute("BEGIN IMMEDIATE")
+        row = con.execute("SELECT id FROM users WHERE id=?", (user_id,)).fetchone()
+    if not row:
+        raise HTTPException(404, "ユーザーが見つかりません")
+
+
 def _latest_reset(con, user_id: int, day: str) -> str | None:
     row = con.execute(
         """SELECT reset_at FROM ring_reentry_resets
@@ -197,6 +207,7 @@ def _reserve_buyin(db, user_id: int, table_id: str, source: str, *, force_reentr
     stamp = _now().isoformat()
     event_id = "ring-buyin-" + uuid.uuid4().hex
     with db.connect() as con:
+        _lock_user_row(con, db, user_id)
         cfg = _config_row(con)
         is_reentry = force_reentry or _has_buyin_today(con, user_id, day)
         used = _reentry_used(con, user_id, day)
@@ -422,7 +433,7 @@ def _register_routes(app, server, db) -> None:
         return cfg
 
     @app.patch("/api/admin/console/ring-config", include_in_schema=False)
-    def update_ring_config(payload: RingConfigPatch, user=Depends(server.admin_user)):
+    async def update_ring_config(payload: RingConfigPatch, user=Depends(server.admin_user)):
         with db.connect() as con:
             before_row = _config_row(con)
             before = _public_config(before_row)
@@ -458,7 +469,15 @@ def _register_routes(app, server, db) -> None:
                     stamp,
                 ),
             )
-        _apply_waiting_tables(db)
+        # Apply only to tables that are currently between hands. Table locks
+        # prevent a config save from overwriting a hand that starts concurrently.
+        for table_id, _name in getattr(db, "FIXED_TABLES", ()):
+            async with server.get_table_lock(table_id):
+                state = server.load_table(table_id)
+                if state.get("status") != "playing":
+                    _apply_state_rake(state, after)
+                    server.save_table(state)
+            await server.hub.broadcast(table_id)
         return after
 
     @app.get("/api/admin/console/ring-reentries", include_in_schema=False)
@@ -491,9 +510,7 @@ def _register_routes(app, server, db) -> None:
         day = _jst_day()
         stamp = _now().isoformat()
         with db.connect() as con:
-            target = con.execute("SELECT id FROM users WHERE id=?", (user_id,)).fetchone()
-            if not target:
-                raise HTTPException(404, "ユーザーが見つかりません")
+            _lock_user_row(con, db, user_id)
             previous = _reentry_used(con, user_id, day)
             con.execute(
                 """INSERT INTO ring_reentry_resets(id,user_id,jst_date,reset_at,reset_by,previous_count,reason)
