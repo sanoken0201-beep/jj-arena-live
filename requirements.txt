@@ -2,5 +2,7 @@ fastapi==0.128.2
 uvicorn[standard]==0.48.0
 websockets==16.0
 pydantic==2.13.4
+# Required by the production-safe release gate run during Render builds.
+httpx==0.28.1
 
 psycopg[binary,pool]==3.2.10
