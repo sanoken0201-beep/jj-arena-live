@@ -202,6 +202,33 @@ def run() -> None:
                 ).fetchone()["n"])
             assert events == 4 and resets == 1 and audits >= 2
 
+            # Rakeback settlement resets only the unsettled balance.
+            json_response(_request(client, {}, "GET", "/api/admin/console/ring-rake"), 401)
+            json_response(_request(client, member_cookies, "GET", "/api/admin/console/ring-rake"), 403)
+            _insert_hand(db, "ring-rake-1", 9001, 1.25)
+            _insert_hand(db, "ring-rake-2", 9002, 0.75)
+            rake = json_response(_request(client, admin_cookies, "GET", "/api/admin/console/ring-rake"))
+            assert rake["current"] == {"rake_bb": 2.0, "rake_points": 200.0, "hands": 2}
+            assert rake["all_time"]["rake_points"] == 200.0
+
+            settled = json_response(_request(
+                client,
+                admin_cookies,
+                "POST",
+                "/api/admin/console/ring-rake/reset",
+                json={"note": "smoke rakeback"},
+            ))
+            assert settled["current"]["rake_points"] == 0.0
+            assert settled["last_reset"]["settled_rake_points"] == 200.0
+            assert settled["last_reset"]["hand_count"] == 2
+
+            _insert_hand(db, "ring-rake-3", 9003, 0.50)
+            _insert_hand(db, "ring-rake-void", 9004, 1.00, voided=1)
+            rake = json_response(_request(client, admin_cookies, "GET", "/api/admin/console/ring-rake"))
+            assert rake["current"]["rake_points"] == 50.0
+            assert rake["current"]["hands"] == 1
+            assert rake["all_time"]["rake_points"] == 250.0
+
             # JST calendar rollover starts a fresh daily counter without a cron reset.
             _bust(server, table_id, uid)
             clock.return_value = datetime(2026, 10, 5, 15, 0, tzinfo=timezone.utc)  # JST 2026-10-06 00:00
