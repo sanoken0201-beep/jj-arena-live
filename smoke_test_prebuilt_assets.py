@@ -49,8 +49,11 @@ def main() -> None:
             assert compiled_js.count(ranking_guard) == 1, (
                 "ranking summary refresh must preserve rendered content for the same member"
             )
-            assert served_assets.ASSET_VERSION == 76, (
-                "browser asset version must advance with the ranking flicker fix"
+            assert "ring variable buy-in ui 2026-10-05" in compiled_js, (
+                "compiled browser asset must contain the variable Ring buy-in UI"
+            )
+            assert served_assets.ASSET_VERSION == 77, (
+                "browser asset version must advance with the Ring buy-in UI"
             )
             second = served_assets.build_all(root)
             served_assets.validate_built_assets(root)
