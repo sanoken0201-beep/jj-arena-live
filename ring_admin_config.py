@@ -575,10 +575,18 @@ def install(app, db, server, poker_engine) -> None:
                 if int(player.get("stack", 0)) != 0:
                     raise HTTPException(400, "Rebuyは0bbのときだけ利用できます")
                 stack, _chosen_bb = _resolve_buyin_stack(state, payload.buyin_bb)
-                player["stack"] = stack
-                player["sitting_out"] = False
-                player["sit_out_next"] = False
-                player["ready"] = False
+                player.update({
+                    "stack": stack,
+                    "in_hand": False,
+                    "folded": False,
+                    "all_in": False,
+                    "round_bet": 0,
+                    "contributed": 0,
+                    "cards": [],
+                    "sitting_out": False,
+                    "sit_out_next": False,
+                    "ready": False,
+                })
             active = server._jj_table_active_players(state)
             if len(active) < 2 and state.get("status") != "playing":
                 state["session_active"] = False
@@ -587,9 +595,44 @@ def install(app, db, server, poker_engine) -> None:
         await server.hub.broadcast(table_id)
         return server.public_state(state, user["id"])
 
+    @app.post("/api/tables/{table_id}/rebuy", include_in_schema=False)
+    async def legacy_rebuy_with_buyin(
+        table_id: str,
+        payload: RingJoinIn | None = None,
+        user=Depends(server.current_user),
+    ):
+        requested = payload.buyin_bb if payload is not None else None
+        async with server.get_table_lock(table_id):
+            state = server.load_table(table_id)
+            if state.get("status") == "playing":
+                raise HTTPException(400, "ハンド中はリバイできません")
+            player = server._jj_table_user(state, user["id"])
+            if not player:
+                raise HTTPException(400, "着席していません")
+            if int(player.get("stack", 0)) != 0:
+                raise HTTPException(400, "Rebuyは0bbのときだけ利用できます")
+            stack, _chosen_bb = _resolve_buyin_stack(state, requested)
+            player.update({
+                "stack": stack,
+                "in_hand": False,
+                "folded": False,
+                "all_in": False,
+                "round_bet": 0,
+                "contributed": 0,
+                "cards": [],
+                "sitting_out": False,
+                "sit_out_next": False,
+                "ready": False,
+            })
+            server.touch_presence(table_id, user["id"])
+            server.save_table(state)
+        await server.hub.broadcast(table_id)
+        return server.public_state(state, user["id"])
+
     _prioritize_route(app, "/api/tables/{table_id}/seat", "POST", seat_with_buyin)
     _prioritize_route(app, "/api/tables/{table_id}/join", "POST", join_with_buyin)
     _prioritize_route(app, "/api/tables/{table_id}/presence", "POST", presence_with_buyin)
+    _prioritize_route(app, "/api/tables/{table_id}/rebuy", "POST", legacy_rebuy_with_buyin)
 
 
 __all__ = [
