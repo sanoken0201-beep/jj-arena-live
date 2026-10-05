@@ -31,6 +31,7 @@ import sitngo_process_guard
 import sitngo_resilience
 import timebank_rules
 import ring_action_safety
+import ring_admin_config
 import read_efficiency
 
 # Configure the root-level Sit&Go extension before browser transforms bind the
@@ -46,6 +47,7 @@ sitngo_resilience.install(sitngo_runtime)
 timebank_rules.install_ring(runtime_server, runtime_poker_engine)
 timebank_rules.install_sitngo(sitngo_runtime)
 ring_action_safety.install(runtime_server, runtime_poker_engine)
+ring_admin_config.install(app, db, runtime_server, runtime_poker_engine)
 
 from served_assets import (
     ASSET_VERSION,
@@ -213,7 +215,7 @@ def _single_public_table_list(user=Depends(runtime_server.current_user)):
     only the first canonical table.
     """
     tables = runtime_server.tables(user)
-    return tables[:1]
+    return ring_admin_config.decorate_table_summaries(runtime_server, tables[:1])
 
 
 def _prioritize_single_public_table_route() -> None:
