@@ -465,7 +465,7 @@ def install(app, db, server, poker_engine) -> None:
                     raise HTTPException(400, str(exc)) from exc
                 server.save_table(state)
         await server.hub.broadcast(table_id)
-        return poker_engine.public_state(state, user["id"])
+        return server.public_state(state, user["id"])
 
     @app.post("/api/tables/{table_id}/join", include_in_schema=False)
     async def join_with_buyin(
@@ -479,7 +479,7 @@ def install(app, db, server, poker_engine) -> None:
                 state = server.load_table(table_id)
                 existing = server._jj_table_user(state, user["id"])
                 if existing:
-                    return poker_engine.public_state(state, user["id"])
+                    return server.public_state(state, user["id"])
 
             other = server.seated_table_for_user(user["id"], exclude=table_id)
             if other:
@@ -489,7 +489,7 @@ def install(app, db, server, poker_engine) -> None:
                 state = server.load_table(table_id)
                 existing = server._jj_table_user(state, user["id"])
                 if existing:
-                    return poker_engine.public_state(state, user["id"])
+                    return server.public_state(state, user["id"])
                 occupied = {
                     int(player.get("seat", -1)) for player in state.get("seats", [])
                 }
@@ -535,7 +535,7 @@ def install(app, db, server, poker_engine) -> None:
                 server.save_table(state)
 
         await server.hub.broadcast(table_id)
-        return poker_engine.public_state(state, user["id"])
+        return server.public_state(state, user["id"])
 
     @app.post("/api/tables/{table_id}/presence", include_in_schema=False)
     async def presence_with_buyin(
@@ -585,7 +585,7 @@ def install(app, db, server, poker_engine) -> None:
                 state["next_hand_at_epoch"] = None
             server.save_table(state)
         await server.hub.broadcast(table_id)
-        return poker_engine.public_state(state, user["id"])
+        return server.public_state(state, user["id"])
 
     _prioritize_route(app, "/api/tables/{table_id}/seat", "POST", seat_with_buyin)
     _prioritize_route(app, "/api/tables/{table_id}/join", "POST", join_with_buyin)
