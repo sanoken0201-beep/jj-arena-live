@@ -59,6 +59,34 @@ def _strip_phase4c_extensions(payload: dict) -> dict:
         if str(r.get("path")) not in {"/api/ux-telemetry", "/api/admin/console/ux-telemetry"}
     ]
 
+    # Explicit 2026-10-05 root-level extensions: admin quiz authoring, dynamic
+    # ring policy, and the four guarded buy-in/rebuy route overrides. The
+    # canonical core routes with the same ring paths remain in the comparison.
+    extension_routes = {
+        ("http", "/api/admin/console/quiz/questions", ("GET",), "list_questions"),
+        ("http", "/api/admin/console/quiz/questions", ("POST",), "add_question"),
+        ("http", "/api/admin/console/quiz/gpt-add", ("POST",), "gpt_add_question"),
+        ("http", "/api/admin/console/quiz/questions/{question_id}", ("PATCH",), "set_question_status"),
+        ("http", "/api/admin/console/ring-config", ("GET",), "admin_ring_config"),
+        ("http", "/api/admin/console/ring-config", ("PATCH",), "update_ring_config"),
+        ("http", "/api/admin/console/ring-reentries", ("GET",), "admin_reentries"),
+        ("http", "/api/admin/console/ring-reentries/{user_id}/reset", ("POST",), "reset_reentries"),
+        ("http", "/api/tables/{table_id}/seat", ("POST",), "limited_seat"),
+        ("http", "/api/tables/{table_id}/join", ("POST",), "limited_join"),
+        ("http", "/api/tables/{table_id}/presence", ("POST",), "limited_presence"),
+        ("http", "/api/tables/{table_id}/rebuy", ("POST",), "limited_rebuy"),
+    }
+    found_extensions = {
+        (str(r.get("kind")), str(r.get("path")), tuple(r.get("methods") or []), str(r.get("name")))
+        for r in clone["routes"]
+        if str(r.get("name")) in {item[3] for item in extension_routes}
+    }
+    assert found_extensions == extension_routes, f"unexpected 2026-10-05 extension route contract: {found_extensions}"
+    clone["routes"] = [
+        r for r in clone["routes"]
+        if str(r.get("name")) not in {item[3] for item in extension_routes}
+    ]
+
     columns = clone["sqlite"]["columns"]
     assert set(columns.get("ux_telemetry_events", [{}])[0].keys()) >= {"cid", "name", "type", "notnull", "dflt_value", "pk"}
     names = [str(row["name"]) for row in columns.get("ux_telemetry_events", [])]
@@ -80,6 +108,35 @@ def _strip_phase4c_extensions(payload: dict) -> dict:
         row for row in clone["sqlite"]["objects"]
         if str(row.get("tbl_name")) != "ux_telemetry_events"
     ]
+
+    extension_tables = {
+        "quiz_custom_questions",
+        "ring_runtime_config",
+        "ring_buyin_events",
+        "ring_reentry_resets",
+        "ring_config_audit",
+    }
+    missing_tables = extension_tables - set(columns)
+    assert not missing_tables, f"missing 2026-10-05 extension tables: {sorted(missing_tables)}"
+    for table in extension_tables:
+        columns.pop(table, None)
+    clone["sqlite"]["objects"] = [
+        row for row in clone["sqlite"]["objects"]
+        if str(row.get("tbl_name")) not in extension_tables
+    ]
+
+    online_columns = columns.get("online_hands", [])
+    added_online = [str(row.get("name")) for row in online_columns if str(row.get("name")) in {"rake_percent", "rake_cap_bb"}]
+    assert added_online == ["rake_percent", "rake_cap_bb"], added_online
+    columns["online_hands"] = [
+        row for row in online_columns
+        if str(row.get("name")) not in {"rake_percent", "rake_cap_bb"}
+    ]
+    for row in clone["sqlite"]["objects"]:
+        if str(row.get("type")) == "table" and str(row.get("name")) == "online_hands":
+            sql = str(row.get("sql") or "")
+            sql = sql.replace(", rake_percent NUMERIC", "").replace(", rake_cap_bb NUMERIC", "")
+            row["sql"] = sql
     return clone
 
 
