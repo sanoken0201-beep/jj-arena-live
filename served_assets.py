@@ -71,7 +71,7 @@ from ring_buyin_browser import MARKER as RING_BUYIN_MARKER, transform_app_js as 
 ROOT = Path(__file__).resolve().parent
 MATERIALIZED_STATIC = ROOT / "materialized_v1244" / "static"
 BUILD_ROOT = ROOT / ".jj_build"
-ASSET_VERSION = 78
+ASSET_VERSION = 79
 BUILD_FORMAT = 1
 
 _TODAYS_JJ_MARKER = "v2 today's-jj contrast hardening 2026-09-12"
@@ -507,17 +507,24 @@ def validate_built_assets(output_root: Path | str = BUILD_ROOT) -> dict:
 
 
 def ensure_runtime_assets() -> Path:
-    """Return validated assets; production never compiles them at runtime."""
+    """Return the canonical finalized assets; production never compiles at runtime."""
     try:
-        validate_built_assets(BUILD_ROOT)
+        manifest = validate_built_assets(BUILD_ROOT)
+        if manifest.get("browser_output_contract") != "canonical-prebuilt-v1":
+            raise RuntimeError("served asset build is not finalized")
     except Exception as exc:
         if os.getenv("RENDER"):
             raise RuntimeError(
                 "prebuilt served assets are unavailable in production; "
                 "run `python build_served_assets.py` during the Render build"
             ) from exc
-        # Local/test compatibility only. Production builds must precompile.
-        build_all(BUILD_ROOT)
+        # Local/test fallback must match the production pipeline exactly. A raw
+        # build_all() output omits post-build safety/consolidation stages and can
+        # otherwise make browser tests validate a UI production never serves.
+        from browser_asset_pipeline import finalize_build
+
+        manifest = build_all(BUILD_ROOT)
+        finalize_build(BUILD_ROOT, manifest)
         validate_built_assets(BUILD_ROOT)
     return BUILD_ROOT
 
