@@ -52,6 +52,7 @@ def main() -> None:
             "smoke_test_legacy_artifacts_pruned.py",
             "smoke_test_single_public_table.py",
             "smoke_test_rake_settlement_fix.py",
+            "smoke_test_ring_admin_config.py",
             "smoke_test_timebank_rules.py",
             "smoke_test_bet_precision.py",
             "smoke_test_sitngo_phase1.py",
