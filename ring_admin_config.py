@@ -400,46 +400,54 @@ def install(app, db, server, poker_engine) -> None:
         payload: RingRakeResetIn = RingRakeResetIn(),
         user=Depends(server.admin_user),
     ):
+        table_ids = [table_id for table_id, _name in tuple(db.FIXED_TABLES)]
+        locks = [server.get_table_lock(table_id) for table_id in table_ids]
         async with rake_reset_lock:
-            with db.connect() as con:
-                previous = _latest_settlement(con)
-                boundaries = (previous or {}).get("boundaries") or {}
-                current_bb, hand_count = _rake_window(con, boundaries)
-                if current_bb <= 0:
-                    raise HTTPException(409, "未精算のレーキはありません")
-                point_multiplier = Decimal(str(int(getattr(db, "TABLE_BB", 100) or 100)))
-                settled_points = current_bb * point_multiplier
-                new_boundaries = _current_boundaries(con)
-                settlement_id = "rake-" + uuid.uuid4().hex
-                created_at = db.utcnow()
-                con.execute(
-                    """INSERT INTO ring_rake_settlements(
-                         id,boundaries_json,settled_rake_bb,settled_rake_points,
-                         hand_count,note,created_by,created_at
-                       ) VALUES (?,?,?,?,?,?,?,?)""",
-                    (
-                        settlement_id,
-                        json.dumps(new_boundaries, ensure_ascii=False, sort_keys=True),
-                        float(current_bb),
-                        float(settled_points),
-                        int(hand_count),
-                        payload.note.strip(),
-                        user["id"],
-                        created_at,
-                    ),
-                )
-                admin_console._audit(
-                    db,
-                    int(user["id"]),
-                    "ring.rake.reset",
-                    None,
-                    con=con,
-                    settlement_id=settlement_id,
-                    settled_rake_bb=_round_amount(current_bb),
-                    settled_rake_points=_round_amount(settled_points),
-                    hand_count=int(hand_count),
-                    note=payload.note.strip(),
-                )
+            for lock in locks:
+                await lock.acquire()
+            try:
+                with db.connect() as con:
+                    previous = _latest_settlement(con)
+                    boundaries = (previous or {}).get("boundaries") or {}
+                    current_bb, hand_count = _rake_window(con, boundaries)
+                    if current_bb <= 0:
+                        raise HTTPException(409, "未精算のレーキはありません")
+                    point_multiplier = Decimal(str(int(getattr(db, "TABLE_BB", 100) or 100)))
+                    settled_points = current_bb * point_multiplier
+                    new_boundaries = _current_boundaries(con)
+                    settlement_id = "rake-" + uuid.uuid4().hex
+                    created_at = db.utcnow()
+                    con.execute(
+                        """INSERT INTO ring_rake_settlements(
+                             id,boundaries_json,settled_rake_bb,settled_rake_points,
+                             hand_count,note,created_by,created_at
+                           ) VALUES (?,?,?,?,?,?,?,?)""",
+                        (
+                            settlement_id,
+                            json.dumps(new_boundaries, ensure_ascii=False, sort_keys=True),
+                            float(current_bb),
+                            float(settled_points),
+                            int(hand_count),
+                            payload.note.strip(),
+                            user["id"],
+                            created_at,
+                        ),
+                    )
+                    admin_console._audit(
+                        db,
+                        int(user["id"]),
+                        "ring.rake.reset",
+                        None,
+                        con=con,
+                        settlement_id=settlement_id,
+                        settled_rake_bb=_round_amount(current_bb),
+                        settled_rake_points=_round_amount(settled_points),
+                        hand_count=int(hand_count),
+                        note=payload.note.strip(),
+                    )
+            finally:
+                for lock in reversed(locks):
+                    lock.release()
             return ring_status(db)
 
     @app.post("/api/tables/{table_id}/seat", include_in_schema=False)
