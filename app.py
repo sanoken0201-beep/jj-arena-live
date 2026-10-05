@@ -272,6 +272,11 @@ read_efficiency.install(
     runtime_server,
     db,
     public_table_limit=1,
+    table_decorator=lambda rows, con=None: ring_admin_config.decorate_table_summaries(
+        runtime_server,
+        rows,
+        con=con,
+    ),
 )
 _materialized._prioritize_extension_routes(app, _materialized._CORE_ROUTE_IDS)
 
