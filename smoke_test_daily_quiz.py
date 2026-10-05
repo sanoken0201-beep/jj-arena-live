@@ -70,7 +70,7 @@ def run(postgres=False):
         clock.return_value = datetime(2026, 9, 11, 14, 59, 59, tzinfo=timezone.utc)
         suffix = uuid.uuid4().hex[:8]
         name_suffix = ''.join('アイウエオカキクケコサシスセソタ'[int(c,16)] for c in suffix)
-        with TestClient(app) as a, TestClient(app) as b, TestClient(app) as anon:
+        with TestClient(app, base_url="https://testserver") as a, TestClient(app, base_url="https://testserver") as b, TestClient(app, base_url="https://testserver") as anon:
             uid = login(a, 'クイズア'+name_suffix, '123456')['id']
             other = login(b, 'クイズイ'+name_suffix, '234567')['id']
             json_response(anon.get('/api/quiz/question'), 401)
@@ -78,7 +78,7 @@ def run(postgres=False):
             json_response(anon.get('/api/admin/console/quiz-stats'), 401)
 
             def get():
-                with TestClient(app) as tab:
+                with TestClient(app, base_url="https://testserver") as tab:
                     tab.cookies.update(a.cookies)
                     return json_response(tab.get('/api/quiz/question'))
 
@@ -108,7 +108,7 @@ def run(postgres=False):
 
             # Answer uses its persisted snapshot even after a bank/deployment change.
             def send(_):
-                with TestClient(app) as tab:
+                with TestClient(app, base_url="https://testserver") as tab:
                     tab.cookies.update(a.cookies)
                     return json_response(tab.post('/api/quiz/answer', json=payload))
             with patch.object(dq, 'build_daily_questions', side_effect=AssertionError('daily set must be persisted')):
