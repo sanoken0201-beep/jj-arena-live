@@ -14,7 +14,7 @@ JS_PATCH = r'''
       {left:50,top:84},
       {left:16,top:68},
       {left:17,top:34},
-      {left:50,top:15},
+      {left:50,top:12},
       {left:83,top:34},
       {left:84,top:68},
     ];
