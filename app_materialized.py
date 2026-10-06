@@ -103,7 +103,10 @@ _CORE_ROUTE_IDS = frozenset(id(route) for route in app.router.routes)
 # Install runtime-only performance improvements after the verified materialized
 # modules resolve, without mutating the canonical v1.24.4 source tree or game rules.
 runtime_performance.install(db, runtime_server, runtime_poker_engine)
-# Keep non-seated live viewers separate from table membership while exposing\n# all seated hole cards in the spectator feed. Seated-player privacy is unchanged.\nspectator_visibility.install(runtime_server, runtime_poker_engine)\n
+# Keep non-seated live viewers separate from table membership while exposing
+# all seated hole cards in the spectator feed. Seated-player privacy is unchanged.
+spectator_visibility.install(runtime_server, runtime_poker_engine)
+
 # A live table WebSocket is authoritative presence. This prevents an actively
 # playing user from being misclassified as 15-minute idle during the brief
 # waiting-state transition immediately after showdown/side-pot settlement.
