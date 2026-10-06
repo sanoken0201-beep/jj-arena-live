@@ -101,8 +101,8 @@ body.jj-poker-simple.jj-v80-handlog-expanded #pokerRoom .side-tabs{display:none!
     font-size:.9rem!important;opacity:1!important;
   }
   /* Keep exposed opponent cards outside the board lane. Lower side seats fan
-     inward horizontally, upper side seats fan upward, and the top seat fans
-     downward. This prevents the six-max orbit from covering the community cards. */
+     downward while all upper-orbit seats, including the top seat, fan upward.
+     This prevents showdown cards from touching the community-card row. */
   body.jj-poker-simple.jj-mobile-table-open #pokerRoom .jj-seat[data-jj-visual="1"]:not(.is-hero) .jj-hole,
   body.jj-poker-simple.jj-mobile-table-open #pokerRoom .jj-seat[data-jj-visual="5"]:not(.is-hero) .jj-hole{
     left:50%!important;right:auto!important;top:calc(100% + 5px)!important;bottom:auto!important;
@@ -114,7 +114,7 @@ body.jj-poker-simple.jj-v80-handlog-expanded #pokerRoom .side-tabs{display:none!
     transform:translateX(-50%)!important;
   }
   body.jj-poker-simple.jj-mobile-table-open #pokerRoom .jj-seat[data-jj-visual="3"]:not(.is-hero) .jj-hole{
-    left:50%!important;right:auto!important;top:calc(100% + 5px)!important;bottom:auto!important;
+    left:50%!important;right:auto!important;top:auto!important;bottom:calc(100% + 5px)!important;
     transform:translateX(-50%)!important;
   }
 
