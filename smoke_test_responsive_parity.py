@@ -97,7 +97,7 @@ POKER_FIXTURE = r'''<!doctype html>
       </div>
       <div id="seatLayer">
         <div class="seat jj-seat" data-jj-visual="1" style="left:16%;top:68%"><div class="seat-box"><div class="jj-hole"><span class="card-face">A♠</span><span class="card-face">J♠</span></div><div class="name">LEFT</div><div class="stack">100bb</div></div></div>
-        <div class="seat jj-seat" data-jj-visual="3" style="left:50%;top:15%"><div class="seat-box"><div class="jj-hole"><span class="card-face">Q♣</span><span class="card-face">4♣</span></div><div class="name">TOP</div><div class="stack">250bb</div></div></div>
+        <div class="seat jj-seat" data-jj-visual="3" style="left:50%;top:12%"><div class="seat-box"><div class="jj-hole"><span class="card-face">Q♣</span><span class="card-face">4♣</span></div><div class="name">TOP</div><div class="stack">250bb</div></div></div>
         <div class="seat jj-seat is-hero" data-jj-visual="0" style="left:50%;top:84%"><div class="seat-box"><div class="name">YOU</div><div class="stack">154.5bb</div></div></div>
       </div>
     </div>
