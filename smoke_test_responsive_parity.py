@@ -80,6 +80,64 @@ addEventListener('load',()=>setTimeout(()=>{
 </script></body></html>'''
 
 
+POKER_FIXTURE = r'''<!doctype html>
+<html lang="ja"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<link rel="stylesheet" href="styles.css">
+</head><body class="jj-poker-simple jj-mobile-table-open jj-mobile-poker-seated jj-mobile-poker-hand">
+<div id="pokerRoom">
+  <div class="room-head"><button id="backLobby">← ロビー</button><h3>JJ Table A</h3><details class="jj-v7-menu"><summary>メニュー</summary></details></div>
+  <div class="poker-layout"><div class="poker-zone card">
+    <div id="pokerTable" class="poker-table">
+      <div class="felt-center">
+        <div id="boardCards" class="cards board">
+          <span class="card-face">6♥</span><span class="card-face">Q♠</span><span class="card-face">4♣</span><span class="card-face">K♠</span><span class="card-face">2♣</span>
+        </div>
+        <div class="pot-display">POT 9bb</div>
+      </div>
+      <div id="seatLayer">
+        <div class="seat jj-seat" data-jj-visual="1" style="left:16%;top:68%"><div class="seat-box"><div class="jj-hole"><span class="card-face">A♠</span><span class="card-face">J♠</span></div><div class="name">LEFT</div><div class="stack">100bb</div></div></div>
+        <div class="seat jj-seat" data-jj-visual="3" style="left:50%;top:15%"><div class="seat-box"><div class="jj-hole"><span class="card-face">Q♣</span><span class="card-face">4♣</span></div><div class="name">TOP</div><div class="stack">250bb</div></div></div>
+        <div class="seat jj-seat is-hero" data-jj-visual="0" style="left:50%;top:84%"><div class="seat-box"><div class="name">YOU</div><div class="stack">154.5bb</div></div></div>
+      </div>
+    </div>
+    <div id="resultBanner" class="result-banner">ヨシハル +9bb (One Pair) · rake 1bb</div>
+    <div id="tableControls" class="table-controls"><button>一時離席する</button><button>今すぐ退席</button></div>
+    <div id="actionBar" class="action-bar"><div class="jj-v7-hero-strip">
+      <div class="jj-v7-hand"><span class="card-face">K♣</span><span class="card-face">A♣</span></div>
+      <div class="jj-v7-stack"><span>持ち点</span><strong>154.5bb</strong></div>
+      <div class="jj-v7-timebank"><span>TIME BANK</span><strong>×3</strong></div>
+      <strong class="jj-action-clock"></strong>
+    </div></div>
+  </div></div>
+</div>
+<script>
+function intersects(a,b){return !(a.right<=b.left||a.left>=b.right||a.bottom<=b.top||a.top>=b.bottom)}
+addEventListener('load',()=>setTimeout(()=>{
+  const table=document.getElementById('pokerTable').getBoundingClientRect();
+  const result=document.getElementById('resultBanner').getBoundingClientRect();
+  const bar=document.getElementById('actionBar').getBoundingClientRect();
+  const hand=document.querySelector('.jj-v7-hand').getBoundingClientRect();
+  const board=[...document.querySelectorAll('#boardCards .card-face')].map(x=>x.getBoundingClientRect());
+  const topHole=document.querySelector('[data-jj-visual="3"] .jj-hole').getBoundingClientRect();
+  const sideHole=document.querySelector('[data-jj-visual="1"] .jj-hole').getBoundingClientRect();
+  const boardBox=document.getElementById('boardCards').getBoundingClientRect();
+  const noBoardOverlap=board.every((a,i)=>board.every((b,j)=>i===j||!intersects(a,b)));
+  const checks={
+    noHorizontalOverflow:document.documentElement.scrollWidth<=innerWidth+2,
+    resultBeforeTable:result.bottom<=table.top+2,
+    compactWaitingBar:bar.height>45&&bar.height<=128,
+    heroHandVisible:hand.left>=0&&hand.right<=innerWidth,
+    boardInsideViewport:boardBox.left>=0&&boardBox.right<=innerWidth,
+    noBoardCardOverlap:noBoardOverlap,
+    topHoleClearOfBoard:!intersects(topHole,boardBox),
+    sideHoleClearOfBoard:!intersects(sideHole,boardBox)
+  };
+  document.body.insertAdjacentHTML('beforeend',`<pre data-poker-ok="${Object.values(checks).every(Boolean)?'1':'0'}">${JSON.stringify(checks)}</pre>`);
+},120));
+</script></body></html>'''
+
+
 def _chrome() -> str:
     for name in ("google-chrome", "google-chrome-stable", "chromium", "chromium-browser"):
         path = shutil.which(name)
@@ -132,6 +190,8 @@ def main() -> None:
         (root / "styles.css").write_text(final_css, encoding="utf-8")
         main_fixture = root / "main.html"
         main_fixture.write_text(MAIN_FIXTURE, encoding="utf-8")
+        poker_fixture = root / "poker.html"
+        poker_fixture.write_text(POKER_FIXTURE, encoding="utf-8")
 
         admin_css = "\n".join(
             (ROOT / "admin_static" / name).read_text(encoding="utf-8")
@@ -145,7 +205,10 @@ def main() -> None:
             _run(chrome, main_fixture, width, height, 'data-main-ok="1"')
             _run(chrome, admin_fixture, width, height, 'data-admin-ok="1"')
 
-    print("JJ_RESPONSIVE_PARITY_OK phone/boundary/tablet/landscape")
+        for width, height in ((320, 568), (375, 667), (390, 844), (430, 932)):
+            _run(chrome, poker_fixture, width, height, 'data-poker-ok="1"')
+
+    print("JJ_RESPONSIVE_PARITY_OK phone/boundary/tablet/landscape/mobile-poker")
 
 
 if __name__ == "__main__":
