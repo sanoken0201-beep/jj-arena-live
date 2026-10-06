@@ -65,13 +65,14 @@ from sitngo_ui import (
 )
 
 from poker_simple import transform_app_js as simple_app_js, transform_styles as simple_styles
+from mobile_poker_readability import MARKER as MOBILE_POKER_READABILITY_MARKER, transform_app_js as transform_mobile_poker_readability_app_js, transform_styles as transform_mobile_poker_readability_styles
 from read_efficiency import transform_app_js as transform_read_efficiency_app_js
 from ring_buyin_browser import MARKER as RING_BUYIN_MARKER, transform_app_js as transform_ring_buyin_app_js
 
 ROOT = Path(__file__).resolve().parent
 MATERIALIZED_STATIC = ROOT / "materialized_v1244" / "static"
 BUILD_ROOT = ROOT / ".jj_build"
-ASSET_VERSION = 78
+ASSET_VERSION = 80
 BUILD_FORMAT = 1
 
 _TODAYS_JJ_MARKER = "v2 today's-jj contrast hardening 2026-09-12"
@@ -252,7 +253,7 @@ def build_index() -> str:
     html = html.replace('Waiting for players', '着席者を待っています')
     html = html.replace(
         'JJ内の練習用プレイマネーテーブルです。A/Bの2卓のみ、6-max、0.5/1bb、着席時150bb固定。各ハンドは10% rake・5bb capで、結果は1bb=3ptとして後期ランキングへ自動反映されます。テーブル画面との接続・操作が15分ない場合、ハンド終了後に自動離席します。',
-        'プレイマネー｜6-max｜0.5/1bb｜150bb固定｜rake 10%・5bb cap｜ランキング 1bb=3pt｜15分無操作でハンド終了後に自動離席',
+        'プレイマネー｜6-max｜0.5/1bb｜バイイン可変｜rake 10%・5bb cap｜ランキング 1bb=3pt｜15分無操作でハンド終了後に自動離席',
     )
     html = transform_subtractive_index(html)
     if SUBTRACTIVE_RED282_MARKER not in html:
@@ -306,6 +307,9 @@ def build_app_js() -> str:
     if SITNGO_UI_MARKER not in js:
         raise RuntimeError("Sit&Go app transform marker missing")
     js = simple_app_js(js)
+    js = transform_mobile_poker_readability_app_js(js)
+    if MOBILE_POKER_READABILITY_MARKER not in js:
+        raise RuntimeError("mobile poker readability app transform marker missing")
     js = transform_read_efficiency_app_js(js)
     # member point self-service 2026-09-28
     # Apply after all canonical browser transforms so their drift guards still
@@ -420,7 +424,11 @@ def build_styles() -> str:
     css = transform_sitngo_styles(css)
     if SITNGO_UI_MARKER not in css:
         raise RuntimeError("Sit&Go styles transform marker missing")
-    return simple_styles(css)
+    css = simple_styles(css)
+    css = transform_mobile_poker_readability_styles(css)
+    if MOBILE_POKER_READABILITY_MARKER not in css:
+        raise RuntimeError("mobile poker readability style transform marker missing")
+    return css
 
 
 def build_service_worker() -> str:
@@ -507,17 +515,24 @@ def validate_built_assets(output_root: Path | str = BUILD_ROOT) -> dict:
 
 
 def ensure_runtime_assets() -> Path:
-    """Return validated assets; production never compiles them at runtime."""
+    """Return canonical finalized assets; production never compiles them at runtime."""
     try:
-        validate_built_assets(BUILD_ROOT)
+        manifest = validate_built_assets(BUILD_ROOT)
+        if manifest.get("browser_output_contract") != "canonical-prebuilt-v1":
+            raise RuntimeError("served asset build is not finalized")
     except Exception as exc:
         if os.getenv("RENDER"):
             raise RuntimeError(
                 "prebuilt served assets are unavailable in production; "
                 "run `python build_served_assets.py` during the Render build"
             ) from exc
-        # Local/test compatibility only. Production builds must precompile.
-        build_all(BUILD_ROOT)
+        # Local/test fallback must match the production pipeline exactly. A raw
+        # build_all() output omits post-build safety/consolidation stages and can
+        # otherwise make browser tests validate a UI production never serves.
+        from browser_asset_pipeline import finalize_build
+
+        manifest = build_all(BUILD_ROOT)
+        finalize_build(BUILD_ROOT, manifest)
         validate_built_assets(BUILD_ROOT)
     return BUILD_ROOT
 

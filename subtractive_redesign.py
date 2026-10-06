@@ -30,7 +30,7 @@ def transform_index(source: str) -> str:
 
     # Keep the existing Home composition; only make its table copy truthful.
     html = html.replace("6-max固定・0.5/1bb・2卓。", "6-max固定・0.5/1bb・1卓。")
-    html = html.replace("2 TABLES · 6-MAX · 150BB", "1 TABLE · 6-MAX · 150BB")
+    html = html.replace("2 TABLES · 6-MAX · 150BB", "1 TABLE · 6-MAX · VARIABLE BUY-IN")
 
     # The calendar becomes part of the announcement workflow.  The legacy
     # schedule section remains in the DOM for rollback/data compatibility but
@@ -41,11 +41,11 @@ def transform_index(source: str) -> str:
     # so support both the canonical and compiled forms here.
     html = html.replace(
         "JJ内の練習用プレイマネーテーブルです。A/Bの2卓のみ、6-max、0.5/1bb、着席時150bb固定。各ハンドは10% rake・5bb capで、結果は1bb=3ptとして後期ランキングへ自動反映されます。テーブル画面との接続・操作が15分ない場合、ハンド終了後に自動離席します。",
-        "JJ内の練習用プレイマネーテーブルです。6-max、0.5/1bb、着席時150bb固定。結果は1bb=3ptとして後期ランキングへ自動反映されます。15分無操作の場合はハンド終了後に自動離席します。",
+        "JJ内の練習用プレイマネーテーブルです。6-max、0.5/1bb、バイインは管理者設定の範囲から選択します。結果は1bb=3ptとして後期ランキングへ自動反映されます。15分無操作の場合はハンド終了後に自動離席します。",
     )
     html = html.replace(
-        "プレイマネー｜6-max｜0.5/1bb｜150bb固定｜rake 10%・5bb cap｜ランキング 1bb=3pt｜15分無操作でハンド終了後に自動離席",
-        "プレイマネー｜6-max｜0.5/1bb｜150bb固定｜ランキング 1bb=3pt｜15分無操作でハンド終了後に自動離席",
+        "プレイマネー｜6-max｜0.5/1bb｜バイイン可変｜rake 10%・5bb cap｜ランキング 1bb=3pt｜15分無操作でハンド終了後に自動離席",
+        "プレイマネー｜6-max｜0.5/1bb｜バイイン可変｜ランキング 1bb=3pt｜15分無操作でハンド終了後に自動離席",
     )
 
     return html.replace("</body>", f"  <!-- {SUBTRACTIVE_RED282_MARKER} -->\n</body>", 1)
@@ -63,7 +63,7 @@ _APP_PATCH = r'''
       const seated=Number(t.seated||0),active=Number(t.players||0),maxSeats=Number(t.max_seats||6),full=seated>=maxSeats,extra=[];
       if(seated!==active)extra.push(`着席中 ${seated}/${maxSeats}`);
       if(Number(t.sitouts||0)>0)extra.push(`一時離席 ${Number(t.sitouts||0)}`);
-      return `<article class="lobby-card jj-sub-single-table"><div class="eyebrow ${t.status==='playing'?'status-live':''}">${t.status==='playing'?'● HAND IN PROGRESS':'OPEN TABLE'}</div><h4>${safe(t.name||'JJ Ring')}</h4><div class="lobby-stats"><span>参加者 ${active}/${maxSeats}</span>${extra.map(x=>`<span>${x}</span>`).join('')}<span>0.5 / 1 bb</span><span>150bb start</span></div><p class="hint">観戦だけでも入れます。プレイする場合は「着席する」を押してください。</p><div class="jj-lobby-actions"><button class="soft" data-open-table="${safe(t.id)}">観戦する</button><button class="primary" data-jj-join="${safe(t.id)}" ${full?'disabled':''}>${full?'満席':'着席する · 150bb'}</button></div></article>`;
+      return `<article class="lobby-card jj-sub-single-table"><div class="eyebrow ${t.status==='playing'?'status-live':''}">${t.status==='playing'?'● HAND IN PROGRESS':'OPEN TABLE'}</div><h4>${safe(t.name||'JJ Ring')}</h4><div class="lobby-stats"><span>参加者 ${active}/${maxSeats}</span>${extra.map(x=>`<span>${x}</span>`).join('')}<span>0.5 / 1 bb</span><span>バイインは卓設定</span></div><p class="hint">観戦だけでも入れます。プレイする場合は「着席する」を押してください。</p><div class="jj-lobby-actions"><button class="soft" data-open-table="${safe(t.id)}">観戦する</button><button class="primary" data-jj-join="${safe(t.id)}" ${full?'disabled':''}>${full?'満席':'着席する'}</button></div></article>`;
     })():'<div class="card empty">テーブルがありません</div>';
   };
 
@@ -94,10 +94,9 @@ _APP_PATCH = r'''
     if(typeof jjV185SyncRaiseUi==='function')jjV185SyncRaiseUi();
   };
 
-  // Chat and the live action log are deliberately absent during a hand.  The
-  // persisted hand-history/review APIs remain untouched for post-hand review.
+  // Keep live table chat suppressed, but retain the hand log so players can
+  // inspect the current hand in the dedicated expandable history surface.
   renderTableChat=function(){};
-  renderHandLog=function(){};
 
   const jjSubBaseRenderPokerRoom=renderPokerRoom;
   renderPokerRoom=function(){
@@ -169,11 +168,12 @@ _CSS_PATCH = r'''
 #actionBar .jj-sub-manual-stepper label{display:flex;align-items:center;gap:6px}
 #actionBar .jj-sub-manual-stepper input#raiseTo{min-width:110px;text-align:center;font-variant-numeric:tabular-nums}
 #actionBar .jj-sub-bet-hint{flex-basis:100%;text-align:center;color:#9fb2aa;font-size:.64rem;line-height:1.35}
-#tablesView .jj-sub-single-table{max-width:720px;margin-inline:auto}
+#tablesView .jj-sub-single-table{grid-column:1/-1;width:min(100%,720px);max-width:720px;margin-inline:auto}
 @media(max-width:760px){
   #pokerRoom .poker-layout{display:block!important}
   #actionBar .jj-sub-manual-stepper input#raiseTo{min-width:96px;font-size:1rem}
   #actionBar .jj-sub-bet-hint{font-size:.6rem}
+  dialog{position:fixed!important;inset:auto 0 0 0!important;width:100%!important;max-width:100%!important;margin:0!important;box-sizing:border-box!important;animation:none!important;transform:none!important}
 }
 '''
 

@@ -76,7 +76,16 @@ _INJECTION = r"""
     const potEl=$('#potDisplay');
     if(potEl){
       const pot=Number(totalPot()||0),estimated=Math.min(Math.floor(pot*pct),cap,pot);
-      potEl.textContent='Pot '+bb(pot)+' · rake '+bb(estimated)+' max';
+      let potLabel=potEl.querySelector('span:not(.jj-ring-rake)'),potValue=potEl.querySelector('b'),rakeLabel=potEl.querySelector('.jj-ring-rake');
+      if(!potLabel||!potValue){
+        potEl.replaceChildren();
+        potLabel=document.createElement('span');potLabel.textContent='POT';
+        potValue=document.createElement('b');
+        potEl.append(potLabel,potValue);
+      }
+      potValue.textContent=bb(pot);
+      if(!rakeLabel){rakeLabel=document.createElement('span');rakeLabel.className='jj-ring-rake';potEl.appendChild(rakeLabel)}
+      rakeLabel.textContent='RAKE ≤ '+bb(estimated);
     }
     const observer=document.querySelector('#jjObserverJoin');
     if(observer&&range!=='150bb')observer.innerHTML=observer.innerHTML.replaceAll('150bb',range);
@@ -87,10 +96,10 @@ _INJECTION = r"""
     $('#lobbyPanel').classList.remove('hidden');$('#pokerRoom').classList.add('hidden');
     const tables=await api('/tables');
     $('#tableCards').innerHTML=tables.map(t=>{
-      const seated=Number(t.seated||0),active=Number(t.players||0),full=seated>=Number(t.max_seats||6),extra=[],range=jjRingBuyinLabel(t);
-      if(seated!==active)extra.push('着席中 '+seated+'/6');
+      const seated=Number(t.seated||0),active=Number(t.players||0),maxSeats=Number(t.max_seats||6),full=seated>=maxSeats,extra=[],range=jjRingBuyinLabel(t);
+      if(seated!==active)extra.push('着席中 '+seated+'/'+maxSeats);
       if(Number(t.sitouts||0)>0)extra.push('一時離席 '+Number(t.sitouts||0));
-      return '<article class="lobby-card"><div class="eyebrow '+(t.status==='playing'?'status-live':'')+'">'+(t.status==='playing'?'● HAND IN PROGRESS':'OPEN TABLE')+'</div><h4>'+safe(t.name)+'</h4><div class="lobby-stats"><span>参加者 '+active+'/6</span>'+extra.map(x=>'<span>'+x+'</span>').join('')+'<span>0.5 / 1 bb</span><span>'+range+' buy-in</span></div><p class="hint">観戦だけでも入れます。プレイする場合はバイイン額を選んで着席してください。</p><div class="jj-lobby-actions"><button class="soft" data-open-table="'+safe(t.id)+'">観戦する</button><button class="primary" data-jj-join="'+safe(t.id)+'" '+(full?'disabled':'')+'>'+(full?'満席':'着席する · '+range)+'</button></div></article>';
+      return '<article class="lobby-card jj-sub-single-table"><div class="eyebrow '+(t.status==='playing'?'status-live':'')+'">'+(t.status==='playing'?'● HAND IN PROGRESS':'OPEN TABLE')+'</div><h4>'+safe(t.name)+'</h4><div class="lobby-stats"><span>参加者 '+active+'/'+maxSeats+'</span>'+extra.map(x=>'<span>'+x+'</span>').join('')+'<span>0.5 / 1 bb</span><span>'+range+' buy-in</span></div><p class="hint">観戦だけでも入れます。プレイする場合はバイイン額を選んで着席してください。</p><div class="jj-lobby-actions"><button class="soft" data-open-table="'+safe(t.id)+'">観戦する</button><button class="primary" data-jj-join="'+safe(t.id)+'" '+(full?'disabled':'')+'>'+(full?'満席':'着席する · '+range)+'</button></div></article>';
     }).join('')||'<div class="card empty">テーブルがありません</div>';
   };
 
