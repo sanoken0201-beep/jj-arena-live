@@ -89,13 +89,17 @@ def main():
                           const table=document.getElementById('pokerTable').getBoundingClientRect();
                           const cards=[...document.querySelectorAll('.jj-seat:not(.is-hero) .jj-hole .card-face')];
                           const seats=[...document.querySelectorAll('.jj-seat:not(.is-hero)[data-jj-visual]')];
-                          const visible=cards.length===10&&cards.every(card=>{
-                            const r=card.getBoundingClientRect();
-                            const target=document.elementFromPoint(r.left+r.width/2,r.top+r.height/2);
-                            return r.width>=32&&r.height>=44&&r.top>=table.top-1&&r.bottom<=table.bottom+1&&r.left>=table.left-1&&r.right<=table.right+1&&!!target&&(target===card||card.contains(target));
+                          const details=cards.map(card=>{
+                            const r=card.getBoundingClientRect(),target=document.elementFromPoint(r.left+r.width/2,r.top+r.height/2),hole=card.closest('.jj-hole'),seat=card.closest('.jj-seat');
+                            const hs=hole?getComputedStyle(hole):null,cs=getComputedStyle(card);
+                            return {visual:seat?.dataset.jjVisual||'',rect:{left:r.left,top:r.top,right:r.right,bottom:r.bottom,width:r.width,height:r.height},target:target?.className||target?.id||target?.tagName||'',hole:{display:hs?.display,position:hs?.position,z:hs?.zIndex,top:hs?.top,left:hs?.left,transform:hs?.transform},card:{display:cs.display,visibility:cs.visibility,opacity:cs.opacity,z:cs.zIndex}};
+                          });
+                          const visible=cards.length===10&&details.every(d=>{
+                            const r=d.rect;
+                            return r.width>=32&&r.height>=44&&r.top>=table.top-1&&r.bottom<=table.bottom+1&&r.left>=table.left-1&&r.right<=table.right+1&&String(d.target).includes('card-face');
                           });
                           const xs=seats.map(s=>s.getBoundingClientRect().left+s.getBoundingClientRect().width/2);
-                          return {visible,spread:xs.length===5&&(Math.max(...xs)-Math.min(...xs))>=table.width*.60,topSeat:!!document.querySelector('.jj-seat[data-jj-visual="3"] .jj-hole .card-face')};
+                          return {visible,spread:xs.length===5&&(Math.max(...xs)-Math.min(...xs))>=table.width*.60,topSeat:!!document.querySelector('.jj-seat[data-jj-visual="3"] .jj-hole .card-face'),table:{left:table.left,top:table.top,right:table.right,bottom:table.bottom,width:table.width,height:table.height},details};
                         }""")
                         assert opponent_cards["visible"],(width,height,players,waiting,"opponent cards clipped",opponent_cards)
                         assert opponent_cards["spread"],(width,height,players,waiting,"opponent seats collapsed",opponent_cards)
