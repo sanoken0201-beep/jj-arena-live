@@ -173,7 +173,7 @@ _CSS_PATCH = r'''
   #pokerRoom .poker-layout{display:block!important}
   #actionBar .jj-sub-manual-stepper input#raiseTo{min-width:96px;font-size:1rem}
   #actionBar .jj-sub-bet-hint{font-size:.6rem}
-  dialog{position:fixed!important;inset:auto 0 0 0!important;width:100%!important;max-width:100%!important;margin:0!important;box-sizing:border-box!important}
+  dialog{position:fixed!important;inset:auto 0 0 0!important;width:100%!important;max-width:100%!important;margin:0!important;box-sizing:border-box!important;animation:none!important;transform:none!important}
 }
 '''
 
