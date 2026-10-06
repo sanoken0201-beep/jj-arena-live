@@ -39,7 +39,7 @@ def state(check=False, waiting=False, players=2):
     for i in range(1,players):
         seats.append({"user_id":i+1,"seat":i,"name":"Player "+str(i),"stack":14900,"round_bet":100 if i==1 else 0,"contributed":100 if i==1 else 0,"in_hand":True,"folded":False,"cards":["??","??"],"ready":True})
     return {"id":"jj-table-a","name":"JJ Table A","max_seats":6,"status":"playing","session_active":True,"big_blind":100,"small_blind":50,"button_seat":0,"seats":seats,
-        "hand":{"id":"visibility-hand","phase":"preflop","action_seat":1 if waiting else 0,"action_deadline":(datetime.now(timezone.utc)+timedelta(seconds=45)).isoformat(),"board":[],"current_bet":100,"log":[]},
+        "hand":{"id":"visibility-hand","phase":"preflop","action_seat":1 if waiting else 0,"action_deadline":(datetime.now(timezone.utc)+timedelta(seconds=45)).isoformat(),"board":[],"current_bet":100,"log":["Player 1 posts 1bb","Hero calls 1bb","Player 2 raises to 4bb"]},
         "legal":{"can_act":not waiting,"can_check":check,"can_call":not check,"can_raise":not waiting,"can_all_in":not waiting,"call_amount":0 if check else 50,"min_raise_to":200,"max_raise_to":15000},"last_result":None}
 
 def main():
@@ -84,6 +84,22 @@ def main():
                     assert page.evaluate("document.documentElement.scrollWidth<=innerWidth+2"),"horizontal overflow"
                     assert page.locator(".jj-v124-decision-meta").count()==0
                     assert page.locator("#jjV7Menu").count()==1
+                    if width<=390 and height>=640 and players==6:
+                        opponent_cards=page.evaluate("""() => {
+                          const table=document.getElementById('pokerTable').getBoundingClientRect();
+                          const cards=[...document.querySelectorAll('.jj-seat:not(.is-hero) .jj-hole .card-face')];
+                          const seats=[...document.querySelectorAll('.jj-seat:not(.is-hero)[data-jj-visual]')];
+                          const visible=cards.length===10&&cards.every(card=>{
+                            const r=card.getBoundingClientRect();
+                            const target=document.elementFromPoint(r.left+r.width/2,r.top+r.height/2);
+                            return r.width>=32&&r.height>=44&&r.top>=table.top-1&&r.bottom<=table.bottom+1&&r.left>=table.left-1&&r.right<=table.right+1&&!!target&&(target===card||card.contains(target));
+                          });
+                          const xs=seats.map(s=>s.getBoundingClientRect().left+s.getBoundingClientRect().width/2);
+                          return {visible,spread:xs.length===5&&(Math.max(...xs)-Math.min(...xs))>=table.width*.60,topSeat:!!document.querySelector('.jj-seat[data-jj-visual="3"] .jj-hole .card-face')};
+                        }""")
+                        assert opponent_cards["visible"],(width,height,players,waiting,"opponent cards clipped",opponent_cards)
+                        assert opponent_cards["spread"],(width,height,players,waiting,"opponent seats collapsed",opponent_cards)
+                        assert opponent_cards["topSeat"],(width,height,players,waiting,"opposite hand missing")
                     page.screenshot(path=str(artifacts/f"{width}x{height}-{players}-{'wait' if waiting else 'act'}.png"))
             # Native desktop/touch-sized button clicks with blank raise amount:
             for check in (False,True):
@@ -134,12 +150,29 @@ def main():
             assert page.locator('[data-action="check"]').is_disabled()
             page.evaluate("s=>JJ_TEST.setState(s)",state(check=True))
             assert page.locator('[data-action="check"]').is_enabled()
-            # Utilities are discoverable, and closing the drawer restores hit testing.
+            # Hand log remains live, is readable at scale, expands to a dedicated
+            # surface, and the × control returns to the unchanged table.
+            page.evaluate("s=>JJ_TEST.setState(s)",state(players=6))
             page.locator("#jjV7Menu summary").click()
             page.locator('[data-jj-mobile-side="log"]').click()
             assert page.locator("#pokerRoom .table-side").is_visible()
-            page.locator("#jjV4SideClose").click()
+            assert "Player 2 raises to 4bb" in page.locator("#handLog").inner_text()
+            log_font=page.evaluate("parseFloat(getComputedStyle(document.querySelector('#handLog>div')).fontSize)")
+            if width<=760:
+                assert log_font>=14,(width,height,"hand log text too small",log_font)
+                assert page.evaluate("document.body.classList.contains('jj-v80-handlog-expanded')")
+                full=page.evaluate("""() => {const r=document.querySelector('#pokerRoom .table-side').getBoundingClientRect();return r.left<=1&&r.top<=1&&r.right>=innerWidth-1&&r.bottom>=innerHeight-1}""")
+                assert full,(width,height,"mobile hand log is not full screen")
+            else:
+                expand=page.locator('[data-jj-handlog-expand]')
+                assert expand.is_visible()
+                expand.click()
+                assert page.evaluate("document.body.classList.contains('jj-v80-handlog-expanded')")
+            close=page.locator("#jjV4SideClose")
+            assert close.inner_text().strip()=="×"
+            close.click()
             assert not page.locator("#pokerRoom .table-side").is_visible()
+            assert not page.evaluate("document.body.classList.contains('jj-v80-handlog-expanded')")
             assert not errors, errors
             page.close()
         browser.close()
