@@ -103,13 +103,10 @@ body.jj-poker-simple.jj-v80-handlog-expanded #pokerRoom .side-tabs{display:none!
   /* Keep exposed opponent cards outside the board lane. Lower side seats fan
      inward horizontally, upper side seats fan upward, and the top seat fans
      downward. This prevents the six-max orbit from covering the community cards. */
-  body.jj-poker-simple.jj-mobile-table-open #pokerRoom .jj-seat[data-jj-visual="1"]:not(.is-hero) .jj-hole{
-    left:calc(100% + 5px)!important;right:auto!important;top:50%!important;bottom:auto!important;
-    transform:translateY(-50%)!important;
-  }
+  body.jj-poker-simple.jj-mobile-table-open #pokerRoom .jj-seat[data-jj-visual="1"]:not(.is-hero) .jj-hole,
   body.jj-poker-simple.jj-mobile-table-open #pokerRoom .jj-seat[data-jj-visual="5"]:not(.is-hero) .jj-hole{
-    left:auto!important;right:calc(100% + 5px)!important;top:50%!important;bottom:auto!important;
-    transform:translateY(-50%)!important;
+    left:50%!important;right:auto!important;top:calc(100% + 5px)!important;bottom:auto!important;
+    transform:translateX(-50%)!important;
   }
   body.jj-poker-simple.jj-mobile-table-open #pokerRoom .jj-seat[data-jj-visual="2"]:not(.is-hero) .jj-hole,
   body.jj-poker-simple.jj-mobile-table-open #pokerRoom .jj-seat[data-jj-visual="4"]:not(.is-hero) .jj-hole{
@@ -202,7 +199,10 @@ body.jj-poker-simple.jj-v80-handlog-expanded #pokerRoom .side-tabs{display:none!
   }
   body.jj-poker-simple.jj-mobile-table-open #actionBar .jj-action-clock:empty{display:none!important}
   body.jj-poker-simple.jj-mobile-table-open:not(.jj-mobile-poker-can-act) #actionBar{
-    max-height:128px!important;overflow:hidden!important;
+    max-height:148px!important;overflow:hidden!important;box-sizing:border-box!important;
+  }
+  body.jj-poker-simple.jj-mobile-table-open:not(.jj-mobile-poker-can-act) #actionBar:not(:has(.jj-v5-preactions)){
+    height:72px!important;min-height:72px!important;max-height:72px!important;
   }
   body.jj-poker-simple.jj-mobile-table-open:not(.jj-mobile-poker-can-act) #actionBar .jj-v7-hero-strip{
     min-height:54px!important;margin-bottom:0!important;
