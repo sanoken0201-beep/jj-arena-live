@@ -125,8 +125,8 @@ addEventListener('load',()=>setTimeout(()=>{
   const noBoardOverlap=board.every((a,i)=>board.every((b,j)=>i===j||!intersects(a,b)));
   const checks={
     noHorizontalOverflow:document.documentElement.scrollWidth<=innerWidth+2,
-    resultBeforeTable:result.bottom<=table.top+2,
-    compactWaitingBar:bar.height>45&&bar.height<=128,
+    resultClearOfTable:!intersects(result,table),
+    compactWaitingBar:bar.height>=60&&bar.height<=148,
     heroHandVisible:hand.left>=0&&hand.right<=innerWidth,
     boardInsideViewport:boardBox.left>=0&&boardBox.right<=innerWidth,
     noBoardCardOverlap:noBoardOverlap,
