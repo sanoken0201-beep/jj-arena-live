@@ -51,6 +51,7 @@ def main() -> None:
             "smoke_test_root_core_pruned.py",
             "smoke_test_legacy_artifacts_pruned.py",
             "smoke_test_single_public_table.py",
+            "smoke_test_spectator_visibility.py",
             "smoke_test_rake_settlement_fix.py",
             "smoke_test_ring_admin_config.py",
             "smoke_test_timebank_rules.py",
@@ -67,6 +68,7 @@ def main() -> None:
             "smoke_test_quiz_admin_ai.py",
         }
         assert gate.RELEASE_TESTS == production_release_tests()
+        assert ("ring_gameplay", "smoke_test_spectator_visibility.py") in gate.RELEASE_TESTS
         assert ("ring_gameplay", "smoke_test_rake_settlement_fix.py") in gate.RELEASE_TESTS
         assert ("ring_gameplay", "smoke_test_ring_admin_config.py") in gate.RELEASE_TESTS
         assert ("learning", "smoke_test_daily_quiz.py") in gate.RELEASE_TESTS
