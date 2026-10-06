@@ -133,7 +133,9 @@ addEventListener('load',()=>setTimeout(()=>{
     topHoleClearOfBoard:!intersects(topHole,boardBox),
     sideHoleClearOfBoard:!intersects(sideHole,boardBox)
   };
-  document.body.insertAdjacentHTML('beforeend',`<pre data-poker-ok="${Object.values(checks).every(Boolean)?'1':'0'}">${JSON.stringify(checks)}</pre>`);
+  const metric=r=>({left:Math.round(r.left),top:Math.round(r.top),right:Math.round(r.right),bottom:Math.round(r.bottom),width:Math.round(r.width),height:Math.round(r.height)});
+  const diagnostics={checks,inner:{width:innerWidth,height:innerHeight},table:metric(table),result:metric(result),bar:metric(bar),hand:metric(hand),board:metric(boardBox),topHole:metric(topHole),sideHole:metric(sideHole)};
+  document.body.insertAdjacentHTML('beforeend',`<pre data-poker-ok="${Object.values(checks).every(Boolean)?'1':'0'}">${JSON.stringify(diagnostics)}</pre>`);
 },120));
 </script></body></html>'''
 
