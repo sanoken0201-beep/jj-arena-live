@@ -100,16 +100,10 @@ body.jj-poker-simple.jj-v80-handlog-expanded #pokerRoom .side-tabs{display:none!
     width:34px!important;height:48px!important;min-width:34px!important;min-height:48px!important;
     font-size:.9rem!important;opacity:1!important;
   }
-  /* Lower-side opponents show cards above their nameplate, toward the felt center. */
-  body.jj-poker-simple.jj-mobile-table-open #pokerRoom .jj-seat[data-jj-visual="1"] .jj-hole,
-  body.jj-poker-simple.jj-mobile-table-open #pokerRoom .jj-seat[data-jj-visual="5"] .jj-hole{
-    top:-50px!important;bottom:auto!important;transform:translateX(-50%)!important;
-  }
-  /* Upper-side opponents show cards below their nameplate. This prevents the
-     opposite seat's cards from being clipped by the top edge of the phone felt. */
-  body.jj-poker-simple.jj-mobile-table-open #pokerRoom .jj-seat[data-jj-visual="2"] .jj-hole,
-  body.jj-poker-simple.jj-mobile-table-open #pokerRoom .jj-seat[data-jj-visual="3"] .jj-hole,
-  body.jj-poker-simple.jj-mobile-table-open #pokerRoom .jj-seat[data-jj-visual="4"] .jj-hole{
+  /* On the compact portrait felt, projecting lower-seat cards upward makes
+     them collide with the upper player's name/stack plaque. Keep all opponent
+     hands on the same side of their plaque instead: immediately below it. */
+  body.jj-poker-simple.jj-mobile-table-open #pokerRoom .jj-seat:not(.is-hero) .jj-hole{
     top:calc(100% + 5px)!important;bottom:auto!important;transform:translateX(-50%)!important;
   }
   body.jj-poker-simple.jj-v80-handlog-open #pokerRoom .table-side{
