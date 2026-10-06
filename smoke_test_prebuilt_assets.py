@@ -61,8 +61,11 @@ def main() -> None:
             assert "potEl.textContent='Pot '" not in compiled_js, (
                 "Ring adapter must not flatten the canonical pot markup"
             )
-            assert served_assets.ASSET_VERSION == 79, (
-                "browser asset version must advance with the post-refactor UI repair"
+            assert "v80 mobile poker readability and hand-log overlay 2026-10-06" in compiled_js, (
+                "compiled browser asset must include mobile opponent-card and hand-log repairs"
+            )
+            assert served_assets.ASSET_VERSION == 80, (
+                "browser asset version must advance with the mobile table readability repair"
             )
             second = served_assets.build_all(root)
             served_assets.validate_built_assets(root)
