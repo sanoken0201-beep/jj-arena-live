@@ -65,13 +65,14 @@ from sitngo_ui import (
 )
 
 from poker_simple import transform_app_js as simple_app_js, transform_styles as simple_styles
+from mobile_poker_readability import MARKER as MOBILE_POKER_READABILITY_MARKER, transform_app_js as transform_mobile_poker_readability_app_js, transform_styles as transform_mobile_poker_readability_styles
 from read_efficiency import transform_app_js as transform_read_efficiency_app_js
 from ring_buyin_browser import MARKER as RING_BUYIN_MARKER, transform_app_js as transform_ring_buyin_app_js
 
 ROOT = Path(__file__).resolve().parent
 MATERIALIZED_STATIC = ROOT / "materialized_v1244" / "static"
 BUILD_ROOT = ROOT / ".jj_build"
-ASSET_VERSION = 79
+ASSET_VERSION = 80
 BUILD_FORMAT = 1
 
 _TODAYS_JJ_MARKER = "v2 today's-jj contrast hardening 2026-09-12"
@@ -306,6 +307,9 @@ def build_app_js() -> str:
     if SITNGO_UI_MARKER not in js:
         raise RuntimeError("Sit&Go app transform marker missing")
     js = simple_app_js(js)
+    js = transform_mobile_poker_readability_app_js(js)
+    if MOBILE_POKER_READABILITY_MARKER not in js:
+        raise RuntimeError("mobile poker readability app transform marker missing")
     js = transform_read_efficiency_app_js(js)
     # member point self-service 2026-09-28
     # Apply after all canonical browser transforms so their drift guards still
@@ -420,7 +424,11 @@ def build_styles() -> str:
     css = transform_sitngo_styles(css)
     if SITNGO_UI_MARKER not in css:
         raise RuntimeError("Sit&Go styles transform marker missing")
-    return simple_styles(css)
+    css = simple_styles(css)
+    css = transform_mobile_poker_readability_styles(css)
+    if MOBILE_POKER_READABILITY_MARKER not in css:
+        raise RuntimeError("mobile poker readability style transform marker missing")
+    return css
 
 
 def build_service_worker() -> str:
