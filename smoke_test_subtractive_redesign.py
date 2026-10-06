@@ -14,7 +14,7 @@ def main() -> None:
     js = build_app_js()
     css = build_styles()
 
-    require(ASSET_VERSION == 79, "asset version must include the post-refactor Ring UI repair")
+    require(ASSET_VERSION == 80, "asset version must include the mobile table readability repair")
     require(SUBTRACTIVE_RED282_MARKER in html, "index marker missing")
     require(SUBTRACTIVE_RED282_MARKER in js, "app marker missing")
     require(SUBTRACTIVE_RED282_MARKER in css, "style marker missing")
@@ -33,7 +33,7 @@ def main() -> None:
     require("bar.querySelector('#raiseSlider')?.remove()" in js, "bet slider removal missing")
     require("input.step='0.01'" in js, "manual numeric bet input precision missing")
     require("renderTableChat=function(){}" in js, "in-hand chat renderer must be disabled")
-    require("renderHandLog=function(){}" in js, "in-hand action log renderer must be disabled")
+    require("renderHandLog=function(){}" not in js, "live hand log must remain available for the expanded history view")
     require("jjSubBaseRenderPokerRoom" in js, "poker-room metadata cleanup missing")
     require("jjSubBaseRenderNews" in js, "announcement/calendar compatibility merge missing")
     require("お知らせ / 活動予定を投稿" in js, "announcement form copy must cover activity dates")
