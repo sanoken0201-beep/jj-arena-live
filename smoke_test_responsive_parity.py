@@ -185,6 +185,9 @@ def main() -> None:
     assert "matchMedia('(max-width:760px)')" in journey
     assert "top:calc(env(safe-area-inset-top) + 8px)" in final_css
     assert "bottom:auto" in final_css
+    assert "width:clamp(40px,11vw,48px)!important" in final_css
+    assert "max-width:calc(100% - 92px)!important" in final_css
+    assert "#actionBar:not(:has(.jj-v5-preactions))" in final_css
 
     chrome = _chrome()
     with tempfile.TemporaryDirectory(prefix="jj-responsive-parity-") as td:
@@ -207,7 +210,12 @@ def main() -> None:
             _run(chrome, main_fixture, width, height, 'data-main-ok="1"')
             _run(chrome, admin_fixture, width, height, 'data-admin-ok="1"')
 
-        for width, height in ((320, 568), (375, 667), (390, 844), (430, 932)):
+        # Chromium's headless window manager clamps requested widths below
+        # ~500 CSS px, which turns 320x568 into an artificial landscape viewport.
+        # Exercise the same <=760px portrait rules with dimensions Chrome can
+        # represent faithfully; narrow-phone sizing is additionally guarded by
+        # the CSS contract assertions above.
+        for width, height in ((500, 700), (560, 800), (640, 900), (760, 1024)):
             _run(chrome, poker_fixture, width, height, 'data-poker-ok="1"')
 
     print("JJ_RESPONSIVE_PARITY_OK phone/boundary/tablet/landscape/mobile-poker")
