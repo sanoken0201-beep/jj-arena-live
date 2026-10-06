@@ -2,21 +2,21 @@ from __future__ import annotations
 
 """Final mobile table readability and expandable live hand-log treatment."""
 
-MARKER = "v80 mobile poker readability and hand-log overlay 2026-10-06"
+MARKER = "v81 mobile poker readability, compact controls, and hand-log overlay 2026-10-06"
 
 JS_PATCH = r'''
-  // v80 mobile poker readability and hand-log overlay 2026-10-06
+  // v81 mobile poker readability, compact controls, and hand-log overlay 2026-10-06
   const jjV80PortraitMq=window.matchMedia('(max-width:760px) and (orientation:portrait)');
   const jjV80BaseSeatPos=jjSeatPos;
   jjSeatPos=function(actual){
     if(!jjV80PortraitMq.matches)return jjV80BaseSeatPos(actual);
     const coords=[
-      {left:50,top:83},
-      {left:14,top:65},
-      {left:15,top:34},
-      {left:50,top:21},
-      {left:85,top:34},
-      {left:86,top:65},
+      {left:50,top:84},
+      {left:16,top:68},
+      {left:17,top:34},
+      {left:50,top:12},
+      {left:83,top:34},
+      {left:84,top:68},
     ];
     return coords[jjVisualIndex(actual)]||coords[0];
   };
@@ -59,7 +59,7 @@ JS_PATCH = r'''
 '''
 
 CSS = r'''
-/* v80 mobile poker readability and hand-log overlay 2026-10-06 */
+/* v81 mobile poker readability, compact controls, and hand-log overlay 2026-10-06 */
 body.jj-poker-simple #pokerRoom .jj-v80-side-actions{display:flex;align-items:center;gap:7px;margin-left:auto}
 body.jj-poker-simple #pokerRoom .jj-v80-side-actions button{min-width:44px;min-height:40px!important;padding:0 10px!important}
 body.jj-poker-simple #pokerRoom .jj-v80-side-close{font-size:1.45rem!important;line-height:1!important;padding:0!important}
@@ -100,12 +100,118 @@ body.jj-poker-simple.jj-v80-handlog-expanded #pokerRoom .side-tabs{display:none!
     width:34px!important;height:48px!important;min-width:34px!important;min-height:48px!important;
     font-size:.9rem!important;opacity:1!important;
   }
-  /* On the compact portrait felt, projecting lower-seat cards upward makes
-     them collide with the upper player's name/stack plaque. Keep all opponent
-     hands on the same side of their plaque instead: immediately below it. */
-  body.jj-poker-simple.jj-mobile-table-open #pokerRoom .jj-seat:not(.is-hero) .jj-hole{
-    top:calc(100% + 5px)!important;bottom:auto!important;transform:translateX(-50%)!important;
+  /* Keep exposed opponent cards outside the board lane. Lower side seats fan
+     downward, upper side seats fan upward, and the top seat fans downward into
+     the felt. This keeps every exposed hand inside the table without touching
+     the community-card row or the room header. */
+  body.jj-poker-simple.jj-mobile-table-open #pokerRoom .jj-seat[data-jj-visual="1"]:not(.is-hero) .jj-hole,
+  body.jj-poker-simple.jj-mobile-table-open #pokerRoom .jj-seat[data-jj-visual="5"]:not(.is-hero) .jj-hole{
+    left:50%!important;right:auto!important;top:calc(100% + 5px)!important;bottom:auto!important;
+    transform:translateX(-50%)!important;
   }
+  body.jj-poker-simple.jj-mobile-table-open #pokerRoom .jj-seat[data-jj-visual="2"]:not(.is-hero) .jj-hole,
+  body.jj-poker-simple.jj-mobile-table-open #pokerRoom .jj-seat[data-jj-visual="4"]:not(.is-hero) .jj-hole{
+    left:50%!important;right:auto!important;top:auto!important;bottom:calc(100% + 5px)!important;
+    transform:translateX(-50%)!important;
+  }
+  body.jj-poker-simple.jj-mobile-table-open #pokerRoom .jj-seat[data-jj-visual="3"]:not(.is-hero) .jj-hole{
+    left:50%!important;right:auto!important;top:calc(100% + 5px)!important;bottom:auto!important;
+    transform:translateX(-50%)!important;
+  }
+
+  /* The live table owns the viewport as a vertical flex surface. The old
+     simplified-table override forced a 222px action panel even while waiting,
+     which produced a large white dead area and pushed the hero cards off-canvas. */
+  body.jj-poker-simple.jj-mobile-table-open #pokerRoom{
+    display:flex!important;flex-direction:column!important;overflow:hidden!important;
+    background:#040907!important;
+  }
+  body.jj-poker-simple.jj-mobile-table-open #pokerRoom .poker-layout{
+    display:flex!important;flex:1 1 auto!important;min-height:0!important;overflow:hidden!important;
+  }
+  body.jj-poker-simple.jj-mobile-table-open #pokerRoom .poker-zone{
+    display:flex!important;flex:1 1 auto!important;flex-direction:column!important;
+    min-height:0!important;overflow-y:auto!important;overflow-x:hidden!important;padding:0!important;
+    background:linear-gradient(180deg,#07100d 0%,#040907 100%)!important;
+    overscroll-behavior:contain;
+  }
+  body.jj-poker-simple.jj-mobile-table-open #pokerTable{
+    flex:1 1 auto!important;height:auto!important;min-height:380px!important;width:100%!important;
+    margin:0!important;overflow:hidden!important;
+  }
+  body.jj-poker-simple.jj-mobile-table-open #pokerTable .felt-center{
+    top:45%!important;min-width:0!important;width:min(72%,320px)!important;max-width:calc(100% - 92px)!important;
+  }
+  body.jj-poker-simple.jj-mobile-table-open #boardCards{
+    display:flex!important;align-items:center!important;justify-content:center!important;
+    flex-wrap:nowrap!important;gap:4px!important;width:100%!important;min-width:0!important;
+  }
+  body.jj-poker-simple.jj-mobile-table-open #boardCards .card-face{
+    position:relative!important;inset:auto!important;transform:none!important;flex:0 0 auto!important;
+    width:clamp(40px,11vw,48px)!important;height:clamp(56px,15.4vw,66px)!important;
+    min-width:0!important;min-height:0!important;margin:0!important;font-size:.94rem!important;
+  }
+
+  /* Settlement is part of the layout, not an overlay over the top seat/board. */
+  body.jj-poker-simple.jj-mobile-table-open #resultBanner.result-banner:not(.hidden){
+    order:-1!important;position:relative!important;z-index:25!important;left:auto!important;right:auto!important;
+    top:auto!important;bottom:auto!important;transform:none!important;width:auto!important;max-width:none!important;
+    min-height:0!important;max-height:86px!important;overflow:auto!important;margin:5px 8px 6px!important;
+    padding:8px 10px!important;border-radius:11px!important;pointer-events:auto!important;
+  }
+  body.jj-poker-simple.jj-mobile-table-open #resultBanner.result-banner:not(.hidden):not(.jj-v5-result-compact){
+    max-height:min(38dvh,300px)!important;
+  }
+
+  body.jj-poker-simple.jj-mobile-table-open #tableControls{
+    display:flex!important;flex:0 0 auto!important;gap:6px!important;height:auto!important;min-height:48px!important;
+    margin:0!important;padding:4px 6px!important;background:#07100d!important;
+    border-top:1px solid rgba(255,255,255,.07)!important;overflow:visible!important;
+  }
+  body.jj-poker-simple.jj-mobile-table-open #tableControls button{
+    flex:1 1 140px!important;height:42px!important;min-height:42px!important;max-height:none!important;
+    padding:0 8px!important;font-size:.72rem!important;
+  }
+
+  body.jj-poker-simple.jj-mobile-table-open #actionBar{
+    display:block!important;position:relative!important;inset:auto!important;flex:0 0 auto!important;
+    width:100%!important;min-height:0!important;height:auto!important;max-height:none!important;
+    overflow:visible!important;margin:0!important;padding:6px 8px max(7px,env(safe-area-inset-bottom))!important;
+    border:0!important;border-top:1px solid rgba(255,255,255,.08)!important;border-radius:0!important;
+    background:#07100d!important;color:#eaf2ee!important;box-shadow:none!important;
+  }
+  body.jj-poker-simple.jj-mobile-table-open #actionBar .jj-v7-hero-strip{
+    display:flex!important;align-items:center!important;justify-content:center!important;flex-wrap:wrap!important;
+    gap:7px 10px!important;width:100%!important;min-width:0!important;min-height:0!important;margin:0 0 4px!important;
+  }
+  body.jj-poker-simple.jj-mobile-table-open #actionBar .jj-v7-hand{
+    display:flex!important;align-items:center!important;justify-content:center!important;gap:4px!important;
+    flex:0 0 auto!important;min-width:80px!important;margin:0!important;transform:none!important;
+  }
+  body.jj-poker-simple.jj-mobile-table-open #actionBar .jj-v7-hand .card-face{
+    position:relative!important;inset:auto!important;transform:none!important;
+    width:38px!important;height:52px!important;min-width:38px!important;min-height:52px!important;
+    margin:0!important;font-size:.94rem!important;
+  }
+  body.jj-poker-simple.jj-mobile-table-open #actionBar .jj-v7-stack,
+  body.jj-poker-simple.jj-mobile-table-open #actionBar .jj-v7-timebank{flex:0 0 auto!important}
+  body.jj-poker-simple.jj-mobile-table-open #actionBar .jj-action-clock{
+    flex:1 0 100%!important;margin-left:0!important;text-align:center!important;line-height:1.2!important;
+  }
+  body.jj-poker-simple.jj-mobile-table-open #actionBar .jj-action-clock:empty{display:none!important}
+  body.jj-poker-simple.jj-mobile-table-open:not(.jj-mobile-poker-can-act) #actionBar{
+    max-height:148px!important;overflow:hidden!important;box-sizing:border-box!important;
+  }
+  body.jj-poker-simple.jj-mobile-table-open:not(.jj-mobile-poker-can-act) #actionBar:not(:has(.jj-v5-preactions)){
+    height:72px!important;min-height:72px!important;max-height:72px!important;
+  }
+  body.jj-poker-simple.jj-mobile-table-open:not(.jj-mobile-poker-can-act) #actionBar .jj-v7-hero-strip{
+    min-height:54px!important;margin-bottom:0!important;
+  }
+  body.jj-poker-simple.jj-mobile-table-open.jj-mobile-poker-can-act #actionBar{
+    max-height:min(42dvh,320px)!important;overflow-y:auto!important;overscroll-behavior:contain;
+  }
+
   body.jj-poker-simple.jj-v80-handlog-open #pokerRoom .table-side{
     display:flex!important;position:fixed!important;z-index:260!important;inset:0!important;
     width:100vw!important;height:100dvh!important;max-width:none!important;max-height:none!important;
