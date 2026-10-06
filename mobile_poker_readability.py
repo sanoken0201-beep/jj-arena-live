@@ -6,6 +6,20 @@ MARKER = "v80 mobile poker readability and hand-log overlay 2026-10-06"
 
 JS_PATCH = r'''
   // v80 mobile poker readability and hand-log overlay 2026-10-06
+  const jjV80PortraitMq=window.matchMedia('(max-width:760px) and (orientation:portrait)');
+  const jjV80BaseSeatPos=jjSeatPos;
+  jjSeatPos=function(actual){
+    if(!jjV80PortraitMq.matches)return jjV80BaseSeatPos(actual);
+    const coords=[
+      {left:50,top:83},
+      {left:14,top:65},
+      {left:15,top:34},
+      {left:50,top:21},
+      {left:85,top:34},
+      {left:86,top:65},
+    ];
+    return coords[jjVisualIndex(actual)]||coords[0];
+  };
   let jjV80SideReturnFocus=null;
   function jjV80SyncSideChrome(tab){
     const side=$('#pokerRoom .table-side'),head=$('#pokerRoom .jj-v4-side-head');
@@ -142,26 +156,6 @@ def transform_app_js(source: str) -> str:
         'return `<div class="seat jj-seat ${isAct?\'active\':\'\'}${isHero?\' is-hero\':\'\'}${statusClass}" style="left:${pos.left}%;top:${pos.top}%">',
         'return `<div class="seat jj-seat ${isAct?\'active\':\'\'}${isHero?\' is-hero\':\'\'}${statusClass}" data-jj-visual="${jjVisualIndex(seat)}" style="left:${pos.left}%;top:${pos.top}%">',
         "occupied seat visual index",
-    )
-    source = _replace_once(
-        source,
-        """    const coords=[
-      {left:50,top:82},
-      {left:13,top:64},
-      {left:18,top:31},
-      {left:50,top:15},
-      {left:82,top:31},
-      {left:87,top:64},
-    ];""",
-        """    const coords=[
-      {left:50,top:83},
-      {left:14,top:65},
-      {left:15,top:34},
-      {left:50,top:21},
-      {left:85,top:34},
-      {left:86,top:65},
-    ];""",
-        "portrait seat coordinates",
     )
     anchor = "  // Desktop bet markers use explicit poker-table lanes rather than the old\n"
     if source.count(anchor) != 1:
