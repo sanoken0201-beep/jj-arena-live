@@ -23,7 +23,7 @@ JS_PATCH = r'''
     document.body.classList.remove('jj-v80-handlog-expanded');
     if(isLog&&window.matchMedia('(max-width:760px)').matches)document.body.classList.add('jj-v80-handlog-expanded');
     jjV80SyncSideChrome(tab);
-    if(isLog)requestAnimationFrame(()=>$('#handLog')?.scrollTo({top:0,behavior:'instant'}));
+    if(isLog)requestAnimationFrame(()=>{const log=$('#handLog');if(log)log.scrollTop=0});
   };
   const jjV80BaseCloseSide=jjV4CloseSide;
   jjV4CloseSide=function(){
