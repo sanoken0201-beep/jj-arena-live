@@ -94,10 +94,9 @@ _APP_PATCH = r'''
     if(typeof jjV185SyncRaiseUi==='function')jjV185SyncRaiseUi();
   };
 
-  // Chat and the live action log are deliberately absent during a hand.  The
-  // persisted hand-history/review APIs remain untouched for post-hand review.
+  // Keep live table chat suppressed, but retain the hand log so players can
+  // inspect the current hand in the dedicated expandable history surface.
   renderTableChat=function(){};
-  renderHandLog=function(){};
 
   const jjSubBaseRenderPokerRoom=renderPokerRoom;
   renderPokerRoom=function(){
