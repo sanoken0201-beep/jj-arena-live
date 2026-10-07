@@ -253,8 +253,16 @@ def install_admin_console(app):
             if sets:con.execute(f"UPDATE users SET {','.join(sets)} WHERE id=?",args+[uid])
             if ranking_rename:
                 old_rn,new_rn=ranking_rename
-                con.execute("UPDATE entries SET name=? WHERE name=?",(new_rn,old_rn))
-                con.execute("UPDATE online_hand_results SET ranking_name=? WHERE ranking_name=?",(new_rn,old_rn))
+                shared=con.execute(
+                    "SELECT 1 FROM users WHERE id<>? AND COALESCE(NULLIF(ranking_name,''),name)=? LIMIT 1",
+                    (uid,old_rn),
+                ).fetchone()
+                # A unique old identity can be migrated without changing
+                # anyone else's history. Ambiguous legacy duplicates remain
+                # untouched so administrators can resolve them explicitly.
+                if not shared:
+                    con.execute("UPDATE entries SET name=? WHERE name=?",(new_rn,old_rn))
+                    con.execute("UPDATE online_hand_results SET ranking_name=? WHERE ranking_name=?",(new_rn,old_rn))
             after=dict(con.execute("SELECT id,name,role,disabled,ranking_name,club_verified,admin_note FROM users WHERE id=?",(uid,)).fetchone())
         if p.disabled is True:_revoke(db,uid)
         _audit(db,int(user["id"]),"user.update",uid,before=before,after=after);return after
