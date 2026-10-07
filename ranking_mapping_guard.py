@@ -57,24 +57,6 @@ def install(app, db) -> None:
         mapping_changed = bool(requested_mapping) and requested_mapping != current_mapping
         re_enabling = currently_disabled and requested_disabled is False
 
-        if mapping_changed:
-            # Historical club rows are name-keyed. Renaming is safe only when
-            # this old identity has never belonged to another account; the
-            # admin update then migrates those rows atomically.
-            with db.connect() as con:
-                shared_history = con.execute(
-                    """SELECT id,name FROM users
-                       WHERE id<>?
-                         AND COALESCE(NULLIF(ranking_name,''),name)=?
-                       ORDER BY id LIMIT 1""",
-                    (uid, current_mapping),
-                ).fetchone()
-            if shared_history:
-                raise HTTPException(
-                    409,
-                    f"旧ランキング名「{current_mapping}」は別アカウント履歴でも使用されています。先に紐付けを整理してください。",
-                )
-
         if not resulting_disabled and (mapping_changed or re_enabling):
             with db.connect() as con:
                 conflict = con.execute(
