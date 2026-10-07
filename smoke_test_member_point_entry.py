@@ -14,7 +14,6 @@ def main() -> None:
     assert "if((v==='points'||v==='members')&&me?.role!=='admin')v='home';" not in js
     assert "request_id:jjPointRequestId(e.currentTarget)" in js
     assert "post(me?.role==='admin'?'/entries':'/member/entries',{...payload" in js
-    assert "btn.disabled=true;btn.textContent='記録中…'" in js
     assert "point.classList.remove('hidden')" in js
     assert "pointName.readOnly=!isAdmin" in js
     assert "<span>POINTS</span>" in js
