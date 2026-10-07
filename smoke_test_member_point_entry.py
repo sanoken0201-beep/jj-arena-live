@@ -12,7 +12,9 @@ def main() -> None:
     assert '<button class="nav admin-only" data-view="points">' not in index
     assert "if(v==='members'&&me?.role!=='admin')v='home';" in js
     assert "if((v==='points'||v==='members')&&me?.role!=='admin')v='home';" not in js
-    assert "post(me?.role==='admin'?'/entries':'/member/entries',payload)" in js
+    assert "request_id:jjPointRequestId(e.currentTarget)" in js
+    assert "post(me?.role==='admin'?'/entries':'/member/entries',{...payload" in js
+    assert "btn.disabled=true;btn.textContent='記録中…'" in js
     assert "point.classList.remove('hidden')" in js
     assert "pointName.readOnly=!isAdmin" in js
     assert "<span>POINTS</span>" in js
@@ -39,8 +41,9 @@ def main() -> None:
             return {"ok": True}
 
         app.runtime_server.add_entry = fake_add_entry
-        payload = app.runtime_server.PointEntry(
+        payload = app._SafePointEntry(
             name="OTHER",
+            request_id=None,
             date="2026-09-28T18:30",
             reentries=0,
             initial=450,
