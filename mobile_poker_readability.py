@@ -2,10 +2,10 @@ from __future__ import annotations
 
 """Final mobile table readability and expandable live hand-log treatment."""
 
-MARKER = "v81 mobile poker readability, compact controls, and hand-log overlay 2026-10-06"
+MARKER = "v82 mobile poker board-safe layout and compact observer join 2026-10-07"
 
 JS_PATCH = r'''
-  // v81 mobile poker readability, compact controls, and hand-log overlay 2026-10-06
+  // v82 mobile poker board-safe layout and compact observer join 2026-10-07
   const jjV80PortraitMq=window.matchMedia('(max-width:760px) and (orientation:portrait)');
   const jjV80BaseSeatPos=jjSeatPos;
   jjSeatPos=function(actual){
@@ -13,9 +13,9 @@ JS_PATCH = r'''
     const coords=[
       {left:50,top:84},
       {left:16,top:68},
-      {left:17,top:34},
+      {left:17,top:22},
       {left:50,top:12},
-      {left:83,top:34},
+      {left:83,top:22},
       {left:84,top:68},
     ];
     return coords[jjVisualIndex(actual)]||coords[0];
@@ -59,7 +59,7 @@ JS_PATCH = r'''
 '''
 
 CSS = r'''
-/* v81 mobile poker readability, compact controls, and hand-log overlay 2026-10-06 */
+/* v82 mobile poker board-safe layout and compact observer join 2026-10-07 */
 body.jj-poker-simple #pokerRoom .jj-v80-side-actions{display:flex;align-items:center;gap:7px;margin-left:auto}
 body.jj-poker-simple #pokerRoom .jj-v80-side-actions button{min-width:44px;min-height:40px!important;padding:0 10px!important}
 body.jj-poker-simple #pokerRoom .jj-v80-side-close{font-size:1.45rem!important;line-height:1!important;padding:0!important}
@@ -111,7 +111,7 @@ body.jj-poker-simple.jj-v80-handlog-expanded #pokerRoom .side-tabs{display:none!
   }
   body.jj-poker-simple.jj-mobile-table-open #pokerRoom .jj-seat[data-jj-visual="2"]:not(.is-hero) .jj-hole,
   body.jj-poker-simple.jj-mobile-table-open #pokerRoom .jj-seat[data-jj-visual="4"]:not(.is-hero) .jj-hole{
-    left:50%!important;right:auto!important;top:auto!important;bottom:calc(100% + 5px)!important;
+    left:50%!important;right:auto!important;top:auto!important;bottom:100%!important;
     transform:translateX(-50%)!important;
   }
   body.jj-poker-simple.jj-mobile-table-open #pokerRoom .jj-seat[data-jj-visual="3"]:not(.is-hero) .jj-hole{
@@ -131,7 +131,7 @@ body.jj-poker-simple.jj-v80-handlog-expanded #pokerRoom .side-tabs{display:none!
   }
   body.jj-poker-simple.jj-mobile-table-open #pokerRoom .poker-zone{
     display:flex!important;flex:1 1 auto!important;flex-direction:column!important;
-    min-height:0!important;overflow-y:auto!important;overflow-x:hidden!important;padding:0!important;
+    height:100%!important;min-height:0!important;overflow-y:auto!important;overflow-x:hidden!important;padding:0!important;
     background:linear-gradient(180deg,#07100d 0%,#040907 100%)!important;
     overscroll-behavior:contain;
   }
@@ -150,6 +150,25 @@ body.jj-poker-simple.jj-v80-handlog-expanded #pokerRoom .side-tabs{display:none!
     position:relative!important;inset:auto!important;transform:none!important;flex:0 0 auto!important;
     width:clamp(40px,11vw,48px)!important;height:clamp(56px,15.4vw,66px)!important;
     min-width:0!important;min-height:0!important;margin:0!important;font-size:.94rem!important;
+  }
+
+  /* Spectating keeps the table as the primary surface. The previous 310px
+     join panel covered the bottom player's stack on shorter phones. Keep the
+     same explicit action, but collapse it to one small corner button. */
+  body.jj-poker-simple.jj-mobile-table-open.jj-mobile-poker-observer #pokerRoom .jj-observer-join{
+    left:auto!important;right:8px!important;bottom:8px!important;transform:none!important;
+    width:auto!important;min-width:0!important;max-width:none!important;
+    padding:4px!important;border-radius:11px!important;gap:0!important;
+  }
+  body.jj-poker-simple.jj-mobile-table-open.jj-mobile-poker-observer #tableControls{
+    display:none!important;
+  }
+  body.jj-poker-simple.jj-mobile-table-open.jj-mobile-poker-observer #pokerRoom .jj-observer-join>div{
+    display:none!important;
+  }
+  body.jj-poker-simple.jj-mobile-table-open.jj-mobile-poker-observer #pokerRoom .jj-observer-join button{
+    width:auto!important;min-width:0!important;height:38px!important;min-height:38px!important;
+    padding:0 11px!important;font-size:.68rem!important;
   }
 
   /* Settlement is part of the layout, not an overlay over the top seat/board. */

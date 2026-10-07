@@ -72,7 +72,7 @@ from ring_buyin_browser import MARKER as RING_BUYIN_MARKER, transform_app_js as 
 ROOT = Path(__file__).resolve().parent
 MATERIALIZED_STATIC = ROOT / "materialized_v1244" / "static"
 BUILD_ROOT = ROOT / ".jj_build"
-ASSET_VERSION = 81
+ASSET_VERSION = 82
 BUILD_FORMAT = 1
 
 _TODAYS_JJ_MARKER = "v2 today's-jj contrast hardening 2026-09-12"
