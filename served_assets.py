@@ -72,7 +72,7 @@ from ring_buyin_browser import MARKER as RING_BUYIN_MARKER, transform_app_js as 
 ROOT = Path(__file__).resolve().parent
 MATERIALIZED_STATIC = ROOT / "materialized_v1244" / "static"
 BUILD_ROOT = ROOT / ".jj_build"
-ASSET_VERSION = 82
+ASSET_VERSION = 83
 BUILD_FORMAT = 1
 
 _TODAYS_JJ_MARKER = "v2 today's-jj contrast hardening 2026-09-12"
@@ -330,7 +330,7 @@ def build_app_js() -> str:
         ),
         (
             "post('/entries',payload)",
-            "post(me?.role==='admin'?'/entries':'/member/entries',payload)",
+            "post(me?.role==='admin'?'/entries':'/member/entries',{...payload,request_id:jjPointRequestId(e.currentTarget)})",
         ),
         (
             "const point=$('#mobilePointNav');if(point)point.classList.toggle('hidden',me?.role!=='admin');",
@@ -361,6 +361,41 @@ def build_app_js() -> str:
         if old not in js:
             raise RuntimeError(f"member point browser contract drift: {old[:48]}")
         js = js.replace(old, new)
+
+    # Club-result idempotency 2026-10-07. Keep one request ID while the user
+    # retries an unchanged form; editing either form starts a new intent.
+    point_request_anchor = "  // v1.13 optional member profiles."
+    point_request_js = r"""
+  function jjPointRequestId(form){
+    if(!form)return '';
+    if(!form.dataset.jjPointRequestId){
+      const raw=globalThis.crypto?.randomUUID?.()||Array.from(globalThis.crypto?.getRandomValues?.(new Uint32Array(4))||[Date.now(),performance.now()]).join('-');
+      form.dataset.jjPointRequestId=String(raw).replace(/[^A-Za-z0-9_-]/g,'').padEnd(16,'0').slice(0,80);
+    }
+    return form.dataset.jjPointRequestId;
+  }
+  function jjResetPointRequestId(target){
+    const form=target?.closest?.('#pointForm,#quickPointForm');
+    if(form)delete form.dataset.jjPointRequestId;
+  }
+  document.addEventListener('input',e=>jjResetPointRequestId(e.target),true);
+  document.addEventListener('change',e=>jjResetPointRequestId(e.target),true);
+
+"""
+    if js.count(point_request_anchor) != 1:
+        raise RuntimeError("member point request identity anchor drift")
+    js = js.replace(point_request_anchor, point_request_js + point_request_anchor, 1)
+
+    regular_submit_open = "$('#pointForm').addEventListener('submit',async e=>{e.preventDefault();try{"
+    regular_submit_new = "$('#pointForm').addEventListener('submit',async e=>{e.preventDefault();const btn=e.submitter;try{if(btn){btn.disabled=true;btn.textContent='記録中…'}"
+    if js.count(regular_submit_open) != 1:
+        raise RuntimeError("member point regular-submit guard drift")
+    js = js.replace(regular_submit_open, regular_submit_new, 1)
+    regular_submit_close = "await renderPoints()}catch(err){toast(err.message)}});"
+    regular_submit_close_new = "await renderPoints()}catch(err){toast(err.message)}finally{if(btn){btn.disabled=false;btn.textContent='この結果を記録'}}});"
+    if js.count(regular_submit_close) != 1:
+        raise RuntimeError("member point regular-submit completion drift")
+    js = js.replace(regular_submit_close, regular_submit_close_new, 1)
 
     # daily quiz reward split 2026-10-05
     # The API owns scoring; browser copy only presents the server-provided rule.
