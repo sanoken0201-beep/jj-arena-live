@@ -243,6 +243,27 @@ def main() -> None:
             (db.utcnow(), editable["id"]),
         )
 
+    history_ids = []
+    for offset in range(6):
+        history_start = now + timedelta(hours=10 + offset)
+        history_event = service.create_event(
+            sitngo.SitNGoCreateIn(name=f"History {offset}", starts_at=history_start.isoformat()),
+            admin_id,
+        )
+        history_ids.append(history_event["id"])
+        # Deliberately make updated_at order disagree with starts_at order.
+        with db.connect() as con:
+            con.execute(
+                "UPDATE sitngo_events SET status='finished',updated_at=? WHERE id=?",
+                ((now + timedelta(hours=30 - offset)).isoformat(), history_event["id"]),
+            )
+    recent = service.next_event(members[0])["recent"]
+    require(len(recent) == 5, "player history must remain limited to five finished tournaments")
+    require(
+        [row["id"] for row in recent] == list(reversed(history_ids))[0:5],
+        "Sit&Go history must be ordered by tournament date, not later maintenance updates",
+    )
+
     index = production_app._patched_index()
     js = production_app._patched_app_js()
     css = production_app._patched_styles()

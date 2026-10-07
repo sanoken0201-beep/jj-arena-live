@@ -240,15 +240,29 @@ def install_admin_console(app):
             if not row:raise HTTPException(404,"user not found")
             before=dict(row)
             if before["role"]=="admin" and p.disabled is True:raise HTTPException(400,"管理者アカウントは利用停止にできません")
-            sets=[];args=[]
+            sets=[];args=[];ranking_rename=None
             if p.disabled is not None:sets.append("disabled=?");args.append(1 if p.disabled else 0)
             if p.club_verified is not None:sets.append("club_verified=?");args.append(1 if p.club_verified else 0)
             if p.ranking_name is not None:
                 rn=p.ranking_name.strip()
                 if not rn:raise HTTPException(400,"ランキング名を空にはできません")
+                old_rn=str(before["ranking_name"] or before["name"]).strip()
+                if rn!=old_rn:ranking_rename=(old_rn,rn)
                 sets.append("ranking_name=?");args.append(rn)
             if p.admin_note is not None:sets.append("admin_note=?");args.append(p.admin_note.strip())
             if sets:con.execute(f"UPDATE users SET {','.join(sets)} WHERE id=?",args+[uid])
+            if ranking_rename:
+                old_rn,new_rn=ranking_rename
+                shared=con.execute(
+                    "SELECT 1 FROM users WHERE id<>? AND COALESCE(NULLIF(ranking_name,''),name)=? LIMIT 1",
+                    (uid,old_rn),
+                ).fetchone()
+                # A unique old identity can be migrated without changing
+                # anyone else's history. Ambiguous legacy duplicates remain
+                # untouched so administrators can resolve them explicitly.
+                if not shared:
+                    con.execute("UPDATE entries SET name=? WHERE name=?",(new_rn,old_rn))
+                    con.execute("UPDATE online_hand_results SET ranking_name=? WHERE ranking_name=?",(new_rn,old_rn))
             after=dict(con.execute("SELECT id,name,role,disabled,ranking_name,club_verified,admin_note FROM users WHERE id=?",(uid,)).fetchone())
         if p.disabled is True:_revoke(db,uid)
         _audit(db,int(user["id"]),"user.update",uid,before=before,after=after);return after

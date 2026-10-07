@@ -14,7 +14,7 @@ def main() -> None:
     js = build_app_js()
     css = build_styles()
 
-    require(ASSET_VERSION == 82, "asset version must include the mobile table readability repair")
+    require(ASSET_VERSION == 83, "asset version must include point-entry integrity")
     require(SUBTRACTIVE_RED282_MARKER in html, "index marker missing")
     require(SUBTRACTIVE_RED282_MARKER in js, "app marker missing")
     require(SUBTRACTIVE_RED282_MARKER in css, "style marker missing")

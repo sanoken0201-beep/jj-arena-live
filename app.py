@@ -13,11 +13,12 @@ from __future__ import annotations
 from functools import lru_cache
 
 from fastapi import Depends, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from starlette.requests import Request
 from starlette.responses import Response
 
 from asset_encoding import accepts_gzip, encoded_asset, matches_etag
+import club_entry_safety
 import app_materialized as _materialized
 from app_materialized import app, db, runtime_poker_engine, runtime_server
 from player_ux_phase2 import leave_after_hand_transition
@@ -145,6 +146,23 @@ class _LeaveAfterHandIn(BaseModel):
     enabled: bool = True
 
 
+class _SafePointEntry(runtime_server.PointEntry):
+    request_id: str | None = Field(
+        default=None,
+        min_length=16,
+        max_length=80,
+        pattern=r"^[A-Za-z0-9_-]+$",
+    )
+
+
+@app.post("/api/entries", include_in_schema=False)
+def _safe_admin_point_entry(
+    payload: _SafePointEntry,
+    user=Depends(runtime_server.admin_user),
+):
+    return club_entry_safety.apply_entry(db, runtime_server, payload, user)
+
+
 def _action_timeout_seconds() -> int:
     """Expose the product-level decision clock, not a compatibility wrapper default."""
     return timebank_rules.BASE_ACTION_SECONDS
@@ -165,7 +183,7 @@ def _poker_config(user=Depends(runtime_server.current_user)):
 
 @app.post("/api/member/entries")
 def _member_point_entry(
-    payload: runtime_server.PointEntry,
+    payload: _SafePointEntry,
     user=Depends(runtime_server.current_user),
 ):
     """Allow signed-in members to submit only their own club result.
@@ -177,10 +195,34 @@ def _member_point_entry(
     own_name = str(user.get("ranking_name") or user.get("name") or "").strip()
     if not own_name:
         raise HTTPException(400, "ランキング名が設定されていません")
-    values = payload.model_dump() if hasattr(payload, "model_dump") else payload.dict()
-    values["name"] = own_name
-    own_payload = runtime_server.PointEntry(**values)
-    return runtime_server.add_entry(own_payload, user)
+    return club_entry_safety.apply_entry(
+        db,
+        runtime_server,
+        payload,
+        user,
+        forced_name=own_name,
+    )
+
+
+def _prioritize_safe_point_entry_route() -> None:
+    routes = list(app.router.routes)
+    replacement = next(
+        (route for route in routes if getattr(route, "endpoint", None) is _safe_admin_point_entry),
+        None,
+    )
+    if replacement is None:
+        raise RuntimeError("safe POST /api/entries route is missing")
+    routes.remove(replacement)
+    matches = [
+        index
+        for index, route in enumerate(routes)
+        if getattr(route, "path", None) == "/api/entries"
+        and "POST" in (getattr(route, "methods", None) or set())
+    ]
+    if not matches:
+        raise RuntimeError("canonical POST /api/entries route is missing")
+    routes.insert(min(matches), replacement)
+    app.router.routes[:] = routes
 
 
 @app.post("/api/tables/{table_id}/leave-after-hand")
@@ -265,6 +307,7 @@ _sitngo_service = sitngo.install(app, db, runtime_server)
 # First repair all late extension routes around the SPA fallback, then establish
 # the stricter duplicate-route ordering required for GET /api/tables.
 _materialized._prioritize_extension_routes(app, _materialized._CORE_ROUTE_IDS)
+_prioritize_safe_point_entry_route()
 _prioritize_single_public_table_route()
 read_efficiency.install(
     app,

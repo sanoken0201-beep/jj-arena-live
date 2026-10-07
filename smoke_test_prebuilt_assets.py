@@ -64,8 +64,8 @@ def main() -> None:
             assert "v82 mobile poker board-safe layout and compact observer join 2026-10-07" in compiled_js, (
                 "compiled browser asset must include mobile opponent-card and hand-log repairs"
             )
-            assert served_assets.ASSET_VERSION == 82, (
-                "browser asset version must advance with the mobile table readability repair"
+            assert served_assets.ASSET_VERSION == 83, (
+                "browser asset version must advance with point-entry integrity"
             )
             second = served_assets.build_all(root)
             served_assets.validate_built_assets(root)
