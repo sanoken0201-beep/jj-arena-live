@@ -320,7 +320,7 @@ class SitNGoService:
                     (now,),
                 ).fetchone()
         with self.db.connect() as con:
-            recent = con.execute("SELECT * FROM sitngo_events WHERE status='finished' ORDER BY updated_at DESC LIMIT 5").fetchall()
+            recent = con.execute("SELECT * FROM sitngo_events WHERE status='finished' ORDER BY starts_at DESC,id DESC LIMIT 5").fetchall()
         event = self._event_payload(dict(row), user_id) if row else None
         upcoming = None
         if event and event.get("status") == "running":
