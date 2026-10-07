@@ -4,7 +4,6 @@ import shutil
 import subprocess
 import tempfile
 from pathlib import Path
-
 from served_assets import build_styles
 
 
@@ -141,7 +140,7 @@ addEventListener('load',()=>setTimeout(()=>{
 
 
 def _chrome() -> str:
-    for name in ("google-chrome", "google-chrome-stable", "chromium", "chromium-browser"):
+    for name in ("google-chrome", "google-chrome-stable", "chrome", "chromium", "chromium-browser", "msedge"):
         path = shutil.which(name)
         if path:
             return path
@@ -168,8 +167,26 @@ def _run(chrome: str, fixture: Path, width: int, height: int, marker: str) -> st
         text=True,
         timeout=30,
     )
-    assert marker in proc.stdout, f"responsive parity failed {width}x{height}: {proc.stdout[-2200:]}"
-    return proc.stdout
+    document = proc.stdout
+    if marker not in document:
+        # Installed Edge on Windows can exit successfully without writing
+        # --dump-dom output. Keep Chromium's dependency-free CI path above,
+        # but use the browser harness already required by poker-simple locally.
+        from playwright.sync_api import sync_playwright
+
+        with sync_playwright() as playwright:
+            browser = playwright.chromium.launch(
+                executable_path=chrome,
+                headless=True,
+                args=["--no-sandbox", "--allow-file-access-from-files"],
+            )
+            page = browser.new_page(viewport={"width": width, "height": height})
+            page.goto(fixture.resolve().as_uri())
+            page.wait_for_timeout(250)
+            document = page.content()
+            browser.close()
+    assert marker in document, f"responsive parity failed {width}x{height}: {document[-2200:]}"
+    return document
 
 
 def main() -> None:
@@ -188,6 +205,8 @@ def main() -> None:
     assert "width:clamp(40px,11vw,48px)!important" in final_css
     assert "max-width:calc(100% - 92px)!important" in final_css
     assert "#actionBar:not(:has(.jj-v5-preactions))" in final_css
+    assert ".jj-mobile-poker-observer #pokerRoom .jj-observer-join>div" in final_css
+    assert "left:auto!important;right:8px!important;bottom:8px!important" in final_css
 
     chrome = _chrome()
     with tempfile.TemporaryDirectory(prefix="jj-responsive-parity-") as td:
