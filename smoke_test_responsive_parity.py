@@ -97,6 +97,8 @@ POKER_FIXTURE = r'''<!doctype html>
       <div id="seatLayer">
         <div class="seat jj-seat" data-jj-visual="1" style="left:16%;top:68%"><div class="seat-box"><div class="jj-hole"><span class="card-face">A♠</span><span class="card-face">J♠</span></div><div class="name">LEFT</div><div class="stack">100bb</div></div></div>
         <div class="seat jj-seat" data-jj-visual="3" style="left:50%;top:12%"><div class="seat-box"><div class="jj-hole"><span class="card-face">Q♣</span><span class="card-face">4♣</span></div><div class="name">TOP</div><div class="stack">250bb</div></div></div>
+        <div class="seat jj-seat" data-jj-visual="4" style="left:83%;top:22%"><div class="seat-box"><div class="jj-hole"><span class="card-face">K♦</span><span class="card-face">9♦</span></div><div class="name">UPPER RIGHT</div><div class="stack">276.6bb</div></div></div>
+        <div class="seat jj-seat" data-jj-visual="5" style="left:84%;top:68%"><div class="seat-box"><div class="jj-hole"><span class="card-face">7♣</span><span class="card-face">7♥</span></div><div class="name">LOWER RIGHT</div><div class="stack">180bb</div></div></div>
         <div class="seat jj-seat is-hero" data-jj-visual="0" style="left:50%;top:84%"><div class="seat-box"><div class="name">YOU</div><div class="stack">154.5bb</div></div></div>
       </div>
     </div>
@@ -120,6 +122,8 @@ addEventListener('load',()=>setTimeout(()=>{
   const board=[...document.querySelectorAll('#boardCards .card-face')].map(x=>x.getBoundingClientRect());
   const topHole=document.querySelector('[data-jj-visual="3"] .jj-hole').getBoundingClientRect();
   const sideHole=document.querySelector('[data-jj-visual="1"] .jj-hole').getBoundingClientRect();
+  const opponentSeats=[...document.querySelectorAll('.jj-seat:not(.is-hero)')];
+  const opponentCardsClearOwnPlaques=opponentSeats.every(seat=>!intersects(seat.querySelector('.jj-hole').getBoundingClientRect(),seat.querySelector('.seat-box').getBoundingClientRect()));
   const boardBox=document.getElementById('boardCards').getBoundingClientRect();
   const noBoardOverlap=board.every((a,i)=>board.every((b,j)=>i===j||!intersects(a,b)));
   const checks={
@@ -130,7 +134,8 @@ addEventListener('load',()=>setTimeout(()=>{
     boardInsideViewport:boardBox.left>=0&&boardBox.right<=innerWidth,
     noBoardCardOverlap:noBoardOverlap,
     topHoleClearOfBoard:!intersects(topHole,boardBox),
-    sideHoleClearOfBoard:!intersects(sideHole,boardBox)
+    sideHoleClearOfBoard:!intersects(sideHole,boardBox),
+    opponentCardsClearOwnPlaques
   };
   const metric=r=>({left:Math.round(r.left),top:Math.round(r.top),right:Math.round(r.right),bottom:Math.round(r.bottom),width:Math.round(r.width),height:Math.round(r.height)});
   const diagnostics={checks,inner:{width:innerWidth,height:innerHeight},table:metric(table),result:metric(result),bar:metric(bar),hand:metric(hand),board:metric(boardBox),topHole:metric(topHole),sideHole:metric(sideHole)};
@@ -207,6 +212,9 @@ def main() -> None:
     assert "#actionBar:not(:has(.jj-v5-preactions))" in final_css
     assert ".jj-mobile-poker-observer #pokerRoom .jj-observer-join>div" in final_css
     assert "left:auto!important;right:8px!important;bottom:8px!important" in final_css
+    assert "margin:0!important" in final_css
+    assert "top:calc(100% + 8px)!important" in final_css
+    assert "bottom:calc(100% + 8px)!important" in final_css
 
     chrome = _chrome()
     with tempfile.TemporaryDirectory(prefix="jj-responsive-parity-") as td:
