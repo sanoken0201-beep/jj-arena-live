@@ -61,11 +61,11 @@ def main() -> None:
             assert "potEl.textContent='Pot '" not in compiled_js, (
                 "Ring adapter must not flatten the canonical pot markup"
             )
-            assert "v82 mobile poker board-safe layout and compact observer join 2026-10-07" in compiled_js, (
+            assert "v84 mobile poker seat-card clearance 2026-10-08" in compiled_js, (
                 "compiled browser asset must include mobile opponent-card and hand-log repairs"
             )
-            assert served_assets.ASSET_VERSION == 83, (
-                "browser asset version must advance with point-entry integrity"
+            assert served_assets.ASSET_VERSION == 84, (
+                "browser asset version must advance with mobile seat-card clearance"
             )
             second = served_assets.build_all(root)
             served_assets.validate_built_assets(root)
