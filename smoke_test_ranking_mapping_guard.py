@@ -7,6 +7,8 @@ from smoke_test_learning_integration import isolated_production_app, json_respon
 
 MAPPING = "ランキングキョウツウ"
 UNIQUE_A = "ランキングエー"
+RENAME_OLD = "ランキングキュウ"
+RENAME_NEW = "ランキングシン"
 
 
 def _login(client: TestClient, name: str, pin: str) -> dict:
@@ -25,8 +27,10 @@ def main() -> None:
         with TestClient(production.app, base_url="https://testserver") as client:
             first = _login(client, "ランキングイチ", "111111")
             second = _login(client, "ランキングニ", "222222")
+            rename_user = _login(client, "ランキングサン", "333333")
             first_id = int(first["id"])
             second_id = int(second["id"])
+            rename_id = int(rename_user["id"])
             _login(client, "ケンイチロウ", "654321")
 
             _patch(client, first_id, {"ranking_name": MAPPING})
@@ -63,6 +67,30 @@ def main() -> None:
             overview = json_response(client.get("/api/admin/console/overview"))
             duplicates = {str(row["ranking_name"]): int(row["n"]) for row in overview["duplicate_mappings"]}
             assert UNIQUE_A not in duplicates
+
+            # A unique ranking identity carries its historical club results
+            # forward when an administrator changes the display/ranking name.
+            _patch(client, rename_id, {"ranking_name": RENAME_OLD})
+            entry = json_response(
+                client.post(
+                    "/api/entries",
+                    json={
+                        "request_id": "ranking-rename-entry-0001",
+                        "name": RENAME_OLD,
+                        "date": "2026-10-07T18:30",
+                        "reentries": 0,
+                        "initial": 450,
+                        "game_type": "ring",
+                        "chip_500": 1,
+                    },
+                )
+            )
+            assert float(entry["points"]) == 50
+            _patch(client, rename_id, {"ranking_name": RENAME_NEW})
+            ranks = json_response(client.get("/api/rankings", params={"season": "fall"}))
+            by_name = {str(row["name"]): row for row in ranks}
+            assert RENAME_OLD not in by_name
+            assert float(by_name[RENAME_NEW]["points"]) == 50
 
     print("JJ_RANKING_MAPPING_GUARD_OK")
 
