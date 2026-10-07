@@ -386,17 +386,6 @@ def build_app_js() -> str:
         raise RuntimeError("member point request identity anchor drift")
     js = js.replace(point_request_anchor, point_request_js + point_request_anchor, 1)
 
-    regular_submit_open = "$('#pointForm').addEventListener('submit',async e=>{e.preventDefault();try{"
-    regular_submit_new = "$('#pointForm').addEventListener('submit',async e=>{e.preventDefault();const btn=e.submitter;try{if(btn){btn.disabled=true;btn.textContent='記録中…'}"
-    if js.count(regular_submit_open) != 1:
-        raise RuntimeError("member point regular-submit guard drift")
-    js = js.replace(regular_submit_open, regular_submit_new, 1)
-    regular_submit_close = "await renderPoints()}catch(err){toast(err.message)}});"
-    regular_submit_close_new = "await renderPoints()}catch(err){toast(err.message)}finally{if(btn){btn.disabled=false;btn.textContent='この結果を記録'}}});"
-    if js.count(regular_submit_close) != 1:
-        raise RuntimeError("member point regular-submit completion drift")
-    js = js.replace(regular_submit_close, regular_submit_close_new, 1)
-
     # daily quiz reward split 2026-10-05
     # The API owns scoring; browser copy only presents the server-provided rule.
     quiz_reward_replacements = (
