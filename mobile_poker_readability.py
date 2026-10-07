@@ -2,10 +2,10 @@ from __future__ import annotations
 
 """Final mobile table readability and expandable live hand-log treatment."""
 
-MARKER = "v82 mobile poker board-safe layout and compact observer join 2026-10-07"
+MARKER = "v84 mobile poker seat-card clearance 2026-10-08"
 
 JS_PATCH = r'''
-  // v82 mobile poker board-safe layout and compact observer join 2026-10-07
+  // v84 mobile poker seat-card clearance 2026-10-08
   const jjV80PortraitMq=window.matchMedia('(max-width:760px) and (orientation:portrait)');
   const jjV80BaseSeatPos=jjSeatPos;
   jjSeatPos=function(actual){
@@ -59,7 +59,7 @@ JS_PATCH = r'''
 '''
 
 CSS = r'''
-/* v82 mobile poker board-safe layout and compact observer join 2026-10-07 */
+/* v84 mobile poker seat-card clearance 2026-10-08 */
 body.jj-poker-simple #pokerRoom .jj-v80-side-actions{display:flex;align-items:center;gap:7px;margin-left:auto}
 body.jj-poker-simple #pokerRoom .jj-v80-side-actions button{min-width:44px;min-height:40px!important;padding:0 10px!important}
 body.jj-poker-simple #pokerRoom .jj-v80-side-close{font-size:1.45rem!important;line-height:1!important;padding:0!important}
@@ -95,6 +95,7 @@ body.jj-poker-simple.jj-v80-handlog-expanded #pokerRoom .side-tabs{display:none!
   body.jj-poker-simple.jj-mobile-table-open #pokerRoom .jj-seat-box .stack{font-size:.78rem!important}
   body.jj-poker-simple.jj-mobile-table-open #pokerRoom .jj-seat:not(.is-hero) .jj-hole{
     position:absolute!important;left:50%!important;display:flex!important;gap:3px!important;z-index:14!important;
+    margin:0!important;
   }
   body.jj-poker-simple.jj-mobile-table-open #pokerRoom .jj-seat:not(.is-hero) .jj-hole .card-face{
     width:34px!important;height:48px!important;min-width:34px!important;min-height:48px!important;
@@ -106,16 +107,16 @@ body.jj-poker-simple.jj-v80-handlog-expanded #pokerRoom .side-tabs{display:none!
      the community-card row or the room header. */
   body.jj-poker-simple.jj-mobile-table-open #pokerRoom .jj-seat[data-jj-visual="1"]:not(.is-hero) .jj-hole,
   body.jj-poker-simple.jj-mobile-table-open #pokerRoom .jj-seat[data-jj-visual="5"]:not(.is-hero) .jj-hole{
-    left:50%!important;right:auto!important;top:calc(100% + 5px)!important;bottom:auto!important;
+    left:50%!important;right:auto!important;top:calc(100% + 8px)!important;bottom:auto!important;
     transform:translateX(-50%)!important;
   }
   body.jj-poker-simple.jj-mobile-table-open #pokerRoom .jj-seat[data-jj-visual="2"]:not(.is-hero) .jj-hole,
   body.jj-poker-simple.jj-mobile-table-open #pokerRoom .jj-seat[data-jj-visual="4"]:not(.is-hero) .jj-hole{
-    left:50%!important;right:auto!important;top:auto!important;bottom:100%!important;
+    left:50%!important;right:auto!important;top:auto!important;bottom:calc(100% + 8px)!important;
     transform:translateX(-50%)!important;
   }
   body.jj-poker-simple.jj-mobile-table-open #pokerRoom .jj-seat[data-jj-visual="3"]:not(.is-hero) .jj-hole{
-    left:50%!important;right:auto!important;top:calc(100% + 5px)!important;bottom:auto!important;
+    left:50%!important;right:auto!important;top:calc(100% + 8px)!important;bottom:auto!important;
     transform:translateX(-50%)!important;
   }
 
