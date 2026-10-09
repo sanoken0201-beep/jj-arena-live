@@ -149,6 +149,25 @@ _INJECTION = r"""
 def transform_app_js(js: str) -> str:
     if MARKER in js:
         return js
+
+    render_user = "$('#wallet').textContent='6MAX · 150BB';$('#homeWallet').textContent='150';"
+    if js.count(render_user) != 1:
+        raise RuntimeError("Ring buy-in user summary drift")
+    js = js.replace(
+        render_user,
+        "$('#wallet').textContent='6MAX · 2 TABLES';$('#homeWallet').textContent='2';",
+        1,
+    )
+
+    home_table = '<span>${x.players}/6 · 0.5/1bb · 150bb start</span>'
+    if js.count(home_table) != 1:
+        raise RuntimeError("Ring buy-in Home table summary drift")
+    js = js.replace(
+        home_table,
+        '<span>${x.players}/6 · 0.5/1bb · ${jjRingBuyinLabel(x)} buy-in</span>',
+        1,
+    )
+
     anchor = "\n})();"
     index = js.rfind(anchor)
     if index < 0:
