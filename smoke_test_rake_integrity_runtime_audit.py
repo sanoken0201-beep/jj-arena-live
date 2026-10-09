@@ -188,6 +188,25 @@ def main():
     assert configured["checks"]["current_rake_formula_violation"] == 0
     assert configured["checks"]["current_rake_bound_violation"] == 0
 
+    # The production integrity audit must not flag legitimately settled
+    # results under administrator-selected 5pt/BB, nor silently accept tampering.
+    rate_hand = dict(dynamic_hand, hand_id="rate-snapshot", points_per_bb=5)
+    rate_rows = [
+        {"id":"rate-snapshot:1","hand_id":"rate-snapshot","table_id":"jj-table-a",
+         "user_id":1,"result_bb":4.75,"points":23.75,"month":"2026-10"},
+        {"id":"rate-snapshot:2","hand_id":"rate-snapshot","table_id":"jj-table-a",
+         "user_id":2,"result_bb":-5.50,"points":-27.50,"month":"2026-10"},
+    ]
+    rate_history = [{"hand_id":"rate-snapshot","reached_street":"flop","player_count":2}]
+    variable_rate = audit.audit_rows([_table()], [rate_hand], rate_rows, rate_history)
+    assert variable_rate["status"] == "ok", variable_rate
+    assert variable_rate["checks"]["points_mismatch"] == 0
+    corrupted = list(rate_rows)
+    corrupted[0] = dict(corrupted[0], points=14.25)
+    detected = audit.audit_rows([_table()], [rate_hand], corrupted, rate_history)
+    assert detected["status"] == "warning"
+    assert detected["checks"]["points_mismatch"] == 1
+
     bad_table = _table()
     bad_table["state_json"] = json.dumps({
         "big_blind": 100,
