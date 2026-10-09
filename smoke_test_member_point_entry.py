@@ -32,17 +32,18 @@ def main() -> None:
     assert len(member_routes) == 1
 
     captured = {}
-    original = app.runtime_server.add_entry
+    original = app.club_entry_safety.apply_entry
     try:
-        def fake_add_entry(payload, user):
-            captured["name"] = payload.name
+        def fake_apply(db, server, payload, user, *, forced_name=None):
+            captured["name"] = forced_name
             captured["user_id"] = user["id"]
+            captured["request_id"] = payload.request_id
             return {"ok": True}
 
-        app.runtime_server.add_entry = fake_add_entry
+        app.club_entry_safety.apply_entry = fake_apply
         payload = app._SafePointEntry(
             name="OTHER",
-            request_id=None,
+            request_id="entry-" + "b" * 32,
             date="2026-09-28T18:30",
             reentries=0,
             initial=450,
@@ -54,9 +55,9 @@ def main() -> None:
             {"id": 7, "name": "メンバー", "ranking_name": "ランキング名"},
         )
         assert result == {"ok": True}
-        assert captured == {"name": "ランキング名", "user_id": 7}
+        assert captured == {"name": "ランキング名", "user_id": 7, "request_id": payload.request_id}
     finally:
-        app.runtime_server.add_entry = original
+        app.club_entry_safety.apply_entry = original
 
     print("MEMBER_POINT_ENTRY_OK")
 
