@@ -90,6 +90,10 @@ def main() -> None:
                 ]
             assert sorted(points) == [30, 50], points
 
+            # The isolated legacy init path can invalidate the original
+            # session cookie. Re-authenticate after the restart simulation.
+            client.cookies.clear()
+            login(client, "ケンイチロウ", "654321")
             rows = json_response(client.get("/api/rankings?season=fall"))
             rank = next(row for row in rows if row["name"] == "レートテスト")
             assert rank["online_raw_points"] == 80
