@@ -32,6 +32,12 @@ def main() -> None:
                 "game_type": "ring",
                 "chip_500": 1,
             }
+            no_request_id = dict(payload)
+            no_request_id.pop("request_id")
+            stale = client.post("/api/member/entries", json=no_request_id)
+            assert stale.status_code == 428, stale.text
+            assert "操作ID" in stale.text
+
             first = json_response(client.post("/api/member/entries", json=payload))
             replay = json_response(client.post("/api/member/entries", json=payload))
             assert replay["id"] == first["id"]

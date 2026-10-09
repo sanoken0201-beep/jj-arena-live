@@ -152,8 +152,15 @@ def apply_entry(db, server, payload, user, *, forced_name: str | None = None):
 
     request_id = str(getattr(payload, "request_id", "") or "").strip()
     if not request_id:
-        # Old clients have no replay key. Preserve the legacy endpoint; current
-        # clients always use a request ID and the atomic settlement path below.
+        if forced_name is not None:
+            # Member submissions must be replay-safe. Stale cached browsers
+            # cannot write unkeyed results that a retry would duplicate.
+            raise HTTPException(
+                428,
+                "ポイント入力画面を更新してから再送信してください（操作IDがありません）",
+            )
+        # Preserve administrator-only legacy/API scripts for now. The current
+        # browser sends a request ID and uses the atomic settlement path.
         return server.add_entry(core, user)
     if not _REQUEST_ID.fullmatch(request_id):
         raise HTTPException(400, "操作IDの形式が不正です")
