@@ -5,6 +5,8 @@ import time
 import uuid
 from fastapi import HTTPException
 
+import ring_inactivity_eviction
+
 
 def turn_id(state):
     hand=state.get('hand') or {}
@@ -75,6 +77,7 @@ def install(server,engine):
                     raise HTTPException(409,'操作時間を過ぎました。最新の状態を確認してください')
                 try:server.apply_action(state,user['id'],payload.action,payload.amount)
                 except ValueError as exc:raise HTTPException(400,str(exc)) from exc
+                ring_inactivity_eviction.record_manual_action(state,user['id'])
                 state['_processed_action_ids']=(processed+[receipt_key])[-120:]
                 server.arm_action_deadline(state)
                 server.save_table(state)

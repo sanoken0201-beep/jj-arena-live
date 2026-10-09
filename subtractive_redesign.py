@@ -29,8 +29,14 @@ def transform_index(source: str) -> str:
     html = _remove_primary_nav(html, "discussion")
 
     # Keep the existing Home composition; only make its table copy truthful.
-    html = html.replace("6-max固定・0.5/1bb・2卓。", "6-max固定・0.5/1bb・1卓。")
-    html = html.replace("2 TABLES · 6-MAX · 150BB", "1 TABLE · 6-MAX · VARIABLE BUY-IN")
+    html = html.replace("6-max固定・0.5/1bb・1卓。", "6-max固定・0.5/1bb・2卓。")
+    html = html.replace("2 TABLES · 6-MAX · 150BB", "2 TABLES · 6-MAX · VARIABLE BUY-IN")
+    html = html.replace("1 TABLE · 6-MAX · VARIABLE BUY-IN", "2 TABLES · 6-MAX · VARIABLE BUY-IN")
+    html = html.replace('<b id="wallet">6MAX · 150BB</b>', '<b id="wallet">6MAX · 2 TABLES</b>')
+    html = html.replace(
+        '<strong id="homeWallet">150</strong><span>BB START</span><p>6-max固定・0.5/1bb・2卓。着席時は毎回150bbから始まる練習テーブルです。</p>',
+        '<strong id="homeWallet">2</strong><span>TABLES</span><p>6-max固定・0.5/1bb・2卓。バイインは各卓の設定範囲から選択できます。</p>',
+    )
 
     # The calendar becomes part of the announcement workflow.  The legacy
     # schedule section remains in the DOM for rollback/data compatibility but
@@ -40,35 +46,30 @@ def transform_index(source: str) -> str:
     # The served-assets layer may already have shortened the canonical notice,
     # so support both the canonical and compiled forms here.
     html = html.replace(
-        "JJ内の練習用プレイマネーテーブルです。A/Bの2卓のみ、6-max、0.5/1bb、着席時150bb固定。各ハンドは10% rake・5bb capで、結果は1bb=3ptとして後期ランキングへ自動反映されます。テーブル画面との接続・操作が15分ない場合、ハンド終了後に自動離席します。",
-        "JJ内の練習用プレイマネーテーブルです。6-max、0.5/1bb、バイインは管理者設定の範囲から選択します。BBからランキングポイントへの換算は管理者設定のレートで行われます。15分無操作の場合はハンド終了後に自動離席します。",
+        "JJ内の練習用プレイマネーテーブルです。A/Bの2卓のみ、6-max、0.5/1bb、着席時150bb固定。各ハンドは10% rake・5bb capで、BBからランキングポイントへの換算は管理者設定のレートで行われます。テーブル画面との接続・操作が15分ない場合、ハンド終了後に自動離席します。",
+        "JJ内の練習用プレイマネーテーブルです。A/Bの2卓、6-max、0.5/1bb、バイインは管理者設定の範囲から選択します。結果は1bb=3ptとして後期ランキングへ自動反映されます。15分無操作の場合はハンド終了後に自動離席します。",
     )
-    for existing in (
+    html = html.replace(
         "プレイマネー｜6-max｜0.5/1bb｜バイイン可変｜rake 10%・5bb cap｜ランキング 1bb=3pt｜15分無操作でハンド終了後に自動離席",
-        "プレイマネー｜6-max｜0.5/1bb｜バイイン可変｜rake 10%・5bb cap｜ランキングのBB換算は管理者設定による｜15分無操作でハンド終了後に自動離席",
-    ):
-        html = html.replace(
-            existing,
-            "プレイマネー｜6-max｜0.5/1bb｜バイイン可変｜ランキングのBB換算は管理者設定による｜15分無操作でハンド終了後に自動離席",
-        )
+        "プレイマネー｜6-max｜0.5/1bb｜バイイン可変｜ランキングのBB換算は管理者設定による｜15分無操作でハンド終了後に自動離席",
+    )
 
     return html.replace("</body>", f"  <!-- {SUBTRACTIVE_RED282_MARKER} -->\n</body>", 1)
 
 
 _APP_PATCH = r'''
   // jj subtractive redesign 2026-09-15
-  // Keep one public ring table while retaining the second server table as a
-  // rollback-compatible implementation detail.
+  // Render every canonical public ring table returned by the API.
   renderLobby=async function(){
     if(currentTableId)return;
     $('#lobbyPanel').classList.remove('hidden');$('#pokerRoom').classList.add('hidden');
-    const raw=await api('/tables'),tables=Array.isArray(raw)?raw:[],t=tables[0];
-    $('#tableCards').innerHTML=t?(()=>{
+    const raw=await api('/tables'),tables=Array.isArray(raw)?raw:[];
+    $('#tableCards').innerHTML=tables.map(t=>{
       const seated=Number(t.seated||0),active=Number(t.players||0),maxSeats=Number(t.max_seats||6),full=seated>=maxSeats,extra=[];
       if(seated!==active)extra.push(`着席中 ${seated}/${maxSeats}`);
       if(Number(t.sitouts||0)>0)extra.push(`一時離席 ${Number(t.sitouts||0)}`);
-      return `<article class="lobby-card jj-sub-single-table"><div class="eyebrow ${t.status==='playing'?'status-live':''}">${t.status==='playing'?'● HAND IN PROGRESS':'OPEN TABLE'}</div><h4>${safe(t.name||'JJ Ring')}</h4><div class="lobby-stats"><span>参加者 ${active}/${maxSeats}</span>${extra.map(x=>`<span>${x}</span>`).join('')}<span>0.5 / 1 bb</span><span>バイインは卓設定</span></div><p class="hint">観戦だけでも入れます。プレイする場合は「着席する」を押してください。</p><div class="jj-lobby-actions"><button class="soft" data-open-table="${safe(t.id)}">観戦する</button><button class="primary" data-jj-join="${safe(t.id)}" ${full?'disabled':''}>${full?'満席':'着席する'}</button></div></article>`;
-    })():'<div class="card empty">テーブルがありません</div>';
+      return `<article class="lobby-card jj-sub-public-table"><div class="eyebrow ${t.status==='playing'?'status-live':''}">${t.status==='playing'?'● HAND IN PROGRESS':'OPEN TABLE'}</div><h4>${safe(t.name||'JJ Ring')}</h4><div class="lobby-stats"><span>参加者 ${active}/${maxSeats}</span>${extra.map(x=>`<span>${x}</span>`).join('')}<span>0.5 / 1 bb</span><span>バイインは卓設定</span></div><p class="hint">観戦だけでも入れます。プレイする場合は「着席する」を押してください。</p><div class="jj-lobby-actions"><button class="soft" data-open-table="${safe(t.id)}">観戦する</button><button class="primary" data-jj-join="${safe(t.id)}" ${full?'disabled':''}>${full?'満席':'着席する'}</button></div></article>`;
+    }).join('')||'<div class="card empty">テーブルがありません</div>';
   };
 
   // Preserve the fully hardened action renderer (clock, pending-state,
@@ -109,13 +110,11 @@ _APP_PATCH = r'''
     if(meta)meta.textContent=String(meta.textContent||'').replace(/\s*[·|]\s*rake.*$/i,'').replace(/\s+rake.*$/i,'');
   };
 
-  // Home keeps its current layout.  Only constrain the live-table card to the
-  // single public table and allow dated announcements to drive "next session".
+  // Home keeps both public table summaries and lets dated announcements drive
+  // the "next session" card.
   const jjSubBaseRenderHome=renderHome;
   renderHome=async function(){
     await jjSubBaseRenderHome();
-    const tableHost=$('#homeTables');
-    if(tableHost){const items=[...tableHost.children];items.slice(1).forEach(el=>el.remove())}
     try{
       const announcements=await api('/announcements'),today=new Date().toISOString().slice(0,10);
       const upcoming=(Array.isArray(announcements)?announcements:[]).filter(x=>x?.date&&x.date>=today&&x.kind!=='external').sort((a,b)=>String(a.date).localeCompare(String(b.date)))[0];
@@ -172,7 +171,7 @@ _CSS_PATCH = r'''
 #actionBar .jj-sub-manual-stepper label{display:flex;align-items:center;gap:6px}
 #actionBar .jj-sub-manual-stepper input#raiseTo{min-width:110px;text-align:center;font-variant-numeric:tabular-nums}
 #actionBar .jj-sub-bet-hint{flex-basis:100%;text-align:center;color:#9fb2aa;font-size:.64rem;line-height:1.35}
-#tablesView .jj-sub-single-table{grid-column:1/-1;width:min(100%,720px);max-width:720px;margin-inline:auto}
+#tablesView .jj-sub-public-table{min-width:0}
 @media(max-width:760px){
   #pokerRoom .poker-layout{display:block!important}
   #actionBar .jj-sub-manual-stepper input#raiseTo{min-width:96px;font-size:1rem}
