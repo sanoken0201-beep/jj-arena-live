@@ -129,16 +129,19 @@ def _strip_phase4c_extensions(payload: dict) -> dict:
     ]
 
     online_columns = columns.get("online_hands", [])
-    added_online = [str(row.get("name")) for row in online_columns if str(row.get("name")) in {"rake_percent", "rake_cap_bb"}]
-    assert added_online == ["rake_percent", "rake_cap_bb"], added_online
+    # The online conversion rate is a root-level audited extension just like
+    # the rake snapshot. Strip only these three documented history columns.
+    extension_online = {"rake_percent", "rake_cap_bb", "points_per_bb"}
+    added_online = [str(row.get("name")) for row in online_columns if str(row.get("name")) in extension_online]
+    assert added_online == ["rake_percent", "rake_cap_bb", "points_per_bb"], added_online
     columns["online_hands"] = [
         row for row in online_columns
-        if str(row.get("name")) not in {"rake_percent", "rake_cap_bb"}
+        if str(row.get("name")) not in extension_online
     ]
     for row in clone["sqlite"]["objects"]:
         if str(row.get("type")) == "table" and str(row.get("name")) == "online_hands":
             sql = str(row.get("sql") or "")
-            sql = sql.replace(", rake_percent NUMERIC", "").replace(", rake_cap_bb NUMERIC", "")
+            sql = sql.replace(", rake_percent NUMERIC", "").replace(", rake_cap_bb NUMERIC", "").replace(", points_per_bb NUMERIC", "")
             row["sql"] = sql
     return clone
 
