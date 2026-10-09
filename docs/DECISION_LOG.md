@@ -236,3 +236,27 @@ Validation: Ring API regression covers missing/stale identity, late actions, act
 The existing security-header policy is applied outside the complete ASGI middleware stack, including asset short circuits, HEAD/304, CSRF rejection and unhandled HTTP 500 responses. Transport/cache headers and streaming are preserved. The wrapper is installed through the shared security extension for production and legacy paths without modifying the materialized core.
 
 Admin copy, CSV hardening and extension references are committed as final source. Startup no longer invokes admin_copy_patch; it remains an explicit maintenance utility. Regression checks cover response headers and unchanged admin contents/mtimes across both application lifecycles.
+
+## D-026 — Online Ring conversion snapshots and completed-point immutability
+
+**Date:** 2026-10-09  
+**Status:** Accepted for PR review
+
+The administrator's `online_points_per_bb` setting applies to newly started
+Ring hands, not to hands already in progress. Each started hand persists a
+`points_per_bb_snapshot` in its authoritative hand state. Once settled, the
+resulting points and effective rate are stored transactionally; duplicate
+settlement and subsequent app restarts do not reprice the historical rows.
+Raw `result_bb` remains independent of the official points and any scoped
+manual adjustment. An in-progress hand from before this rollout that has no
+rate snapshot uses the effective rate at settlement as an explicit legacy
+fallback; it cannot infer an unrecorded previous rate.
+
+One tightly scoped exception to the otherwise immutable materialized core
+removes its startup bulk `UPDATE online_hand_results SET points=result_bb*3`.
+The Golden Master manifest is updated for the changed source. This is a
+non-destructive compatibility correction, not authorization to freely edit
+the legacy core. Existing historical rows that were already repriced before
+this fix are not automatically reconstructed: back up production, reconcile
+available settings/audit evidence and only apply separately reviewed repairs.
+The Ring rakeback policy remains unchanged and independent of this patch.
