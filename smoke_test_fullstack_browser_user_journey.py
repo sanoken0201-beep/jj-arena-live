@@ -53,7 +53,10 @@ DRIVER = r'''
     await waitFor(() => !document.getElementById('appView').classList.contains('hidden') && document.getElementById('userName').textContent === 'ブラウザユーザー', 'real login');
     checks.realLogin = true;
     checks.memberAdminHidden = [...document.querySelectorAll('.admin-only')].every(el => el.classList.contains('hidden'));
-    await waitFor(() => document.getElementById('homeTables').textContent.includes('JJ Table A'), 'home tables');
+    await waitFor(() => {
+      const homeTables=document.getElementById('homeTables').textContent;
+      return homeTables.includes('JJ Table A')&&homeTables.includes('JJ Table B');
+    }, 'home tables A/B');
     await waitFor(() => document.getElementById('jjHomeHubGrid')?.textContent.includes('今日のクイズ') === true, 'home overview');
     checks.home = true;
 
@@ -73,10 +76,15 @@ DRIVER = r'''
     checks.retiredDiscussionAbsent = !document.querySelector('.sidebar .nav[data-view="discussion"]');
 
     await go('tables');
-    await waitFor(() => document.querySelector('[data-open-table="jj-table-a"]'), 'table A open');
-    const tableHost=document.getElementById('tableCards'),lobbyCard=tableHost.querySelector('.jj-sub-single-table');
-    const hostRect=tableHost.getBoundingClientRect(),lobbyRect=lobbyCard?.getBoundingClientRect();
-    checks.singleTableLayout=!!lobbyRect&&lobbyRect.width<=722&&Math.abs((lobbyRect.left+lobbyRect.right-hostRect.left-hostRect.right)/2)<=3;
+    await waitFor(() => document.querySelector('[data-open-table="jj-table-a"]')&&document.querySelector('[data-open-table="jj-table-b"]'), 'table A/B open');
+    const tableHost=document.getElementById('tableCards'),lobbyCards=[...tableHost.querySelectorAll('.jj-sub-public-table')];
+    const hostRect=tableHost.getBoundingClientRect(),lobbyRects=lobbyCards.map(card=>card.getBoundingClientRect());
+    const mobileLobby=window.matchMedia('(max-width:760px)').matches;
+    const contained=lobbyRects.every(rect=>rect.width>0&&rect.left>=hostRect.left-1&&rect.right<=hostRect.right+1);
+    const arranged=mobileLobby
+      ? lobbyRects.length===2&&lobbyRects[1].top>=lobbyRects[0].bottom-1
+      : lobbyRects.length===2&&Math.abs(lobbyRects[0].top-lobbyRects[1].top)<=4;
+    checks.twoTableLayout=lobbyCards.length===2&&contained&&arranged;
     document.querySelector('[data-open-table="jj-table-a"]').click();
     await waitFor(() => !document.getElementById('pokerRoom').classList.contains('hidden') && document.querySelector('#seatLayer [data-seat="0"]'), 'poker room');
     const metaRect=document.getElementById('roomMeta').getBoundingClientRect();
