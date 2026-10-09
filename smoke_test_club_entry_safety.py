@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import uuid
+from unittest.mock import patch
 
 from fastapi.testclient import TestClient
 
@@ -49,6 +50,46 @@ def main() -> None:
             assert rows[0]["name"] == own_name
             assert float(rows[0]["points"]) == 50
             assert len(claims) == 1 and claims[0]["response_json"]
+
+            # Failure after the entry INSERT must roll back the entry and the
+            # request claim together. A retry can then settle exactly once.
+            failed_id = _request_id()
+            atomic_payload = dict(payload, request_id=failed_id, chip_500=2)
+            input_model = production._SafePointEntry(**atomic_payload)
+            safety = production.club_entry_safety
+            original_writer = safety._record_entry
+
+            def abort_after_insert(con, db, core, actor):
+                original_writer(con, db, core, actor)
+                raise RuntimeError("simulated crash after entry write")
+
+            with patch.object(safety, "_record_entry", side_effect=abort_after_insert):
+                try:
+                    safety.apply_entry(
+                        production.db, production.runtime_server,
+                        input_model, user, forced_name=own_name,
+                    )
+                except RuntimeError as exc:
+                    assert "simulated crash" in str(exc)
+                else:
+                    raise AssertionError("injected entry write should fail")
+            with production.db.connect() as con:
+                count_after_failure = con.execute(
+                    "SELECT COUNT(*) n FROM entries WHERE created_by=?", (uid,),
+                ).fetchone()["n"]
+                partial_receipt = con.execute(
+                    "SELECT request_id FROM club_entry_requests WHERE actor_id=? AND request_id=?",
+                    (uid, failed_id),
+                ).fetchone()
+            assert count_after_failure == 1, "failed atomic entry leaked into official results"
+            assert partial_receipt is None, "failed entry stranded an idempotency receipt"
+            settled_after_retry = json_response(client.post("/api/member/entries", json=atomic_payload))
+            assert settled_after_retry["points"] == 550
+            assert json_response(client.post("/api/member/entries", json=atomic_payload))["id"] == settled_after_retry["id"]
+            with production.db.connect() as con:
+                assert con.execute(
+                    "SELECT COUNT(*) n FROM entries WHERE created_by=?", (uid,),
+                ).fetchone()["n"] == 2
 
             changed = dict(payload)
             changed["chip_500"] = 2

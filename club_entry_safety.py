@@ -101,14 +101,59 @@ def _identity(payload) -> str:
     return json.dumps(values, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
 
 
+def _record_entry(con, db, core, user):
+    """Record the validated club result on the caller's DB transaction.
+
+    Mirror the materialized v1.24.4 `server.add_entry` row contract, but do not
+    open a second connection: the request receipt and point entry MUST commit
+    together or roll back together.
+    """
+    game_type = core.game_type.strip().lower()
+    ring_initials = {
+        450: "450 / blind 1-3-3",
+        900: "900 / blind 2-5-5",
+        2000: "2000 / blind 5-10-10",
+    }
+    tournament_initials = {
+        300: "300 / tournament", 400: "400 / tournament",
+        500: "500 / tournament", 600: "600 / tournament",
+        800: "800 / tournament", 1000: "1000 / tournament",
+    }
+    initial_map = ring_initials if game_type == "ring" else tournament_initials
+    counts = {
+        1: core.chip_1, 5: core.chip_5, 10: core.chip_10,
+        25: core.chip_25, 100: core.chip_100, 500: core.chip_500,
+    }
+    remaining = sum(value * count for value, count in counts.items())
+    points = remaining - (core.reentries + 1) * core.initial
+    entry_id = "live-" + uuid.uuid4().hex
+    con.execute(
+        """INSERT INTO entries(
+           id,date,name,remaining,reentries,initial,points,game,game_type,
+           source,created_by,created_at,chip_1,chip_5,chip_10,chip_25,chip_100,chip_500
+           ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+        (
+            entry_id, core.date, core.name.strip(), remaining,
+            core.reentries, core.initial, points, initial_map[core.initial],
+            game_type, "JJ Arena Live", user["id"], db.utcnow(),
+            core.chip_1, core.chip_5, core.chip_10,
+            core.chip_25, core.chip_100, core.chip_500,
+        ),
+    )
+    return {
+        "id": entry_id, "remaining": remaining, "points": points,
+        "chips": {str(k): v for k, v in counts.items()},
+    }
+
+
 def apply_entry(db, server, payload, user, *, forced_name: str | None = None):
     core = _core_payload(server, payload, forced_name=forced_name)
     _validate(db, server, core)
 
     request_id = str(getattr(payload, "request_id", "") or "").strip()
     if not request_id:
-        # Backward-compatible stale clients still receive all validation. The
-        # current browser supplies a request ID and therefore gets replay safety.
+        # Old clients have no replay key. Preserve the legacy endpoint; current
+        # clients always use a request ID and the atomic settlement path below.
         return server.add_entry(core, user)
     if not _REQUEST_ID.fullmatch(request_id):
         raise HTTPException(400, "操作IDの形式が不正です")
@@ -128,27 +173,26 @@ def apply_entry(db, server, payload, user, *, forced_name: str | None = None):
                    WHERE actor_id=? AND request_id=?""",
                 (actor_id, request_id),
             ).fetchone()
+            if row is None:
+                raise HTTPException(409, "操作の記録を確認できません。履歴を確認してください")
             if row["payload_json"] != identity:
                 raise HTTPException(409, "同じ操作IDで異なる結果は送信できません")
             if row["response_json"]:
                 return json.loads(row["response_json"])
+            # Old, already-partial receipts cannot be safely auto-replayed:
+            # their entry may have committed before the response was lost.
             raise HTTPException(409, "同じ結果を処理中です。履歴を確認してから再操作してください")
 
-    try:
-        result = server.add_entry(core, user)
-    except Exception:
-        with db.connect() as con:
-            con.execute(
-                "DELETE FROM club_entry_requests WHERE actor_id=? AND request_id=? AND response_json IS NULL",
-                (actor_id, request_id),
-            )
-        raise
-
-    with db.connect() as con:
+        # A single transaction owns claim, result, and receipt. A crash or SQL
+        # failure cannot strand a claim or write an unacknowledged club entry.
+        result = _record_entry(con, db, core, user)
         con.execute(
             """UPDATE club_entry_requests SET response_json=?
                WHERE actor_id=? AND request_id=?""",
-            (json.dumps(result, ensure_ascii=False, separators=(",", ":")), actor_id, request_id),
+            (
+                json.dumps(result, ensure_ascii=False, separators=(",", ":")),
+                actor_id, request_id,
+            ),
         )
     return result
 
