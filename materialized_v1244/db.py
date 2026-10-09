@@ -367,9 +367,9 @@ def init_db():
         _migrate_legacy_beta(con); con.executescript(schema); _ensure_access_columns(con); _ensure_online_hand_columns(con); _ensure_entry_chip_columns(con)
         _scrub_legacy_emails(con)
         _ensure_pin_admin(con)
-        # Online ranking points are a derived value. Keep all historical rows aligned
-        # with the current 1bb -> point conversion rule after upgrades.
-        con.execute("UPDATE online_hand_results SET points=result_bb * ?", (ONLINE_POINTS_PER_BB,))
+        # Do not reprice completed hands on startup: the per-hand conversion
+        # rate in effect when a hand started is part of its finalized result.
+        # Historical points (including pre-snapshot rows) are immutable here.
         # Import the original beta's aggregate table once if present.
         if IS_POSTGRES and _pg_columns(con, "historical") and con.execute("SELECT COUNT(*) c FROM entries").fetchone()["c"] == 0:
             for r in con.execute("SELECT name,month,points FROM historical").fetchall():
