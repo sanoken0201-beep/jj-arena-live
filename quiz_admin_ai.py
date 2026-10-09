@@ -16,6 +16,16 @@ from quiz_bank import CATEGORY_LABELS, POOLS
 OPENAI_RESPONSES_URL = "https://api.openai.com/v1/responses"
 DEFAULT_QUIZ_MODEL = "gpt-6-luna"
 
+# Older admin pages exposed focus labels that are not among the 10 daily quiz buckets.
+# Normalize them to existing buckets without changing daily quiz size or rotation.
+LEGACY_GPT_CATEGORY_ALIASES = {
+    "preflop": "range",
+    "board_texture": "hand_reasoning",
+    "position": "range",
+    "tournament": "icm",
+    "rules": "vocabulary",
+}
+
 
 class QuizQuestionIn(BaseModel):
     category: str
@@ -56,7 +66,7 @@ class QuizGPTAddIn(BaseModel):
     def valid_category(cls, value: str | None) -> str | None:
         if value is None:
             return None
-        value = value.strip()
+        value = LEGACY_GPT_CATEGORY_ALIASES.get(value.strip(), value.strip())
         if value not in POOLS:
             raise ValueError("未知のクイズカテゴリです")
         return value
