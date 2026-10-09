@@ -32,6 +32,7 @@ import sitngo_process_guard
 import sitngo_resilience
 import timebank_rules
 import ring_action_safety
+import ring_inactivity_eviction
 import ring_admin_config
 import read_efficiency
 
@@ -48,6 +49,7 @@ sitngo_resilience.install(sitngo_runtime)
 timebank_rules.install_ring(runtime_server, runtime_poker_engine)
 timebank_rules.install_sitngo(sitngo_runtime)
 ring_action_safety.install(runtime_server, runtime_poker_engine)
+ring_inactivity_eviction.install(runtime_server, runtime_poker_engine)
 
 from served_assets import (
     ASSET_VERSION,
