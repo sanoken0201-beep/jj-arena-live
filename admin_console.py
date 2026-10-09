@@ -4,6 +4,7 @@ import json, math, re, uuid
 import sys
 import admin_point_safety
 from datetime import datetime, timezone
+from decimal import Decimal
 from pathlib import Path
 from typing import Any, Literal
 from fastapi import Depends, HTTPException
@@ -33,7 +34,7 @@ class AdminPinReset(BaseModel):
     pin:str=Field(min_length=6,max_length=6)
 
 class AdminSettingsPatch(BaseModel):
-    online_points_per_bb:float|None=Field(default=None,gt=0,le=100)
+    online_points_per_bb:Decimal|None=Field(default=None,ge=Decimal("0.01"),le=Decimal("100"),decimal_places=2)
     manual_adjustment_limit:float|None=Field(default=None,gt=0,le=1_000_000)
 
 def _now(db):
@@ -319,7 +320,7 @@ def install_admin_console(app):
     def update_settings(p:AdminSettingsPatch,user=Depends(server.admin_user)):
         changed={}
         if p.online_points_per_bb is not None:
-            rate=_pt(p.online_points_per_bb);_set(db,"online_points_per_bb",str(rate),int(user["id"]));db.ONLINE_POINTS_PER_BB=rate;changed["online_points_per_bb"]=rate
+            rate=_pt(float(p.online_points_per_bb));_set(db,"online_points_per_bb",str(rate),int(user["id"]));db.ONLINE_POINTS_PER_BB=rate;changed["online_points_per_bb"]=rate
         if p.manual_adjustment_limit is not None:
             cap=_pt(p.manual_adjustment_limit);_set(db,"manual_adjustment_limit",str(cap),int(user["id"]));changed["manual_adjustment_limit"]=cap
         if changed:_audit(db,int(user["id"]),"settings.update",None,changed=changed)
