@@ -42,6 +42,7 @@ def main() -> None:
                 for relative in first["outputs"]
             }
             compiled_js = (root / "static" / "app.js").read_text(encoding="utf-8")
+            compiled_index = (root / "index.html").read_text(encoding="utf-8")
             ranking_guard = (
                 "const jjRankingIdentity=String(me.id||me.ranking_name||me.name||'');"
                 "if(box.dataset.jjRankingIdentity!==jjRankingIdentity)"
@@ -55,6 +56,10 @@ def main() -> None:
             assert 'class="lobby-card jj-sub-public-table"' in compiled_js, (
                 "variable buy-in lobby must preserve the two-table layout contract"
             )
+            assert "6MAX · 2 TABLES" in compiled_index
+            assert '<strong id="homeWallet">2</strong><span>TABLES</span>' in compiled_index
+            assert "着席時は毎回150bb" not in compiled_index
+            assert "${jjRingBuyinLabel(x)} buy-in" in compiled_js
             assert "rakeLabel.className='jj-ring-rake'" in compiled_js, (
                 "Ring rake display must preserve the structured pot presentation"
             )
@@ -64,8 +69,8 @@ def main() -> None:
             assert "v84 mobile poker seat-card clearance 2026-10-08" in compiled_js, (
                 "compiled browser asset must include mobile opponent-card and hand-log repairs"
             )
-            assert served_assets.ASSET_VERSION == 85, (
-                "browser asset version must advance with the two-table lobby contract"
+            assert served_assets.ASSET_VERSION == 86, (
+                "browser asset version must advance with the two-table visibility copy fix"
             )
             second = served_assets.build_all(root)
             served_assets.validate_built_assets(root)

@@ -32,6 +32,11 @@ def transform_index(source: str) -> str:
     html = html.replace("6-max固定・0.5/1bb・1卓。", "6-max固定・0.5/1bb・2卓。")
     html = html.replace("2 TABLES · 6-MAX · 150BB", "2 TABLES · 6-MAX · VARIABLE BUY-IN")
     html = html.replace("1 TABLE · 6-MAX · VARIABLE BUY-IN", "2 TABLES · 6-MAX · VARIABLE BUY-IN")
+    html = html.replace('<b id="wallet">6MAX · 150BB</b>', '<b id="wallet">6MAX · 2 TABLES</b>')
+    html = html.replace(
+        '<strong id="homeWallet">150</strong><span>BB START</span><p>6-max固定・0.5/1bb・2卓。着席時は毎回150bbから始まる練習テーブルです。</p>',
+        '<strong id="homeWallet">2</strong><span>TABLES</span><p>6-max固定・0.5/1bb・2卓。バイインは各卓の設定範囲から選択できます。</p>',
+    )
 
     # The calendar becomes part of the announcement workflow.  The legacy
     # schedule section remains in the DOM for rollback/data compatibility but
