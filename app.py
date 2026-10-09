@@ -250,33 +250,33 @@ async def _leave_after_hand(
 
 
 @app.get("/api/tables", include_in_schema=False)
-def _single_public_table_list(user=Depends(runtime_server.current_user)):
-    """Expose exactly one ring table to players, including stale cached clients.
+def _public_table_list(user=Depends(runtime_server.current_user)):
+    """Expose every canonical fixed ring table through the decorated public API.
 
-    The immutable materialized core retains both historical fixed tables for
-    rollback/data compatibility. The public contract is narrower and returns
-    only the first canonical table.
+    The immutable materialized core already owns the A/B table lifecycle. This
+    integration route keeps the variable-buy-in/rake summary decoration while
+    publishing both canonical tables to current and stale cached clients.
     """
     tables = runtime_server.tables(user)
-    return ring_admin_config.decorate_table_summaries(db, tables[:1])
+    public_count = len(getattr(db, "FIXED_TABLES", ()))
+    return ring_admin_config.decorate_table_summaries(db, tables[:public_count])
 
 
-def _prioritize_single_public_table_route() -> None:
-    """Put the one-table route ahead of the canonical two-table route.
+def _prioritize_public_table_route() -> None:
+    """Put the decorated public-table route ahead of the materialized route.
 
     FastAPI resolves duplicate method/path routes by registration order. The
-    materialized core registered its historical GET /api/tables route long
-    before this integration shim, so merely registering a replacement route is
-    insufficient. Move this exact APIRoute ahead of every other matching GET
-    route and assert the invariant at startup.
+    materialized core registered GET /api/tables before this integration shim,
+    so move this exact APIRoute ahead of every other matching GET route and
+    assert the invariant at startup.
     """
     routes = list(app.router.routes)
     replacement = next(
-        (route for route in routes if getattr(route, "endpoint", None) is _single_public_table_list),
+        (route for route in routes if getattr(route, "endpoint", None) is _public_table_list),
         None,
     )
     if replacement is None:
-        raise RuntimeError("single public table route is missing")
+        raise RuntimeError("public table route is missing")
 
     routes.remove(replacement)
     matching_indexes = [
@@ -297,8 +297,8 @@ def _prioritize_single_public_table_route() -> None:
         if getattr(route, "path", None) == "/api/tables"
         and "GET" in (getattr(route, "methods", None) or set())
     )
-    if getattr(first_match, "endpoint", None) is not _single_public_table_list:
-        raise RuntimeError("single public table route precedence was not established")
+    if getattr(first_match, "endpoint", None) is not _public_table_list:
+        raise RuntimeError("public table route precedence was not established")
 
 
 # Sit&Go is a root-level integration layer. The immutable v1.24.4 ring core is
@@ -307,15 +307,15 @@ def _prioritize_single_public_table_route() -> None:
 _sitngo_service = sitngo.install(app, db, runtime_server)
 
 # First repair all late extension routes around the SPA fallback, then establish
-# the stricter duplicate-route ordering required for GET /api/tables.
+# the decorated duplicate-route ordering required for GET /api/tables.
 _materialized._prioritize_extension_routes(app, _materialized._CORE_ROUTE_IDS)
 _prioritize_safe_point_entry_route()
-_prioritize_single_public_table_route()
+_prioritize_public_table_route()
 read_efficiency.install(
     app,
     runtime_server,
     db,
-    public_table_limit=1,
+    public_table_limit=len(getattr(db, "FIXED_TABLES", ())),
     table_decorator=lambda rows, con=None: ring_admin_config.decorate_table_summaries(
         db,
         rows,
