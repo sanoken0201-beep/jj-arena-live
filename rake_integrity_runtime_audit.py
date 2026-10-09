@@ -10,6 +10,7 @@ compact JSON log line without member names, emails, or other personal data.
 """
 
 from collections import Counter, defaultdict
+from decimal import Decimal
 from datetime import datetime, timezone
 import json
 import math
@@ -89,7 +90,7 @@ def _read_rows(db) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[dic
             con.execute("SET TRANSACTION READ ONLY")
         tables = [_dict(r) for r in con.execute("SELECT id,name,state_json FROM tables").fetchall()]
         hands = [_dict(r) for r in con.execute(
-            "SELECT hand_id,table_id,gross_pot_bb,rake_bb,played_at,month,voided,rake_percent,rake_cap_bb FROM online_hands"
+            "SELECT hand_id,table_id,gross_pot_bb,rake_bb,played_at,month,voided,rake_percent,rake_cap_bb,points_per_bb FROM online_hands"
         ).fetchall()]
         results = [_dict(r) for r in con.execute(
             "SELECT id,hand_id,table_id,user_id,result_bb,points,month FROM online_hand_results"
@@ -150,8 +151,17 @@ def audit_rows(
         if row.get("table_id") != hand.get("table_id") or row.get("month") != hand.get("month"):
             flag("hand_result_metadata_mismatch", hid)
         seen_users[(hid, row.get("user_id"))] += 1
-        if abs(_float(row.get("points")) - round(_float(row.get("result_bb")) * 3.0, 2)) > 0.001:
+        # Finalized hands retain the rate captured at hand start. Historic
+        # hands have NULL points_per_bb and used the original fixed 3pt/BB.
+        stored_rate = hand.get("points_per_bb")
+        rate = Decimal("3") if stored_rate is None else Decimal(str(stored_rate))
+        if not rate.is_finite() or rate <= 0 or rate > 100:
             flag("points_mismatch", hid)
+        else:
+            expected = (Decimal(str(row.get("result_bb") or 0)) * rate).quantize(Decimal("0.01"))
+            actual = Decimal(str(row.get("points") or 0))
+            if abs(actual - expected) > Decimal("0.001"):
+                flag("points_mismatch", hid)
 
     for (hid, _uid), n in seen_users.items():
         if n > 1:
