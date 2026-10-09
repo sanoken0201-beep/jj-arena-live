@@ -1,7 +1,7 @@
 (()=>{
   const $=s=>document.querySelector(s);
   const safe=v=>String(v??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
-  async function api(path,options={}){const res=await fetch('/api'+path,{credentials:'include',...options,headers:{'Content-Type':'application/json',...(options.headers||{})}});let data=null;try{data=await res.json()}catch{}if(!res.ok)throw new Error(typeof data?.detail==='string'?data.detail:`HTTP ${res.status}`);return data}
+  async function api(path,options={}){const res=await fetch('/api'+path,{credentials:'include',...options,headers:{'Content-Type':'application/json',...(options.headers||{})}});let data=null;try{data=await res.json()}catch{}if(!res.ok){const detail=data?.detail;const message=typeof detail==='string'?detail:Array.isArray(detail)?detail.map(item=>item?.msg||'').filter(Boolean).join(' / '):'';throw new Error(message||`HTTP ${res.status}`)}return data}
   async function load(){
     const rows=await api('/admin/console/quiz/questions');
     const box=$('#quizCustomList');if(!box)return;
