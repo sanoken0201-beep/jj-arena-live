@@ -409,6 +409,11 @@ def _install_hand_snapshot(server, db, poker_engine) -> None:
         _apply_state_rake(state, cfg)
         result = base_start(state)
         _snapshot_hand_rake(state, cfg)
+        hand = state.get("hand")
+        if isinstance(hand, dict):
+            # The administrator may change the conversion during this hand.
+            # Pin the ranking rate when the hand starts, just like the rake.
+            hand["points_per_bb_snapshot"] = str(_rake_points_per_bb(db))
         return result
 
     server.start_hand = start_hand_with_config
@@ -438,21 +443,47 @@ def _install_hand_history_policy(db) -> None:
         if db.IS_POSTGRES:
             con.execute("ALTER TABLE online_hands ADD COLUMN IF NOT EXISTS rake_percent NUMERIC")
             con.execute("ALTER TABLE online_hands ADD COLUMN IF NOT EXISTS rake_cap_bb NUMERIC")
+            con.execute("ALTER TABLE online_hands ADD COLUMN IF NOT EXISTS points_per_bb NUMERIC")
         else:
             columns = {str(row["name"]) for row in con.execute("PRAGMA table_info(online_hands)").fetchall()}
             if "rake_percent" not in columns:
                 con.execute("ALTER TABLE online_hands ADD COLUMN rake_percent NUMERIC")
             if "rake_cap_bb" not in columns:
                 con.execute("ALTER TABLE online_hands ADD COLUMN rake_cap_bb NUMERIC")
+            if "points_per_bb" not in columns:
+                con.execute("ALTER TABLE online_hands ADD COLUMN points_per_bb NUMERIC")
 
     original = db._record_online_hand
     if getattr(original, "_jj_ring_config_wrapped", False):
         return
 
     def record_with_policy(con, state):
+        hand = state.get("hand") or {}
+        hand_id = str(hand.get("id") or "")
+        completed = hand.get("phase") == "complete" and bool(hand_id)
+        # A replay must never revalue an already finalized hand.
+        already_recorded = bool(con.execute(
+            "SELECT 1 FROM online_hands WHERE hand_id=?", (hand_id,)
+        ).fetchone()) if completed else False
+
         result = original(con, state)
-        if result and result.get("hand_id"):
-            hand = state.get("hand") or {}
+        if result and result.get("hand_id") and not already_recorded:
+            rate = Decimal(str(
+                hand.get("points_per_bb_snapshot")
+                if hand.get("points_per_bb_snapshot") is not None
+                else getattr(db, "ONLINE_POINTS_PER_BB", 3)
+            ))
+            if not rate.is_finite() or rate <= 0 or rate > 100:
+                raise RuntimeError("Invalid online hand point conversion snapshot")
+            # Base core still inserts using its live multiplier. Correct those
+            # just-inserted rows inside the SAME settlement transaction.
+            for item in result.get("results", []):
+                points = _round_amount(Decimal(str(item["result_bb"])) * rate)
+                con.execute(
+                    "UPDATE online_hand_results SET points=? WHERE id=? AND hand_id=?",
+                    (points, f'{result["hand_id"]}:{int(item["user_id"])}', result["hand_id"]),
+                )
+                item["points"] = points
             fraction = hand.get("rake_percent_snapshot")
             cap_bb = hand.get("rake_cap_bb_snapshot")
             if fraction is None:
@@ -464,8 +495,8 @@ def _install_hand_history_policy(db) -> None:
                 else:
                     cap_bb = Decimal(str(getattr(db, "RAKE_CAP_BB", 3)))
             con.execute(
-                "UPDATE online_hands SET rake_percent=?,rake_cap_bb=? WHERE hand_id=?",
-                (float(fraction), float(cap_bb), result["hand_id"]),
+                "UPDATE online_hands SET rake_percent=?,rake_cap_bb=?,points_per_bb=? WHERE hand_id=?",
+                (float(fraction), float(cap_bb), float(rate), result["hand_id"]),
             )
         return result
 
