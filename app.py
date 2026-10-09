@@ -178,7 +178,7 @@ def _poker_config(user=Depends(runtime_server.current_user)):
         "timebank_cards": timebank_rules.TIMEBANK_CARDS,
         "timebank_card_seconds": timebank_rules.TIMEBANK_CARD_SECONDS,
         "timebank_forced_use": True,
-        "ranking_points_per_bb": 3,
+        "ranking_points_per_bb": float(db.ONLINE_POINTS_PER_BB),
         **ring,
     }
 
