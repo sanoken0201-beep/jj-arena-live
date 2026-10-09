@@ -58,7 +58,11 @@ DRIVER = r'''
       return homeTables.includes('JJ Table A')&&homeTables.includes('JJ Table B');
     }, 'home tables A/B');
     await waitFor(() => document.getElementById('jjHomeHubGrid')?.textContent.includes('今日のクイズ') === true, 'home overview');
+    const homeTableText=document.getElementById('homeTables').textContent;
     checks.home = true;
+    checks.twoTableHeader=document.getElementById('wallet').textContent.includes('2 TABLES');
+    checks.twoTableKpi=document.getElementById('homeWallet').textContent==='2';
+    checks.dynamicBuyinCopy=homeTableText.includes('buy-in')&&!homeTableText.includes('150bb start');
 
     await go('lab');
     await waitFor(() => document.querySelectorAll('#quizChoices [data-daily-answer]').length >= 4, 'daily quiz choices');
@@ -116,6 +120,11 @@ DRIVER = r'''
     checks.structuredPot=!!pot?.querySelector('b')&&!!pot?.querySelector('.jj-ring-rake')&&pot.getBoundingClientRect().right<=innerWidth+1;
     document.getElementById('backLobby').click();
     await waitFor(() => !document.getElementById('lobbyPanel').classList.contains('hidden'), 'back lobby');
+    document.querySelector('[data-open-table="jj-table-b"]').click();
+    await waitFor(() => !document.getElementById('pokerRoom').classList.contains('hidden') && document.getElementById('roomTitle').textContent.includes('JJ Table B'), 'table B spectate');
+    checks.tableBVisible=true;
+    document.getElementById('backLobby').click();
+    await waitFor(() => !document.getElementById('lobbyPanel').classList.contains('hidden'), 'back lobby from B');
 
     checks.noHorizontalOverflow = document.documentElement.scrollWidth <= innerWidth + 2;
 

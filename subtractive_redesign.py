@@ -46,13 +46,17 @@ def transform_index(source: str) -> str:
     # The served-assets layer may already have shortened the canonical notice,
     # so support both the canonical and compiled forms here.
     html = html.replace(
-        "JJ内の練習用プレイマネーテーブルです。A/Bの2卓のみ、6-max、0.5/1bb、着席時150bb固定。各ハンドは10% rake・5bb capで、BBからランキングポイントへの換算は管理者設定のレートで行われます。テーブル画面との接続・操作が15分ない場合、ハンド終了後に自動離席します。",
-        "JJ内の練習用プレイマネーテーブルです。A/Bの2卓、6-max、0.5/1bb、バイインは管理者設定の範囲から選択します。結果は1bb=3ptとして後期ランキングへ自動反映されます。15分無操作の場合はハンド終了後に自動離席します。",
+        "JJ内の練習用プレイマネーテーブルです。A/Bの2卓のみ、6-max、0.5/1bb、着席時150bb固定。各ハンドは10% rake・5bb capで、結果は1bb=3ptとして後期ランキングへ自動反映されます。テーブル画面との接続・操作が15分ない場合、ハンド終了後に自動離席します。",
+        "JJ内の練習用プレイマネーテーブルです。A/Bの2卓、6-max、0.5/1bb、バイインは管理者設定の範囲から選択します。BBからランキングポイントへの換算は管理者設定のレートで行われます。15分無操作の場合はハンド終了後に自動離席します。",
     )
-    html = html.replace(
+    for previous in (
         "プレイマネー｜6-max｜0.5/1bb｜バイイン可変｜rake 10%・5bb cap｜ランキング 1bb=3pt｜15分無操作でハンド終了後に自動離席",
-        "プレイマネー｜6-max｜0.5/1bb｜バイイン可変｜ランキングのBB換算は管理者設定による｜15分無操作でハンド終了後に自動離席",
-    )
+        "プレイマネー｜6-max｜0.5/1bb｜バイイン可変｜rake 10%・5bb cap｜ランキングのBB換算は管理者設定による｜15分無操作でハンド終了後に自動離席",
+    ):
+        html = html.replace(
+            previous,
+            "プレイマネー｜6-max｜0.5/1bb｜バイイン可変｜ランキングのBB換算は管理者設定による｜15分無操作でハンド終了後に自動離席",
+        )
 
     return html.replace("</body>", f"  <!-- {SUBTRACTIVE_RED282_MARKER} -->\n</body>", 1)
 
