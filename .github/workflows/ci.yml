@@ -201,6 +201,9 @@ jobs:
       - name: Run article sharing and core API integration regression
         run: python smoke_test_learning_integration.py
 
+      - name: Run admin GPT quiz category validation regression
+        run: python smoke_test_quiz_admin_ai.py
+
       - name: Run daily quiz SQLite concurrency and rollover regression
         run: python smoke_test_daily_quiz.py
 
