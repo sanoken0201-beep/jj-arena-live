@@ -188,9 +188,6 @@ def install(server: Any, engine: Any) -> None:
                         player["ready"] = False
 
             if isinstance(state.get("hand"), dict):
-                names = []
-                for user_id in removed:
-                    names.append(str(user_id))
                 state["hand"].setdefault("log", []).append(
                     "Inactive seat removed after a full BB-to-next-BB window"
                 )
