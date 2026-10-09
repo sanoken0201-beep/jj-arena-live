@@ -52,8 +52,8 @@ def main() -> None:
             assert "ring variable buy-in ui 2026-10-05" in compiled_js, (
                 "compiled browser asset must contain the variable Ring buy-in UI"
             )
-            assert 'class="lobby-card jj-sub-single-table"' in compiled_js, (
-                "variable buy-in lobby must preserve the single-table layout contract"
+            assert 'class="lobby-card jj-sub-public-table"' in compiled_js, (
+                "variable buy-in lobby must preserve the two-table layout contract"
             )
             assert "rakeLabel.className='jj-ring-rake'" in compiled_js, (
                 "Ring rake display must preserve the structured pot presentation"
@@ -64,8 +64,8 @@ def main() -> None:
             assert "v84 mobile poker seat-card clearance 2026-10-08" in compiled_js, (
                 "compiled browser asset must include mobile opponent-card and hand-log repairs"
             )
-            assert served_assets.ASSET_VERSION == 84, (
-                "browser asset version must advance with mobile seat-card clearance"
+            assert served_assets.ASSET_VERSION == 85, (
+                "browser asset version must advance with the two-table lobby contract"
             )
             second = served_assets.build_all(root)
             served_assets.validate_built_assets(root)
