@@ -79,6 +79,24 @@ def run() -> None:
             mocked.assert_called_once()
             assert gpt["source"] == "gpt" and gpt["question"]["category"] == "equity"
 
+
+            # Regression: the previous admin UI sent preflop, which previously returned HTTP 422.
+            legacy_generated = QuizQuestionIn(
+                category="range",
+                prompt="プリフロップで3ベットにコールする場合、最初に検討すべき条件は何ですか？",
+                choices=["レンジとポジションおよび実効スタック", "直前の勝敗のみ", "ハンド名の文字数", "席の番号だけ"],
+                correct_index=0,
+                explanation="コールの収益性は相手の3ベットレンジやポジション、実効スタックなどの条件によって変わります。",
+                request_id="quiz-gpt-test-preflop",
+            )
+            with patch.object(qa, "_generate_question", return_value=legacy_generated) as mocked:
+                legacy = json_response(admin.post(
+                    "/api/admin/console/quiz/gpt-add",
+                    json={"topic": "3ベットへのコールがダメな理由", "category": "preflop", "request_id": "quiz-gpt-test-preflop"},
+                ))
+            assert mocked.call_args.args[0].category == "range"
+            assert legacy["question"]["category"] == "range" and legacy["source"] == "gpt"
+
             disabled = json_response(admin.patch(
                 f"/api/admin/console/quiz/questions/{created['id']}",
                 json={"enabled": False},
