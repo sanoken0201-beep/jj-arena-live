@@ -62,9 +62,8 @@ def _ledger_by_name(db, server, *, month: str | None, season: str) -> dict[str, 
 
 
 def _bounds(server, season: str) -> tuple[str, str]:
-    start = getattr(server, "FALL_SEASON_START", "2026-09-01")
-    end = getattr(server, "FALL_SEASON_END", "2027-04-01")
-    return (start, end) if season == "fall" else ("0000-01-01", start)
+    import db, season_management
+    return season_management.bounds(db, season)
 
 
 def _ensure_reversal_claims(db) -> None:
