@@ -169,6 +169,8 @@ def audit_rows(
 
     policy_windows: Counter[str] = Counter()
     legacy_completeness_causes: Counter[str] = Counter()
+    legacy_player_result_counts: Counter[str] = Counter()
+    legacy_net_discrepancies: list[dict[str, Any]] = []
     legacy_rake_mismatch_streets: Counter[str] = Counter()
     legacy_anomalies_by_window: dict[str, Counter[str]] = defaultdict(Counter)
     for hid, hand in hands_by_id.items():
@@ -217,8 +219,18 @@ def audit_rows(
                     legacy_completeness_causes["negative_rake"] += 1
                 if abs(total_net + rake) > 0.011:
                     legacy_completeness_causes["net_not_conserved"] += 1
+                    if len(legacy_net_discrepancies) < 10:
+                        legacy_net_discrepancies.append({
+                            "hand_id": hid,
+                            "played_date_utc": played_at.date().isoformat(),
+                            "difference_bb": round(total_net + rake, 2),
+                            "result_rows": len(hrows),
+                            "expected_players": player_count or None,
+                        })
                 if player_count > 0 and len(hrows) != player_count:
                     legacy_completeness_causes["player_result_count_mismatch"] += 1
+                    key = f"expected_{player_count}_stored_{len(hrows)}"
+                    legacy_player_result_counts[key] += 1
 
         if hist:
             expected = _expected_rake_bb(gross, played_at, reached, explicit_fraction, explicit_cap)
@@ -279,6 +291,10 @@ def audit_rows(
         # to rewrite official points or historic rake.
         "legacy_breakdown": {
             "completeness_causes": dict(sorted(legacy_completeness_causes.items())),
+            "player_result_count_pairs": dict(sorted(legacy_player_result_counts.items())),
+            # Hand IDs are limited to the actual net imbalance cases;
+            # do not include player identifiers, accounts or private cards.
+            "net_discrepancy_samples": legacy_net_discrepancies,
             "rake_mismatch_streets": dict(sorted(legacy_rake_mismatch_streets.items())),
             "by_policy_window": {
                 key: dict(sorted(value.items()))
