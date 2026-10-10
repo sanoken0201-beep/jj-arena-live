@@ -110,15 +110,58 @@ def _init(db, server) -> None:
             "WHERE season_id IN ('summer','fall')"
         ).fetchall()
         expected = {
-            "summer": ("0000-01-01", fall_start, "archived"),
-            "fall": (fall_start, fall_end, "active"),
+            "summer": ("0000-01-01", fall_start),
+            "fall": (fall_start, fall_end),
         }
         if len(existing) != 2:
             raise RuntimeError("Legacy season metadata was not initialized")
         for row in existing:
-            if ((row["start_date"],row["end_exclusive"],row["status"]) != expected[row["season_id"]]
-                    or int(row["locked_bounds"]) != 1):
+            if ((row["start_date"],row["end_exclusive"]) != expected[row["season_id"]]
+                    or int(row["locked_bounds"]) != 1
+                    or (row["season_id"] == "summer" and row["status"] != "archived")
+                    or (row["season_id"] == "fall" and row["status"] not in ("active","archived"))):
                 raise RuntimeError("Legacy season metadata drifted from the live accounting contract")
+        active = con.execute("SELECT COUNT(*) n FROM jj_seasons WHERE status='active'").fetchone()
+        if int(active["n"]) != 1:
+            raise RuntimeError("Season catalog must have exactly one active season")
+
+
+
+def active_season(db, *, con=None) -> dict:
+    if con is None:
+        with db.connect() as connection:
+            return active_season(db, con=connection)
+    row = con.execute(
+        "SELECT * FROM jj_seasons WHERE status='active' LIMIT 1"
+    ).fetchone()
+    if not row:
+        raise RuntimeError("No active JJ season is configured")
+    return dict(row)
+
+
+def bounds(db, season: str = "fall") -> tuple[str, str]:
+    """Resolve periods without exposing draft data.
+
+    Legacy callers pass season='fall' for the CURRENT rankings. The fixed
+    historical 2026 Winter Season becomes available as 'archive:fall' once
+    archived; earlier summer retains its legacy ID.
+    """
+    key = (season or "fall").strip().lower()
+    with db.connect() as con:
+        if key in ("active", "fall"):
+            row = active_season(db, con=con)
+        else:
+            season_id = key[len("archive:"):] if key.startswith("archive:") else key
+            row = con.execute(
+                "SELECT * FROM jj_seasons WHERE season_id=?", (season_id,)
+            ).fetchone()
+        if not row:
+            raise HTTPException(400, "不明なシーズンです")
+        if row["status"] == "draft":
+            raise HTTPException(400, "準備中のシーズンはランキングに表示できません")
+        if key.startswith("archive:") and row["status"] != "archived":
+            raise HTTPException(400, "このシーズンはまだ過去シーズンではありません")
+        return str(row["start_date"]), str(row["end_exclusive"])
 
 
 def install(app, server, db, admin_console) -> None:
