@@ -68,10 +68,10 @@ def _validate(db, server, payload) -> None:
     except (TypeError, ValueError) as exc:
         raise HTTPException(400, "実在する日時を入力してください") from exc
     entry_day = parsed.date().isoformat()
-    start = str(getattr(server, "FALL_SEASON_START", "2026-09-01"))
-    end = str(getattr(server, "FALL_SEASON_END", "2027-04-01"))
+    import season_management
+    start, end = season_management.bounds(db, "fall")
     if not start <= entry_day < end:
-        raise HTTPException(400, "後期期間（2026/9/1〜2027/3/31）の日付を入力してください")
+        raise HTTPException(400, f"入力日時は現在のシーズン期間（{start}〜終了日前日）を指定してください")
 
     game_type = str(payload.game_type or "").strip().lower()
     ring_initials = {450, 900, 2000}
