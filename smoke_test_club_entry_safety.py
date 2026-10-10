@@ -117,6 +117,47 @@ def main() -> None:
             forbidden = client.post("/api/entries", json=dict(payload, request_id=_request_id()))
             assert forbidden.status_code in {401, 403}, forbidden.text
 
+            # Verify the administrator has no bypass around atomic receipts.
+            client.cookies.clear()
+            admin_login = json_response(
+                client.post("/api/auth/pin", json={"name": "ケンイチロウ", "pin": "654321"})
+            )
+            admin_id = int(admin_login["user"]["id"])
+            admin_payload = {
+                "name": own_name,
+                "date": "2026-10-07T18:30",
+                "reentries": 0,
+                "initial": 450,
+                "game_type": "ring",
+                "chip_500": 1,
+            }
+            stale_admin = client.post("/api/entries", json=admin_payload)
+            assert stale_admin.status_code == 428, stale_admin.text
+            assert "操作ID" in stale_admin.text
+            with production.db.connect() as con:
+                assert con.execute(
+                    "SELECT COUNT(*) n FROM entries WHERE created_by=?", (admin_id,)
+                ).fetchone()["n"] == 0, "unkeyed admin result wrote official points"
+
+            keyed_admin = dict(admin_payload, request_id=_request_id())
+            admin_first = json_response(client.post("/api/entries", json=keyed_admin))
+            admin_replay = json_response(client.post("/api/entries", json=keyed_admin))
+            assert admin_first["id"] == admin_replay["id"]
+            admin_changed = dict(keyed_admin, chip_500=2)
+            admin_conflict = client.post("/api/entries", json=admin_changed)
+            assert admin_conflict.status_code == 409, admin_conflict.text
+            with production.db.connect() as con:
+                rows = con.execute(
+                    "SELECT id,points FROM entries WHERE created_by=?", (admin_id,)
+                ).fetchall()
+                receipts = con.execute(
+                    "SELECT request_id,response_json FROM club_entry_requests WHERE actor_id=?",
+                    (admin_id,),
+                ).fetchall()
+            assert len(rows) == 1 and rows[0]["id"] == admin_first["id"]
+            assert float(rows[0]["points"]) == 50
+            assert len(receipts) == 1 and receipts[0]["response_json"]
+
             routes = [
                 route
                 for route in production.app.router.routes
