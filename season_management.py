@@ -60,11 +60,12 @@ def _validate_range(start: str, end: str) -> tuple[str, str]:
 
 
 def _no_overlap(con, start: str, end: str, *, exclude_id: str | None = None) -> None:
-    overlapping = con.execute(
-        "SELECT season_id FROM jj_seasons "
-        "WHERE start_date<? AND end_exclusive>? AND (? IS NULL OR season_id<>?) LIMIT 1",
-        (end, start, exclude_id, exclude_id),
-    ).fetchone()
+    sql = "SELECT season_id FROM jj_seasons WHERE start_date<? AND end_exclusive>?"
+    args = [end, start]
+    if exclude_id is not None:
+        sql += " AND season_id<>?"
+        args.append(exclude_id)
+    overlapping = con.execute(sql + " LIMIT 1", args).fetchone()
     if overlapping:
         raise HTTPException(409, "既存シーズンの期間と重複しています")
 
