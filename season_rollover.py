@@ -119,8 +119,9 @@ def install(app, db, server, admin_console) -> None:
     def current_entries(limit: int = 40, archive: bool = False,
                         user=Depends(server.current_user)):
         limit = max(1, min(int(limit), 200))
-        start, end = season_management.bounds(db, "fall")
-        with db.connect() as con:
+        database = globals()["db"]
+        start, end = season_management.bounds(database, "fall")
+        with database.connect() as con:
             if archive:
                 rows = con.execute(
                     "SELECT * FROM entries ORDER BY date DESC LIMIT ?", (limit,)
@@ -132,6 +133,9 @@ def install(app, db, server, admin_console) -> None:
                 ).fetchall()
         return [dict(row) for row in rows]
 
+    # read_efficiency clones this endpoint's globals and swaps the 'db'
+    # global for an existing bundled connection. Preserve that optimization.
+    globals()["db"] = db
     server.entries = current_entries
     matches = [
         route for route in app.router.routes
