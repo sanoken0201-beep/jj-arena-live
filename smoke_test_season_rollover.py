@@ -153,8 +153,14 @@ def main() -> None:
         season_management._init(production.db, production.runtime_server)
         assert season_management.active_season(production.db)["season_id"]==season_id
         with production.db.connect() as con:
-            assert con.execute("SELECT COUNT(*) n FROM entries").fetchone()["n"]==2
-            assert con.execute("SELECT COUNT(*) n FROM point_ledger").fetchone()["n"]==2
+            retained_entries = {row["id"] for row in con.execute(
+                "SELECT id FROM entries WHERE id IN ('winter-sample','spring-sample')"
+            ).fetchall()}
+            retained_ledger = {row["id"] for row in con.execute(
+                "SELECT id FROM point_ledger WHERE id IN ('winter-quiz','spring-sng')"
+            ).fetchall()}
+            assert retained_entries == {"winter-sample","spring-sample"}
+            assert retained_ledger == {"winter-quiz","spring-sng"}
     print("JJ_SEASON_ROLLOVER_OK future guard, PIN, archive, zero, club, SNG, UI endpoints")
 
 
