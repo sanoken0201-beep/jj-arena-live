@@ -21,7 +21,7 @@ def _has_deleted_at(db, con) -> bool:
 
 
 def _ledger_by_name(db, server, *, month: str | None, season: str) -> dict[str, dict[str, float]]:
-    start, end = _bounds(server, season)
+    start, end = _bounds(server, season, db)
     where = "WHERE l.effective_at>=? AND l.effective_at<?"
     params: list[Any] = [start, end]
     if month:
@@ -61,9 +61,9 @@ def _ledger_by_name(db, server, *, month: str | None, season: str) -> dict[str, 
     return out
 
 
-def _bounds(server, season: str) -> tuple[str, str]:
+def _bounds(server, season: str, database=None) -> tuple[str, str]:
     import db, season_management
-    return season_management.bounds(db, season)
+    return season_management.bounds(database if database is not None else db, season)
 
 
 def _ensure_reversal_claims(db) -> None:
