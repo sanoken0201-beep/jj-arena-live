@@ -168,6 +168,9 @@ def audit_rows(
             flag("duplicate_user_result", hid)
 
     policy_windows: Counter[str] = Counter()
+    legacy_completeness_causes: Counter[str] = Counter()
+    legacy_rake_mismatch_streets: Counter[str] = Counter()
+    legacy_anomalies_by_window: dict[str, Counter[str]] = defaultdict(Counter)
     for hid, hand in hands_by_id.items():
         played_at = _dt(hand.get("played_at"))
         gross = _float(hand.get("gross_pot_bb"))
@@ -181,16 +184,17 @@ def audit_rows(
         explicit_fraction = None if hand.get("rake_percent") is None else _float(hand.get("rake_percent"))
         explicit_cap = None if hand.get("rake_cap_bb") is None else _float(hand.get("rake_cap_bb"))
         if explicit_fraction is not None and explicit_cap is not None:
-            policy_windows["configured_policy"] += 1
+            policy_window = "configured_policy"
         elif played_at < UNCALLED_FIX_AT:
-            policy_windows["legacy_before_uncalled_fix"] += 1
+            policy_window = "legacy_before_uncalled_fix"
             flag("legacy_uncalled_risk_window_hands", hid)
         elif played_at < RAKE_5_3_AT:
-            policy_windows["10pct_5bb_after_uncalled_fix"] += 1
+            policy_window = "10pct_5bb_after_uncalled_fix"
         elif played_at < NOFLOP_FIX_AT:
-            policy_windows["5pct_3bb_before_noflop_metadata_fix"] += 1
+            policy_window = "5pct_3bb_before_noflop_metadata_fix"
         else:
-            policy_windows["current_5pct_3bb"] += 1
+            policy_window = "current_5pct_3bb"
+        policy_windows[policy_window] += 1
 
         completeness_bad = (
             gross < -0.001
@@ -204,6 +208,17 @@ def audit_rows(
                 flag("current_hand_conservation_or_completeness", hid)
             else:
                 flag("legacy_hand_conservation_or_completeness", hid)
+                legacy_anomalies_by_window[policy_window]["completeness"] += 1
+                # Reasons can overlap: the breakdown counts distinct failing
+                # conditions, NOT independent hands to be added together.
+                if gross < -0.001:
+                    legacy_completeness_causes["negative_gross"] += 1
+                if rake < -0.001:
+                    legacy_completeness_causes["negative_rake"] += 1
+                if abs(total_net + rake) > 0.011:
+                    legacy_completeness_causes["net_not_conserved"] += 1
+                if player_count > 0 and len(hrows) != player_count:
+                    legacy_completeness_causes["player_result_count_mismatch"] += 1
 
         if hist:
             expected = _expected_rake_bb(gross, played_at, reached, explicit_fraction, explicit_cap)
@@ -213,6 +228,8 @@ def audit_rows(
                     flag("current_rake_formula_violation", hid)
                 else:
                     flag("legacy_rake_formula_violation", hid)
+                    legacy_anomalies_by_window[policy_window]["rake_formula"] += 1
+                    legacy_rake_mismatch_streets[reached or "unknown"] += 1
         elif played_at >= NOFLOP_FIX_AT:
             flag("current_missing_analytics_history", hid)
 
@@ -257,6 +274,17 @@ def audit_rows(
         "current_anomaly_total": current_total,
         "checks": dict(sorted(counts.items())),
         "policy_windows": dict(sorted(policy_windows.items())),
+        # Read-only historical triage. Treat mismatches as evidence requiring
+        # reconciliation with period-specific policies, never an instruction
+        # to rewrite official points or historic rake.
+        "legacy_breakdown": {
+            "completeness_causes": dict(sorted(legacy_completeness_causes.items())),
+            "rake_mismatch_streets": dict(sorted(legacy_rake_mismatch_streets.items())),
+            "by_policy_window": {
+                key: dict(sorted(value.items()))
+                for key, value in sorted(legacy_anomalies_by_window.items())
+            },
+        },
         "samples": {key: value for key, value in sorted(samples.items()) if value},
     }
 

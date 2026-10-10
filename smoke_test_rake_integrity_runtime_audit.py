@@ -166,6 +166,45 @@ def main():
     assert legacy["checks"]["hand_conservation_or_completeness"] == 0
     assert legacy["checks"]["legacy_hand_conservation_or_completeness"] == 0
 
+    # Read-only forensic categorization must distinguish a historically
+    # non-conserved payout from an older policy's rake-formula difference.
+    assert legacy["legacy_breakdown"]["rake_mismatch_streets"] == {"flop": 1}
+    assert legacy["legacy_breakdown"]["completeness_causes"] == {}
+    assert legacy["legacy_breakdown"]["by_policy_window"] == {
+        "legacy_before_uncalled_fix": {"rake_formula": 1}
+    }, legacy["legacy_breakdown"]
+
+    incomplete_hand = {
+        "hand_id": "legacy-incomplete",
+        "table_id": "jj-table-a",
+        "gross_pot_bb": 10.0,
+        "rake_bb": 1.0,
+        "played_at": "2026-09-14T15:05:00+00:00",
+        "month": "2026-09",
+        "voided": 0,
+    }
+    incomplete_result = {
+        "id": "legacy-incomplete:1", "hand_id": "legacy-incomplete",
+        "table_id": "jj-table-a", "user_id": 1,
+        "result_bb": -2.0, "points": -6.0, "month": "2026-09",
+    }
+    incomplete_history = {
+        "hand_id": "legacy-incomplete", "reached_street": "flop",
+        "player_count": 2,
+    }
+    incomplete = audit.audit_rows(
+        [_table()], [incomplete_hand], [incomplete_result], [incomplete_history],
+    )
+    assert incomplete["status"] == "ok"
+    assert incomplete["checks"]["legacy_hand_conservation_or_completeness"] == 1
+    assert incomplete["checks"]["legacy_rake_formula_violation"] == 0
+    assert incomplete["legacy_breakdown"]["completeness_causes"] == {
+        "net_not_conserved": 1, "player_result_count_mismatch": 1,
+    }, incomplete["legacy_breakdown"]
+    assert incomplete["legacy_breakdown"]["by_policy_window"] == {
+        "legacy_before_uncalled_fix": {"completeness": 1}
+    }, incomplete["legacy_breakdown"]
+
     dynamic_hand = {
         "hand_id": "configured-rake",
         "table_id": "jj-table-a",
