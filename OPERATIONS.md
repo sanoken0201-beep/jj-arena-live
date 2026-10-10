@@ -276,3 +276,21 @@ Administrator succession is designed for the existing canonical `/admin` account
 The `/admin` -> シーズン view reads `jj_seasons`. Active/archived season labels can be changed in place; their historic accounting boundaries remain locked. An administrator can register and update a non-overlapping **draft** future season. Dates in API storage use `[start_date,end_exclusive)`; the admin form asks for the inclusive last day and converts it to the exclusive end date. Existing `fall`/ `summer` IDs, point ledger and ranking history remain unchanged. The public authenticated `GET /api/seasons` lists active and archived labels only.
 
 This is **not** a reset/switch control. Do not change `status` directly in SQL or manually adjust `FALL_SEASON_START`/`FALL_SEASON_END`. Use the separate, validated season-activation workflow when phase 3 has been implemented. The build/CI regression `smoke_test_season_management.py` guards metadata/points separation, historical windows, date conflict validation, permission checks, restart idempotency and audit atomicity.
+
+
+## 15. Season rollover
+
+Create a new season draft under /admin -> シーズン. Set its start date to the
+day after the active season's inclusive final date. At the exact transition
+date (Japan calendar), finish all Ring hands and Sit&Go events before pressing
+"このシーズンを開始する." Re-enter the current administrator PIN and confirm.
+The API rejects an early transition, a date gap/overlap, active hands, live
+Sit&Go, stale active season, or stale authentication. It writes an audit event
+with the two season IDs and the boundary date; it never deletes or zeroes point
+rows. The new leaderboard starts at zero if no result has an effective date in
+the new period. Prior ranking can be retrieved under the archive selector or
+explicit /api/rankings?season=archive:fall for the 2026-2027 Winter.
+
+Do not directly edit jj_seasons.status in SQL. Verify the active /api/seasons
+label, old archive, /api/rankings, /api/home/core, and /api/entries after the
+deployment. Do not schedule tournaments across a season boundary.
