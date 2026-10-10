@@ -237,3 +237,8 @@ The server is authoritative for card consumption, deadlines and forced folds. Th
 ### 2026-09-21 audit: Ring action integrity
 
 Ring now requires current hand/turn identity and validates arrival against the action deadline. Replay receipts are scoped per actor. Timely queued actions prevent premature timebank consumption while waiting for the table lock. The 30-second base window, three mandatory cards, and one-decimal betting behavior are preserved.
+
+
+## Phase 2 season metadata (2026-10-10)
+
+`season_management.py` installs the additive `jj_seasons` metadata table and APIs in `app_materialized.py`. Seeded legacy IDs: `summer` archived until 2026-09-01 and `fall` active for 2026-09-01 to 2027-04-01 (exclusive). Display names are editable in admin and queryable through authenticated `/api/seasons`. Future non-overlapping intervals may be prepared as drafts. There is **no** activation/reset in this stage: active/archived boundaries and all point/ranking sources remain untouched until a coordinated phase-3 cutover. The user-visible historical ranking path continues to use `summer`/`fall` during phase 2.

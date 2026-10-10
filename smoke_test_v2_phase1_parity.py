@@ -64,6 +64,10 @@ def _strip_phase4c_extensions(payload: dict) -> dict:
     # canonical core routes with the same ring paths remain in the comparison.
     extension_routes = {
         ("http", "/api/admin/console/users/{uid}/role", ("POST",), "change_role"),
+        ("http", "/api/seasons", ("GET",), "seasons"),
+        ("http", "/api/admin/console/seasons", ("GET",), "admin_seasons"),
+        ("http", "/api/admin/console/seasons", ("POST",), "create_season"),
+        ("http", "/api/admin/console/seasons/{season_id}", ("PATCH",), "update_season"),
         ("http", "/api/admin/console/quiz/questions", ("GET",), "list_questions"),
         ("http", "/api/admin/console/quiz/questions", ("POST",), "add_question"),
         ("http", "/api/admin/console/quiz/gpt-add", ("POST",), "gpt_add_question"),
@@ -113,6 +117,7 @@ def _strip_phase4c_extensions(payload: dict) -> dict:
     ]
 
     extension_tables = {
+        "jj_seasons",
         "quiz_custom_questions",
         "ring_runtime_config",
         "ring_buyin_events",

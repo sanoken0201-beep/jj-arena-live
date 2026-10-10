@@ -22,6 +22,7 @@
         <button class="nav" data-view="users"><span>♙</span>アカウント</button>
         <button class="nav" data-view="points"><span>↕</span>ポイント</button>
         <button class="nav" data-view="sitngo"><span>♠</span>Sit&amp;Go</button>
+        <button class="nav" data-view="seasons"><span>◷</span>シーズン</button>
         <button class="nav" data-view="settings"><span>⚙</span>制度設定</button>
         <button class="nav" data-view="audit"><span>◫</span>監査ログ</button>
       </nav>
@@ -30,7 +31,7 @@
 
     <main class="main">
       <header class="topbar"><div><div class="eyebrow">OPERATIONS</div><h1 id="pageTitle">管理概要</h1></div><div class="admin-chip"><small>ADMIN</small><strong id="adminName">—</strong></div></header>
-      <nav class="mobile-nav" aria-label="管理メニュー"><button class="active" data-view="dashboard">概要</button><button data-view="users">アカウント</button><button data-view="points">ポイント</button><button data-view="sitngo">Sit&amp;Go</button><button data-view="settings">設定</button><button data-view="audit">監査</button></nav>
+      <nav class="mobile-nav" aria-label="管理メニュー"><button class="active" data-view="dashboard">概要</button><button data-view="users">アカウント</button><button data-view="points">ポイント</button><button data-view="sitngo">Sit&amp;Go</button><button data-view="seasons">シーズン</button><button data-view="settings">設定</button><button data-view="audit">監査</button></nav>
 
       <section id="dashboardView" class="view active">
         <div class="hero"><div><div class="eyebrow">CONTROL CENTER</div><h2>運営の数字と異常を、<br>一画面で確認。</h2><p>登録アカウント、公式ポイントの付与・回収、制度設定、操作履歴を一元管理します。</p></div><div class="hero-status"><span>SEASON</span><strong id="seasonLabel">2026.09 — 2027.03</strong><small>公式ポイント管理</small></div></div>
@@ -74,6 +75,21 @@
         <article class="panel sng-telemetry-panel"><div class="panel-head"><div><div class="eyebrow">RUNTIME SAFETY</div><h3>直近7日間のSit&amp;Go安全イベント</h3><p>個人・大会・ハンドを特定する情報は保存せず、日次の件数だけを集計します。</p></div><button id="sngRefreshTelemetry" class="text-btn" type="button">更新</button></div><div id="sngRuntimeAlert" class="sng-runtime-alert" aria-live="assertive"></div><div id="sngTelemetry" class="sng-telemetry"><div class="empty-state">読込中...</div></div></article>
       </section>
 
+      <section id="seasonsView" class="view">
+        <div class="section-head"><div><div class="eyebrow">SEASON ARCHIVE</div><h2>シーズン管理</h2><p>名称の変更と、次期シーズンの予定作成ができます。既存のランキング・ポイント履歴は削除しません。</p></div></div>
+        <div class="settings-grid">
+          <article class="panel"><div class="eyebrow">CREATE DRAFT</div><h3>次期シーズンの準備</h3>
+            <form id="seasonCreateForm" class="form-stack">
+              <label>シーズン名<input name="name" maxlength="80" placeholder="例：JJ 2027 Spring Season" required></label>
+              <label>開始日（この日を含む）<input name="start_date" type="date" required></label>
+              <label>終了日（この日を含む）<input name="end_date" type="date" required></label>
+              <p class="field-note">作成直後は準備中です。ランキングの初期化・切替は第三段階で実装します。既存シーズンと期間が重複する予定は登録できません。</p>
+              <button class="primary" type="submit">予定を作成</button>
+            </form>
+          </article>
+          <article class="panel"><div class="eyebrow">SEASONS</div><h3>登録済みシーズン</h3><div id="seasonList" class="ledger-list"><div class="empty-state">読み込み中...</div></div></article>
+        </div>
+      </section>
       <section id="settingsView" class="view">
         <div class="section-head"><div><div class="eyebrow">POLICY</div><h2>ポイント制度設定</h2><p>制度値の変更も監査ログへ残ります。既存の確定済みハンドを遡って書き換えません。</p></div></div>
         <div class="settings-grid">
@@ -92,11 +108,12 @@
 
   <dialog id="userDialog"><button class="dialog-close" id="closeUserDialog" aria-label="閉じる">×</button><div id="userDialogBody"></div></dialog>
   <script src="/admin-static/admin_point_requests.js?v=1"></script>
-  <script src="/admin-static/admin.js?v=128-scoped"></script>
+  <script src="/admin-static/admin.js?v=129-seasons"></script>
   <script src="/admin-static/admin_delete.js?v=127"></script>
   <script src="/admin-static/admin_sitngo.js?sng=12hands-20260921-2"></script>
 <script src="/admin-static/admin_pin_verify.js?v=127"></script>
 <script src="/admin-static/admin_role_delegation.js?v=1"></script>
+<script src="/admin-static/admin_seasons.js?v=1"></script>
 <script src="/admin-static/admin_ui_foundation.js?v=127"></script>
 <script src="/admin-static/ops_dashboard.js?v=127"></script>
 <script src="/admin-static/ops_participation.js?v=127"></script>
