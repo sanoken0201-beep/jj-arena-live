@@ -260,3 +260,15 @@ the legacy core. Existing historical rows that were already repriced before
 this fix are not automatically reconstructed: back up production, reconcile
 available settings/audit evidence and only apply separately reviewed repairs.
 The Ring rakeback policy remains unchanged and independent of this patch.
+
+
+## D-027 — PIN-confirmed delegated administration
+
+**Date:** 2026-10-10  
+**Status:** Proposed (pending CI and release)
+
+An authenticated administrator can elevate a verified, active JJ member to `admin` or return another administrator to `member` from the canonical account dialog. The acting administrator must re-enter their own current 6-digit PIN. Incorrect PIN attempts are rate-limited per administrator. Users may not demote themselves and the system prevents removal of the final active administrator. Deleted, disabled, or unapproved accounts may not be changed, and elevations additionally require `club_verified=1`.
+
+Role changes, target session invalidation, and the audit record commit in one transaction. Both PostgreSQL and SQLite serialize role changes to prevent concurrent succession races. Repeating an already-applied role change is a no-op. The audit record contains only IDs/roles, never PIN material. All role changes use `POST /api/admin/console/users/{uid}/role`; no older account endpoint is revived.
+
+Recovery caveat: the legacy `JJ_ADMIN_PIN` bootstrap in the immutable core may demote other administrators during emergency recovery. Keep that environment variable absent during regular operations; remove it immediately after recovery. A dedicated multi-admin recovery mechanism can be considered separately.
