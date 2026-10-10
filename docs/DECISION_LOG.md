@@ -272,3 +272,15 @@ An authenticated administrator can elevate a verified, active JJ member to `admi
 Role changes, target session invalidation, and the audit record commit in one transaction. Both PostgreSQL and SQLite serialize role changes to prevent concurrent succession races. Repeating an already-applied role change is a no-op. The audit record contains only IDs/roles, never PIN material. All role changes use `POST /api/admin/console/users/{uid}/role`; no older account endpoint is revived.
 
 Recovery caveat: the legacy `JJ_ADMIN_PIN` bootstrap in the immutable core may demote other administrators during emergency recovery. Keep that environment variable absent during regular operations; remove it immediately after recovery. A dedicated multi-admin recovery mechanism can be considered separately.
+
+
+## D-028 — Durable season metadata without premature ranking rollover
+
+**Date:** 2026-10-10  
+**Status:** Proposed (phase 2; CI/production verification pending)
+
+Introduce `jj_seasons` as an additive, PostgreSQL/SQLite-compatible metadata table: stable season ID, display name, start date, exclusive end date, status (`active`/`archived`/`draft`), and an immutable-bounds flag. Seed `summer` (historical records strictly before 2026-09-01) and `fall` (2026-09-01 through 2027-03-31) with their legacy window boundaries preserved. The `fall` display name starts as `JJ 2026 Winter Season`; admins can rename it without reassigning points.
+
+Phase 2 allows audited display-name edits for historical/active seasons, and creation/period edits of **draft-only** future seasons with nonoverlapping date windows. No API accepts status transitions, deletion or reset in this stage. Active and archived period changes fail closed because the old point-entry guard and ranking/date aggregators still use the canonical legacy windows. Existing `entries`, `online_hands`, `online_hand_results` and `point_ledger` rows are never rewritten. Public `GET /api/seasons` lists the two live/archived season labels, omitting drafts; admin `/api/admin/console/seasons` provides read/create/update operations. Audit writes are transactionally coupled to metadata changes.
+
+Phase 3 must atomically integrate season switching with **every** ranking, ledger, input-date, home and account-stat consumer, and enforce completed-hand/Sit&Go boundary semantics. Do not activate drafts by modifying database status manually.
