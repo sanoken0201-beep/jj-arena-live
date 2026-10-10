@@ -99,9 +99,9 @@ def _revoke(db,uid):
     else:
         with db.connect() as con:con.execute("DELETE FROM sessions WHERE user_id=?",(uid,))
 
-def _bounds(server,season):
+def _bounds(server,season,database=None):
     import db, season_management
-    return season_management.bounds(db, season)
+    return season_management.bounds(database if database is not None else db, season)
 
 def _account_generations(con):
     """Return deletion/live generation boundaries keyed by ranking name.
@@ -143,7 +143,7 @@ def _club_entry_is_current(row,generations):
 
 def _rankings(db,server,month=None,season="fall"):
     season=(season or "fall").strip().lower()
-    start,end=_bounds(server,season)
+    start,end=_bounds(server,season,db)
     if month and (not re.fullmatch(r"\d{4}-\d{2}",month) or month + "-01" >= end or month + "-31" < start):
         return []
     cw="WHERE name!='運営調整' AND date>=? AND date<?";cp=[start,end]
