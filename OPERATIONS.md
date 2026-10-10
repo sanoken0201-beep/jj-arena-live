@@ -269,3 +269,10 @@ Administrator succession is designed for the existing canonical `/admin` account
 - Only verified, active accounts can be elevated. Unverified accounts must first pass the normal JJ member verification workflow.
 - The legacy emergency `JJ_ADMIN_PIN` bootstrap currently demotes other administrators. It is not a routine role-management tool. Keep `JJ_ADMIN_PIN` removed during normal operations; use only as a temporary recovery mechanism, then verify all desired administrator roles afterward.
 - This capability is pending pull-request review, CI, deployment, and production verification until the change is merged.
+
+
+## 14. Season management (phase 2)
+
+The `/admin` -> シーズン view reads `jj_seasons`. Active/archived season labels can be changed in place; their historic accounting boundaries remain locked. An administrator can register and update a non-overlapping **draft** future season. Dates in API storage use `[start_date,end_exclusive)`; the admin form asks for the inclusive last day and converts it to the exclusive end date. Existing `fall`/ `summer` IDs, point ledger and ranking history remain unchanged. The public authenticated `GET /api/seasons` lists active and archived labels only.
+
+This is **not** a reset/switch control. Do not change `status` directly in SQL or manually adjust `FALL_SEASON_START`/`FALL_SEASON_END`. Use the separate, validated season-activation workflow when phase 3 has been implemented. The build/CI regression `smoke_test_season_management.py` guards metadata/points separation, historical windows, date conflict validation, permission checks, restart idempotency and audit atomicity.
