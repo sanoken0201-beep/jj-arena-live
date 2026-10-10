@@ -204,6 +204,18 @@ def main():
     assert incomplete["legacy_breakdown"]["by_policy_window"] == {
         "legacy_before_uncalled_fix": {"completeness": 1}
     }, incomplete["legacy_breakdown"]
+    assert incomplete["legacy_breakdown"]["player_result_count_pairs"] == {
+        "expected_2_stored_1": 1,
+    }
+    assert incomplete["legacy_breakdown"]["net_discrepancy_samples"] == [{
+        "hand_id": "legacy-incomplete",
+        "played_date_utc": "2026-09-14",
+        "difference_bb": -1.0,
+        "result_rows": 1,
+        "expected_players": 2,
+    }]
+    assert legacy["legacy_breakdown"]["net_discrepancy_samples"] == []
+
 
     dynamic_hand = {
         "hand_id": "configured-rake",
