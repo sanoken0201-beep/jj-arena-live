@@ -27,8 +27,10 @@ def apply_point(db, console, p, user):
             effective_date = datetime.fromisoformat(p.effective_at)
         except (ValueError, TypeError):
             raise HTTPException(400, '修正対象の反映日時を指定してください')
-        if not '2026-09-01' <= effective_date.date().isoformat() < '2027-04-01':
-            raise HTTPException(400, '反映日時は後期シーズン内を指定してください')
+        import season_management
+        start, end = season_management.bounds(db, "fall")
+        if not start <= effective_date.date().isoformat() < end:
+            raise HTTPException(400, '反映日時は現在のシーズン内を指定してください')
     direction = p.direction.strip().lower()
     if direction not in {"credit", "debit"}:
         raise HTTPException(400, "direction must be credit or debit")
