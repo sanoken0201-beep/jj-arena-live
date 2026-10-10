@@ -43,6 +43,7 @@ def main() -> None:
             "smoke_test_runtime_observability.py",
             "smoke_test_rake_integrity_runtime_audit.py",
             "smoke_test_point_ledger_precision.py",
+            "smoke_test_season_management.py",
             "smoke_test_online_rate_snapshot.py",
             "smoke_test_account_delete_points.py",
             "smoke_test_ring_inactivity_eviction.py",
