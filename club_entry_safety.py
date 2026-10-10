@@ -4,7 +4,7 @@ from __future__ import annotations
 
 The historical entry API stores a club result as a single row in `entries`.
 This module adds strict calendar/range validation plus optional request
-idempotency without changing the immutable materialized v1.24.4 core.
+idempotency for every official submission without changing the immutable materialized v1.24.4 core.
 """
 
 import json
@@ -152,16 +152,13 @@ def apply_entry(db, server, payload, user, *, forced_name: str | None = None):
 
     request_id = str(getattr(payload, "request_id", "") or "").strip()
     if not request_id:
-        if forced_name is not None:
-            # Member submissions must be replay-safe. Stale cached browsers
-            # cannot write unkeyed results that a retry would duplicate.
-            raise HTTPException(
-                428,
-                "ポイント入力画面を更新してから再送信してください（操作IDがありません）",
-            )
-        # Preserve administrator-only legacy/API scripts for now. The current
-        # browser sends a request ID and uses the atomic settlement path.
-        return server.add_entry(core, user)
+        # Both administrators and members must have an idempotency receipt.
+        # Stale browsers and old API scripts cannot bypass atomic settlement:
+        # an unkeyed retry could otherwise create another official point row.
+        raise HTTPException(
+            428,
+            "ポイント入力画面を更新してから再送信してください（操作IDがありません）",
+        )
     if not _REQUEST_ID.fullmatch(request_id):
         raise HTTPException(400, "操作IDの形式が不正です")
 
