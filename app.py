@@ -19,6 +19,7 @@ from starlette.responses import Response
 
 from asset_encoding import accepts_gzip, encoded_asset, matches_etag
 import club_entry_safety
+import season_rollover
 import app_materialized as _materialized
 from app_materialized import app, db, runtime_poker_engine, runtime_server
 from player_ux_phase2 import leave_after_hand_transition
@@ -324,6 +325,10 @@ read_efficiency.install(
 )
 _materialized._prioritize_extension_routes(app, _materialized._CORE_ROUTE_IDS)
 ring_admin_config.prioritize_routes(app)
+
+# Phase 3: guarded season rollover + active-window entry reads.
+season_rollover.install(app, db, runtime_server, _materialized.admin_console)
+_materialized._prioritize_extension_routes(app, _materialized._CORE_ROUTE_IDS)
 
 
 __all__ = [

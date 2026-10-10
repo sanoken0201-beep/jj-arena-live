@@ -99,9 +99,9 @@ def _revoke(db,uid):
     else:
         with db.connect() as con:con.execute("DELETE FROM sessions WHERE user_id=?",(uid,))
 
-def _bounds(server,season):
-    start=getattr(server,"FALL_SEASON_START","2026-09-01");end=getattr(server,"FALL_SEASON_END","2027-04-01")
-    return (start,end) if season=="fall" else ("0000-01-01",start)
+def _bounds(server,season,database=None):
+    import db, season_management
+    return season_management.bounds(database if database is not None else db, season)
 
 def _account_generations(con):
     """Return deletion/live generation boundaries keyed by ranking name.
@@ -143,10 +143,9 @@ def _club_entry_is_current(row,generations):
 
 def _rankings(db,server,month=None,season="fall"):
     season=(season or "fall").strip().lower()
-    if season not in {"fall","summer"}:raise HTTPException(400,"season must be fall or summer")
-    months=getattr(server,"FALL_SEASON_MONTHS",{"2026-09","2026-10","2026-11","2026-12","2027-01","2027-02","2027-03"})
-    if season=="fall" and month and month not in months:return []
-    start,end=_bounds(server,season)
+    start,end=_bounds(server,season,db)
+    if month and (not re.fullmatch(r"\d{4}-\d{2}",month) or month + "-01" >= end or month + "-31" < start):
+        return []
     cw="WHERE name!='運営調整' AND date>=? AND date<?";cp=[start,end]
     ow="WHERE COALESCE(h.voided,0)=0 AND h.played_at>=? AND h.played_at<?";op=[start,end]
     lw="WHERE l.effective_at>=? AND l.effective_at<?";lp=[start,end]
@@ -314,7 +313,7 @@ def install_admin_console(app):
 
     @app.get("/api/admin/console/settings")
     def settings(user=Depends(server.admin_user)):
-        return {"online_points_per_bb":float(_get(db,"online_points_per_bb",str(getattr(db,"ONLINE_POINTS_PER_BB",3)))),"manual_adjustment_limit":float(_get(db,"manual_adjustment_limit","100000")),"season_start":getattr(server,"FALL_SEASON_START","2026-09-01"),"season_end_exclusive":getattr(server,"FALL_SEASON_END","2027-04-01")}
+        return {"online_points_per_bb":float(_get(db,"online_points_per_bb",str(getattr(db,"ONLINE_POINTS_PER_BB",3)))),"manual_adjustment_limit":float(_get(db,"manual_adjustment_limit","100000")),"season_start":_bounds(server,"fall")[0],"season_end_exclusive":_bounds(server,"fall")[1]}
 
     @app.patch("/api/admin/console/settings")
     def update_settings(p:AdminSettingsPatch,user=Depends(server.admin_user)):
