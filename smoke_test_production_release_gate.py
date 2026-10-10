@@ -28,6 +28,7 @@ def main() -> None:
             "smoke_test_pwa_update.py",
             "smoke_test_ux_telemetry.py",
             "smoke_test_ux_telemetry_followup.py",
+            "smoke_test_admin_role_delegation.py",
             "smoke_test_public_proxy_security.py",
             "smoke_test_structure_consolidation.py",
             "smoke_test_admin_reversal_safety.py",

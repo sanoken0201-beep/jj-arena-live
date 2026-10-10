@@ -18,6 +18,7 @@ from pathlib import Path
 import admin_api_consolidation
 import admin_ledger_stabilization
 import admin_pin_verification
+import admin_role_delegation
 import hand_analytics
 import hand_analytics_hardening
 import hand_history_visibility
@@ -152,6 +153,7 @@ def _prioritize_extension_routes(fastapi_app, core_route_ids=frozenset()) -> Non
 
 
 admin_console.install_admin_console(app)
+admin_role_delegation.install(app, runtime_server, db, admin_console)
 point_ledger_precision.ensure_exact_point_ledger(db)
 admin_ledger_stabilization.install(app, admin_console)
 install_account_deletion(app)

@@ -259,3 +259,13 @@ runtime performance変更では、少なくとも以下の意味を変えない�
 - 外部RSS/Atom取得は短いtimeoutと6時間cacheを使う。取得中や外部障害でホーム描画を待たせないため、stale-while-revalidate方式でフォールバックを即時返す。
 - 外部取得URLはコード内のallowlistだけを使用し、ユーザー入力URLをサーバーからfetchしない（SSRF防止）。
 - 外部コンテンツ本文を転載せず、タイトル・短い説明・公開日・リンクのみを共有する。
+
+## 13. Admin succession (2026-10-10 proposal)
+
+Administrator succession is designed for the existing canonical `/admin` account list. To delegate authority, the acting administrator opens a verified and active member's account, changes its role to administrator, and enters **their own** current 6-digit PIN. To retire a former administrator, a different active administrator changes the former admin to member by the same procedure. The target is logged out on every real role change and must sign in again with their existing PIN. Role changes are audited and never change rankings or points.
+
+- Confirm that the successor can log in, see `/admin`, and perform normal member management before retiring the previous administrator.
+- A sole administrator cannot resign in-app. Never share an administrator PIN to bypass handover.
+- Only verified, active accounts can be elevated. Unverified accounts must first pass the normal JJ member verification workflow.
+- The legacy emergency `JJ_ADMIN_PIN` bootstrap currently demotes other administrators. It is not a routine role-management tool. Keep `JJ_ADMIN_PIN` removed during normal operations; use only as a temporary recovery mechanism, then verify all desired administrator roles afterward.
+- This capability is pending pull-request review, CI, deployment, and production verification until the change is merged.
