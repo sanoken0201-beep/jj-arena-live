@@ -284,3 +284,32 @@ Introduce `jj_seasons` as an additive, PostgreSQL/SQLite-compatible metadata tab
 Phase 2 allows audited display-name edits for historical/active seasons, and creation/period edits of **draft-only** future seasons with nonoverlapping date windows. No API accepts status transitions, deletion or reset in this stage. Active and archived period changes fail closed because the old point-entry guard and ranking/date aggregators still use the canonical legacy windows. Existing `entries`, `online_hands`, `online_hand_results` and `point_ledger` rows are never rewritten. Public `GET /api/seasons` lists the two live/archived season labels, omitting drafts; admin `/api/admin/console/seasons` provides read/create/update operations. Audit writes are transactionally coupled to metadata changes.
 
 Phase 3 must atomically integrate season switching with **every** ranking, ledger, input-date, home and account-stat consumer, and enforce completed-hand/Sit&Go boundary semantics. Do not activate drafts by modifying database status manually.
+
+
+## D-029 — Atomic, guarded rollover to a new season
+
+**Date:** 2026-10-10  
+**Status:** Proposed for CI/PR review
+
+The official point record is append-only. Season turnover changes the **active
+ranking window**, not the raw points/hand tables. The admin chooses a prepared
+draft with start equal to the active season's exclusive end date. Activation is
+permitted only on or after the planned date in Japan, before the next end date,
+with no in-progress Ring hand or starting/running/registration-open Sit&Go.
+The administrator must re-enter their current PIN and explicitly confirm. The
+previous season is archived and the selected draft becomes active in the same
+transaction as the audit record, serialized by a database lock.
+
+All active reads use the `jj_seasons` active period: official rankings, monthly
+rankings, home leaderboard, admin account/overview, admin ledger split, club
+entry date validation and manual scoped adjustment. The read-only legacy
+`fall` query aliases the current season for cached browsers; the original
+Winter 2026 record remains queryable as `archive:fall`. Future activated IDs
+may be queried by their stable IDs and archived IDs are available for history.
+Existing results, Sit&Go settlement ledger and quiz rewards stay untouched.
+
+The original immutable server's GET /api/entries read is replaced at the
+production integration layer; new club result POSTs continue through the
+existing idempotent, authenticated, validated handler. Historical point
+reversals stay ledger-backed. Cutover must not be activated before the scheduled
+date or by manual DB status edits.
