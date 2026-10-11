@@ -25,10 +25,31 @@ def main() -> None:
     assert "#rankingView .toolbar" in redesigned
     assert "#pokerRoom .poker-table" in redesigned or ".poker-table" in redesigned
     assert "background:linear-gradient(145deg,#163d31,#235944)!important" not in redesigned
-    assert "--shadow-md:none;" in redesigned
-    assert ".top-grid{display:grid!important;grid-template-columns:1fr!important" in redesigned
-    assert ".top-player .hint{display:none!important}" in redesigned
-    assert "backdrop-filter:blur(14px)" not in redesigned[redesigned.find("#rankingView .toolbar"):redesigned.find("#rankingView .segmented")]
+    assert "--green:#245366;" in redesigned and "--bg:#F3F1EC;" in redesigned
+    assert ".hero:before{content:\"JJ\";" in redesigned
+
+    # Users requested color/graphics only. Layout, sizing, typography, and
+    # component ordering must remain BYTE-FOR-BYTE unchanged for these views.
+    import re
+    for selector in (
+        ".hero-grid", ".top-grid", ".top-player", ".top-player strong",
+        ".podium", ".podium-card", ".toolbar", "#rankingView .toolbar",
+        "#rankingView tr", "#rankingView td", "#homeView .hero",
+    ):
+        pattern = re.compile(r"(?<![\w.#-])" + re.escape(selector) + r"\{([^{}]*)\}")
+        before = [m.group(1) for m in pattern.finditer(baseline)]
+        after = [m.group(1) for m in pattern.finditer(redesigned)]
+        assert len(before) == len(after), f"layout selector count changed: {selector}"
+        for b, a in zip(before, after):
+            # Only cosmetic properties can change in these rules.
+            def structural(text: str) -> str:
+                declarations = [x.strip() for x in text.split(";") if x.strip()]
+                return ";".join(x for x in declarations if not (
+                    x.startswith(("background:", "color:", "border-color:",
+                                  "box-shadow:", "backdrop-filter:",
+                                  "-webkit-backdrop-filter:"))
+                ))
+            assert structural(b) == structural(a), f"layout changed: {selector}"
 
     base_bytes, new_bytes = baseline.encode(), redesigned.encode()
     base_gzip = gzip.compress(base_bytes, mtime=0)
