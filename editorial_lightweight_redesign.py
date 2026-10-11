@@ -72,6 +72,7 @@ def transform_styles(source: str) -> str:
     css = source
     # Shared low-paint primitives apply across views, but leave poker layout alone.
     for old, new in (
+        (".view{display:none;animation:viewIn .18s ease-out}", ".view{display:none;animation:none}"),
         ("--radius:22px;", "--radius:12px;"),
         ("--radius-sm:14px;", "--radius-sm:8px;"),
         ("--shadow-xs:0 1px 2px rgba(23,31,27,.04);", "--shadow-xs:none;"),
