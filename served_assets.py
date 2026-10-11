@@ -47,6 +47,7 @@ from player_ux_phase5_mobile import (
     transform_styles as transform_phase5_mobile_styles,
 )
 from player_ux_phase6 import PHASE6_MARKER, transform_app_js as transform_phase6_app_js
+from editorial_lightweight_redesign import MARKER as EDITORIAL_MARKER, transform_styles as transform_editorial_styles
 from subtractive_redesign import (
     SUBTRACTIVE_RED282_MARKER,
     transform_app_js as transform_subtractive_app_js,
@@ -73,7 +74,7 @@ from ring_buyin_browser import MARKER as RING_BUYIN_MARKER, transform_app_js as 
 ROOT = Path(__file__).resolve().parent
 MATERIALIZED_STATIC = ROOT / "materialized_v1244" / "static"
 BUILD_ROOT = ROOT / ".jj_build"
-ASSET_VERSION = 86
+ASSET_VERSION = 87
 BUILD_FORMAT = 1
 
 _TODAYS_JJ_MARKER = "v2 today's-jj contrast hardening 2026-09-12"
@@ -457,6 +458,9 @@ def build_styles() -> str:
     css = transform_mobile_poker_readability_styles(css)
     if MOBILE_POKER_READABILITY_MARKER not in css:
         raise RuntimeError("mobile poker readability style transform marker missing")
+    css = transform_editorial_styles(css)
+    if EDITORIAL_MARKER not in css:
+        raise RuntimeError("lightweight editorial style marker missing")
     return css
 
 
@@ -570,6 +574,7 @@ __all__ = [
     "ASSET_VERSION",
     "BUILD_ROOT",
     "CLEAR_COPY_MARKER",
+    "EDITORIAL_MARKER",
     "HAND_HISTORY_VISIBILITY_MARKER",
     "PHASE2_MARKER",
     "PHASE3_MARKER",
