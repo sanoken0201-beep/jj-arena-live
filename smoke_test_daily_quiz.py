@@ -76,7 +76,7 @@ def bank_checks():
     for key, phrase in {
         "pot-100-75": "必要な最低勝率",
         "mdf-100-50": "最低ディフェンス頻度（MDF）",
-        "spr-1200-3600": "残りチップ÷ポット（SPR）",
+        "spr-3600-1200": "残りチップ÷ポット（SPR）",
         "decision-30-35": "どちらが有利ですか",
     }.items():
         assert phrase in make_readable(questions[key])["prompt"], key
