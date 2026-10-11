@@ -16,6 +16,7 @@ MARKER = "jj lightweight editorial redesign 2026-10-11"
 _RULES: tuple[tuple[str, str | None], ...] = (
     (".primary", "background:var(--green);color:#fff;box-shadow:none"),
     (".primary:hover", "background:var(--green-2);transform:none;box-shadow:none"),
+    (".link-btn", "background:transparent;color:var(--green);padding-inline:5px;min-height:44px"),
     (".hero", "min-height:0;padding:27px;display:flex;justify-content:space-between;align-items:stretch;gap:24px;position:relative;background:var(--surface);color:var(--ink);border:1px solid var(--line);border-top:3px solid var(--green);box-shadow:none"),
     (".hero:before", None),
     (".hero .eyebrow", "color:var(--green)"),
