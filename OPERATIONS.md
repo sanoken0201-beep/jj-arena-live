@@ -294,3 +294,10 @@ explicit /api/rankings?season=archive:fall for the 2026-2027 Winter.
 Do not directly edit jj_seasons.status in SQL. Verify the active /api/seasons
 label, old archive, /api/rankings, /api/home/core, and /api/entries after the
 deployment. Do not schedule tournaments across a season boundary.
+
+
+## 16. Season rollover operational hardening (2026-10-11)
+
+Before requesting a new season activation, the admin browser calls `GET /api/admin/console/seasons/{season_id}/readiness`. This read-only, administrator-authenticated endpoint reports whether the season is still a draft, whether its start matches the current season's exclusive end, whether the start date has arrived in JST and whether Ring or Sit&Go is currently active. The check is only advisory; `POST .../activate` revalidates every condition with its database lock and PIN confirmation. The administrator PIN now uses a masked, short-lived form dialog instead of a visible browser text prompt. The admin's current-season labels and the player ranking tabs no longer use hard-coded 後期/前期 descriptions. This does not change any historical points or activate a season early.
+
+Production verification needs a confirmed Render workspace selection before the Render connector can inspect services, deploys and logs. After confirmation, compare the deployed commit SHA with the latest merged main commit, verify health, and run only non-destructive authenticated checks of the season list, current period and archive. Never use the activation POST as a smoke test.
