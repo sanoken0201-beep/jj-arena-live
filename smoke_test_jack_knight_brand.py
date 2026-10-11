@@ -84,13 +84,18 @@ def browser_check(html: str, css: str) -> None:
               const rect=s=>by(s).getBoundingClientRect();
               const overlap=(a,b)=>a.left<b.right && a.right>b.left && a.top<b.bottom && a.bottom>b.top;
               const img=rect('.jj-jack-knight'), hero=rect('.jj-jack-hero'),
-                    title=rect('.jj-jack-hero h3'), primary=rect('.jj-jack-hero .primary');
+                    primary=rect('.jj-jack-hero .primary');
+              const titleRange=document.createRange();
+              titleRange.selectNodeContents(by('.jj-jack-hero h3'));
+              const title=titleRange.getBoundingClientRect();
               const v={
                 art:img.width>40&&img.height>40,
                 inset:img.left>=hero.left-2 && img.right<=hero.right+2,
                 titleClear:!overlap(img,title),
                 actionClear:!overlap(img,primary),
                 noPageOverflow:document.documentElement.scrollWidth<=innerWidth+2,
+                pageScrollWidth:document.documentElement.scrollWidth,
+                overflowNodes:Array.from(document.querySelectorAll('main,section,article,div,svg')).filter(e=>e.getBoundingClientRect().right>innerWidth+4).slice(0,5).map(e=>({tag:e.tagName,cls:e.className.baseVal||e.className,right:Math.round(e.getBoundingClientRect().right)})),
                 title:by('.jj-jack-hero h3').textContent,
                 buttons:by('.jj-jack-hero .button-row').children.length,
                 artWidth:Math.round(img.width),
