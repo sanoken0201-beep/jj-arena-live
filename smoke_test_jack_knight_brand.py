@@ -119,6 +119,44 @@ def browser_check(html: str, css: str) -> None:
                 assert info["artWidth"]>=105 and info["artHeight"]>=130, f"Knight is postage-stamp sized at {w}px: {info}"
             print(f"JJ_JACK_KNIGHT_BROWSER_OK width={w} art={info['artWidth']}px",flush=True)
             page.close()
+        # Also render the actual compiled application shell (sidebar/topbar/mobile
+        # dock), without running network/auth or changing production markup.
+        full_fixture = re.sub(
+            r'<script\s+src="/static/app\.js\?v=[^"]+"\s*></script>', '', html
+        )
+        full_fixture = re.sub(
+            r'<link\s+rel="stylesheet"\s+href="/static/styles\.css\?v=[^"]+"\s*/?>', '',
+            full_fixture
+        )
+        full_fixture = full_fixture.replace('class="app-shell hidden"', 'class="app-shell"')
+        assert 'class="app-shell"' in full_fixture
+        full_fixture = full_fixture.replace(
+            "</head>",
+            "<style>" + css + "\n#authView{display:none!important}</style></head>",
+            1,
+        )
+        for w,h in ((320,640),(390,844),(1024,768),(1440,900)):
+            page=browser.new_page(viewport={"width":w,"height":h},device_scale_factor=1)
+            page.set_content(full_fixture)
+            page.wait_for_timeout(850)
+            info=page.evaluate("""() => {
+              const hero=document.querySelector('#homeView .jj-jack-hero');
+              const art=document.querySelector('#homeView .jj-jack-knight');
+              const nav=document.querySelector('.sidebar .nav.active');
+              const box=hero.getBoundingClientRect();
+              const fig=art.getBoundingClientRect();
+              return {
+                heroVisible:box.width>100&&box.height>180,
+                artVisible:fig.width>90,
+                navPresent:!!nav,
+                noPageOverflow:document.documentElement.scrollWidth<=innerWidth+4,
+                artContained:fig.left>=box.left-2&&fig.right<=box.right+2
+              }
+            }""")
+            page.screenshot(path=str(SCREENSHOT_DIR/f"app-shell-{w}.png"),full_page=True)
+            assert all(info.values()), f"real app-shell regression at {w}px: {info}"
+            print(f"JJ_JACK_KNIGHT_APP_SHELL_OK width={w}",flush=True)
+            page.close()
         browser.close()
 
 
