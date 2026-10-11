@@ -27,10 +27,13 @@ jobs:
           python-version-file: .python-version
 
       - name: Compile transform and served asset compiler
-        run: python -m py_compile subtractive_redesign.py served_assets.py smoke_test_subtractive_redesign.py
+        run: python -m py_compile subtractive_redesign.py editorial_lightweight_redesign.py served_assets.py smoke_test_subtractive_redesign.py smoke_test_lightweight_editorial.py
 
       - name: Run subtractive redesign smoke test
         run: python smoke_test_subtractive_redesign.py
+
+      - name: Check editorial CSS size and page invariants
+        run: python smoke_test_lightweight_editorial.py
 
       - name: Build final served browser assets
         run: python build_served_assets.py
