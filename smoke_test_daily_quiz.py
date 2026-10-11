@@ -103,8 +103,8 @@ def bank_checks():
         'icm-advanced-bf-ratio': '1.5',
         'icm-advanced-bf-equity': '60%',
         'bet_sizing-advanced-polar-river-bluffs': '6コンボ',
-        'bet_sizing-advanced-triple-barrel-fold': '約72%',
-        'range-advanced-betting-weight': '約67%',
+        'bet_sizing-advanced-triple-barrel-fold': '72%',
+        'range-advanced-betting-weight': '67%',
     }
     for key, label in known_answers.items():
         q = next(q for q in advanced if q['key'] == key)
