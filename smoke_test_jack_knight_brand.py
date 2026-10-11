@@ -85,8 +85,10 @@ def browser_check(html: str, css: str) -> None:
               const overlap=(a,b)=>a.left<b.right && a.right>b.left && a.top<b.bottom && a.bottom>b.top;
               const img=rect('.jj-jack-knight'), hero=rect('.jj-jack-hero'),
                     primary=rect('.jj-jack-hero .primary'),
-                    leader=rect('.jj-jack-hero .leader-box'),
-                    description=rect('.jj-jack-hero p');
+                    leader=rect('.jj-jack-hero .leader-box');
+              const descRange=document.createRange();
+              descRange.selectNodeContents(by('.jj-jack-hero p'));
+              const descriptionLines=Array.from(descRange.getClientRects());
               const titleRange=document.createRange();
               titleRange.selectNodeContents(by('.jj-jack-hero h3'));
               const title=titleRange.getBoundingClientRect();
@@ -96,7 +98,7 @@ def browser_check(html: str, css: str) -> None:
                 titleClear:!overlap(img,title),
                 actionClear:!overlap(img,primary),
                 leaderClear:!overlap(img,leader),
-                descriptionClear:!overlap(img,description),
+                descriptionClear:descriptionLines.every(line=>!overlap(img,line)),
                 noPageOverflow:document.documentElement.scrollWidth<=innerWidth+4,
                 pageScrollWidth:document.documentElement.scrollWidth,
                 overflowNodes:Array.from(document.querySelectorAll('main,section,article,div,svg')).filter(e=>e.getBoundingClientRect().right>innerWidth+4).slice(0,5).map(e=>({tag:e.tagName,cls:e.className.baseVal||e.className,right:Math.round(e.getBoundingClientRect().right)})),
