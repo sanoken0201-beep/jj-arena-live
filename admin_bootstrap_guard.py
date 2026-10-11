@@ -18,9 +18,11 @@ def install(db) -> None:
         # If any viable administrator remains, ALL rights/PINs/sessions are
         # authoritative from the audited role-management API. The environment
         # seed is only for first initialization or last-admin disaster recovery.
+        columns = db._columns(con, "users")
+        extra = " AND deleted_at IS NULL" if "deleted_at" in columns else ""
         viable = con.execute(
-            "SELECT id FROM users WHERE role='admin' AND COALESCE(disabled,0)=0 "
-            "AND deleted_at IS NULL LIMIT 1"
+            "SELECT id FROM users WHERE role='admin' AND COALESCE(disabled,0)=0"
+            + extra + " LIMIT 1"
         ).fetchone()
         if viable:
             return
