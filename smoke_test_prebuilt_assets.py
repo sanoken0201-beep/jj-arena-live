@@ -43,6 +43,7 @@ def main() -> None:
             }
             compiled_js = (root / "static" / "app.js").read_text(encoding="utf-8")
             compiled_index = (root / "index.html").read_text(encoding="utf-8")
+            assert compiled_js.count("jj-quiz-source") == 2, "both quiz renderers must show advanced article source links"
             ranking_guard = (
                 "const jjRankingIdentity=String(me.id||me.ranking_name||me.name||'');"
                 "if(box.dataset.jjRankingIdentity!==jjRankingIdentity)"

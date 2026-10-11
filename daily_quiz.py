@@ -217,7 +217,9 @@ def _public(q, uid, day, progress, correct_reward, incorrect_reward):
 def _result(row, q, progress, duplicate):
     return dict(ok=True, already_answered=duplicate, correct=bool(row["is_correct"]),
                 correct_answer=q["correct"], correct_label=next(c["label"] for c in q["choices"] if c["value"]==q["correct"]),
-                explanation=q["explanation"], awarded=0 if duplicate else int(row["reward_awarded"]), progress=progress)
+                explanation=q["explanation"], difficulty=q.get("difficulty") or "standard",
+                source_title=q.get("source_title"), source_url=q.get("source_url"),
+                awarded=0 if duplicate else int(row["reward_awarded"]), progress=progress)
 
 
 def question_statistics(con):

@@ -23,13 +23,13 @@ from smoke_test_learning_integration import isolated_production_app, login, json
 
 def bank_checks():
     assert len(dq.POOLS) == 10
-    assert all(len(pool) == 20 for pool in dq.POOLS.values())
-    assert len({q['key'] for pool in dq.POOLS.values() for q in pool}) == 200
+    assert all(len(pool) == 23 for pool in dq.POOLS.values())
+    assert len({q['key'] for pool in dq.POOLS.values() for q in pool}) == 230
     readability_errors = audit_questions(dq.POOLS)
     assert not readability_errors, readability_errors
     start = datetime(2026, 9, 11)
     seen = {k: set() for k in dq.POOLS}
-    for offset in range(20):
+    for offset in range(23):
         day = (start + timedelta(days=offset)).date().isoformat()
         questions = dq.build_daily_questions(day)
         assert questions == dq.build_daily_questions(day)
@@ -46,7 +46,7 @@ def bank_checks():
                 values = [float(c['label'][:-1]) for c in choices]
                 correct = next(float(c['label'][:-1]) for c in choices if c['value'] == q['correct'])
                 assert all(v == correct or abs(v-correct) >= 10 for v in values), q
-    assert all(len(v) == 20 for v in seen.values())
+    assert all(len(v) == 23 for v in seen.values())
     # Reference examples: regression on independently checked poker arithmetic.
     answer_labels = {
         "pot_odds-multiway-price": "14%",
@@ -81,6 +81,34 @@ def bank_checks():
     }.items():
         assert phrase in make_readable(questions[key])["prompt"], key
 
+    advanced = [q for pool in dq.POOLS.values() for q in pool if q.get('difficulty') == 'intermediate']
+    assert len(advanced) == 30
+    assert all(q['prompt'].startswith('【応用】') for q in advanced)
+    assert all(q['source_url'].startswith('https://blog.gtowizard.com/') for q in advanced)
+    assert len({q['key'] for q in advanced}) == len(advanced)
+    for q in advanced:
+        readable = make_readable(q)
+        assert readable['source_url'] == q['source_url']
+        assert len(readable['prompt']) <= 250, q['key']
+        assert len(readable['choices']) == 4
+        assert len({c['label'] for c in readable['choices']}) == 4
+    # Protect source-derived numerical examples.
+    known_answers = {
+        'pot_odds-advanced-raise-pot-25': '25%',
+        'equity-advanced-eqr-calc': '60',
+        'mdf-advanced-mdf-overbet': '40%',
+        'spr-advanced-geom-pot-pot': '毎回100%ポット',
+        'spr-advanced-geom-ratio': '62%',
+        'combo-advanced-weighted-groups': '75%',
+        'icm-advanced-bf-ratio': '1.5',
+        'icm-advanced-bf-equity': '60%',
+        'bet_sizing-advanced-polar-river-bluffs': '6コンボ',
+        'bet_sizing-advanced-triple-barrel-fold': '72%',
+        'range-advanced-betting-weight': '67%',
+    }
+    for key, label in known_answers.items():
+        q = next(q for q in advanced if q['key'] == key)
+        assert next(c['label'] for c in q['choices'] if c['value'] == q['correct']) == label
     class StatRows:
         def execute(self, _): return self
         def fetchall(self):
@@ -136,7 +164,7 @@ def run(postgres=False):
                 opened = list(pool.map(lambda _: get(), range(16)))
             q = opened[0]
             assert all(item == q for item in opened)
-            assert q['date'] == '2026-09-11' and 'correct' not in q and 'explanation' not in q
+            assert q['date'] == '2026-09-11' and 'correct' not in q and 'explanation' not in q and 'source_url' not in q
             qb = json_response(b.get('/api/quiz/question'))
             assert qb['id'] != q['id'] and qb['prompt'] == q['prompt']
             assert q['reward_correct'] == 10 and q['reward_incorrect'] == 5
