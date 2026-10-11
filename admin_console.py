@@ -146,11 +146,16 @@ def _rankings(db,server,month=None,season="fall"):
     start,end=_bounds(server,season,db)
     if month and (not re.fullmatch(r"\d{4}-\d{2}",month) or month + "-01" >= end or month + "-31" < start):
         return []
+    import season_management
+    utc_start,utc_end=season_management.utc_bounds(start,end)
     cw="WHERE name!='運営調整' AND date>=? AND date<?";cp=[start,end]
-    ow="WHERE COALESCE(h.voided,0)=0 AND h.played_at>=? AND h.played_at<?";op=[start,end]
-    lw="WHERE l.effective_at>=? AND l.effective_at<?";lp=[start,end]
+    ow="WHERE COALESCE(h.voided,0)=0 AND h.played_at>=? AND h.played_at<?";op=[utc_start,utc_end]
+    lw="WHERE l.effective_at>=? AND l.effective_at<?";lp=[utc_start,utc_end]
     if month:
-        cw+=" AND substr(date,1,7)=?";cp.append(month);ow+=" AND r.month=?";op.append(month);lw+=" AND substr(l.effective_at,1,7)=?";lp.append(month)
+        cw+=" AND substr(date,1,7)=?";cp.append(month)
+        ow+=" AND r.month=?";op.append(month)
+        month_start,month_end=season_management.utc_bounds(month+"-01",season_management.next_month(month))
+        lw+=" AND l.effective_at>=? AND l.effective_at<?";lp.extend([month_start,month_end])
     with db.connect() as con:
         deletion_aware="deleted_at" in _cols(db,con,"users")
         generations=_account_generations(con) if deletion_aware else {}

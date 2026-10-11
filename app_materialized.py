@@ -19,6 +19,7 @@ import admin_api_consolidation
 import admin_ledger_stabilization
 import admin_pin_verification
 import admin_role_delegation
+import admin_bootstrap_guard
 import season_management
 import hand_analytics
 import hand_analytics_hardening
@@ -67,8 +68,11 @@ def _import_materialized_core():
     original_path = list(sys.path)
     try:
         sys.path.insert(0, str(DEST))
-        import server as runtime_server  # noqa: E402
+        # Patch the legacy seed BEFORE importing server: server calls init_db()
+        # and seed_if_needed() during module import.
         import db  # noqa: E402
+        admin_bootstrap_guard.install(db)
+        import server as runtime_server  # noqa: E402
         import poker_engine as runtime_poker_engine  # noqa: E402
     finally:
         sys.path[:] = original_path

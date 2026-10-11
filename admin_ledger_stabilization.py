@@ -21,12 +21,17 @@ def _has_deleted_at(db, con) -> bool:
 
 
 def _ledger_by_name(db, server, *, month: str | None, season: str) -> dict[str, dict[str, float]]:
+    import season_management
     start, end = _bounds(server, season, db)
+    utc_start, utc_end = season_management.utc_bounds(start, end)
     where = "WHERE l.effective_at>=? AND l.effective_at<?"
-    params: list[Any] = [start, end]
+    params: list[Any] = [utc_start, utc_end]
     if month:
-        where += " AND substr(l.effective_at,1,7)=?"
-        params.append(month)
+        month_start, month_end = season_management.utc_bounds(
+            month + "-01", season_management.next_month(month)
+        )
+        where += " AND l.effective_at>=? AND l.effective_at<?"
+        params.extend([month_start, month_end])
     with db.connect() as con:
         if _has_deleted_at(db, con):
             where += " AND u.deleted_at IS NULL"
@@ -169,7 +174,9 @@ def install(app, admin_console) -> None:
     remove_route("/api/admin/console/points/{txid}/reverse", "POST")
 
     def overview(user=Depends(server.admin_user)):
+        import season_management
         start, end = _bounds(server, "fall")
+        utc_start, utc_end = season_management.utc_bounds(start, end)
         with db.connect() as con:
             deletion_aware = _has_deleted_at(db, con)
             accounts = con.execute(
@@ -192,7 +199,7 @@ def install(app, admin_console) -> None:
                   AND l.kind IN ('credit','collection','reversal')
                   {deleted_guard}
                 """.format(deleted_guard="AND u.deleted_at IS NULL" if deletion_aware else ""),
-                (start, end),
+                (utc_start, utc_end),
             ).fetchone()
             quiz = con.execute(
                 """
@@ -202,7 +209,7 @@ def install(app, admin_console) -> None:
                 WHERE l.effective_at>=? AND l.effective_at<? AND l.kind='quiz_reward'
                   {deleted_guard}
                 """.format(deleted_guard="AND u.deleted_at IS NULL" if deletion_aware else ""),
-                (start, end),
+                (utc_start, utc_end),
             ).fetchone()
             dup = con.execute(
                 """

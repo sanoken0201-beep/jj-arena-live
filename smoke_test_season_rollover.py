@@ -170,6 +170,66 @@ def main() -> None:
         assert admin.get("/api/rankings",params={"season":"archive:fall"}).json()==archived.json()
         assert admin.get("/api/home/core").json()["rankings"]==now
         assert [x["id"] for x in admin.get("/api/entries").json()]==["spring-sample"]
+
+        # UTC accounting boundary: Japan's April 1st begins at 15:00 UTC
+        # on March 31st. Both Ring settlements and daily quiz/Sit&Go ledger
+        # credits must enter exactly one season and the correct JST month.
+        with production.db.connect() as con:
+            for hand_id, played, month, amount in [
+                ("winter-boundary","2027-03-31T14:59:59+00:00","2027-03",10),
+                ("spring-boundary","2027-03-31T15:00:00+00:00","2027-04",20),
+            ]:
+                con.execute(
+                    "INSERT INTO online_hands(hand_id,table_id,hand_no,gross_pot_bb,"
+                    "rake_bb,played_at,month,voided) VALUES (?,?,?,?,?,?,?,0)",
+                    (hand_id,"jj-table-a",1,10,0,played,month),
+                )
+                con.execute(
+                    "INSERT INTO online_hand_results(id,hand_id,table_id,user_id,"
+                    "ranking_name,result_bb,points,month,created_at)"
+                    "VALUES (?,?,?,?,?,?,?,?,?)",
+                    (hand_id+"-result",hand_id,"jj-table-a",member_id,
+                     "キカンメンバー",amount,amount,month,played),
+                )
+            for name, played, amount in [
+                ("winter-jst-boundary","2027-03-31T14:59:59+00:00",3),
+                ("spring-jst-boundary","2027-03-31T15:00:00+00:00",7),
+            ]:
+                con.execute(
+                    "INSERT INTO point_ledger(id,user_id,amount,kind,reason,effective_at,"
+                    "created_by,created_at) VALUES (?,?,?,?,?,?,?,?)",
+                    (name,member_id,amount,"quiz_reward","boundary",played,member_id,played),
+                )
+        current=admin.get("/api/rankings").json()
+        assert next(x for x in current if x["name"]=="キカンメンバー")["points"]==97,current
+        winter=admin.get("/api/rankings",params={"season":"archive:fall"}).json()
+        assert next(x for x in winter if x["name"]=="キカンメンバー")["points"]==173,winter
+        monthly=admin.get("/api/rankings",params={"month":"2027-04"}).json()
+        assert next(x for x in monthly if x["name"]=="キカンメンバー")["points"]==97,monthly
+        march=admin.get("/api/rankings",params={"season":"archive:fall","month":"2027-03"}).json()
+        assert next(x for x in march if x["name"]=="キカンメンバー")["points"]==13,march
+        assert admin.get("/api/admin/console/overview").json()["ranking_total"]>=97
+        with production.db.connect() as con:
+            assert production._sitngo_service.points.balance(con,member_id)==9700
+
+        # The admin UI submits timezone-free JST datetime-local values.
+        # They must not be rejected at 00:30 JST or booked to March.
+        adjustment={
+            "request_id":uuid.uuid4().hex,"user_id":member_id,"scope":"online",
+            "direction":"credit","amount":5,"reason":"JST boundary check",
+            "effective_at":"2027-04-01T00:30",
+        }
+        paid=admin.post("/api/admin/console/points",json=adjustment)
+        assert paid.status_code==200,paid.text
+        assert paid.json()["effective_at"].startswith("2027-03-31T15:30:00+00:00")
+        assert next(x for x in admin.get("/api/rankings").json()
+                    if x["name"]=="キカンメンバー")["points"]==102
+        assert next(x for x in admin.get("/api/rankings",params={"month":"2027-04"}).json()
+                    if x["name"]=="キカンメンバー")["points"]==102
+        assert admin.post("/api/admin/console/points",json={
+            **adjustment,"request_id":uuid.uuid4().hex,
+            "effective_at":"2027-03-31T14:59:59+00:00"
+        }).status_code==400
         assert len([x for x in admin.get("/api/admin/console/audit").json()
                     if x["action"]=="season.activate"])==1
 

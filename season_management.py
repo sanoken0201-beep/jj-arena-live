@@ -7,7 +7,8 @@ from __future__ import annotations
 
 import re
 import uuid
-from datetime import date
+from datetime import date, datetime, time, timezone
+from zoneinfo import ZoneInfo
 
 from fastapi import Depends, HTTPException
 from pydantic import BaseModel, ConfigDict, Field
@@ -162,6 +163,31 @@ def bounds(db, season: str = "fall") -> tuple[str, str]:
         if key.startswith("archive:") and row["status"] != "archived":
             raise HTTPException(400, "このシーズンはまだ過去シーズンではありません")
         return str(row["start_date"]), str(row["end_exclusive"])
+
+
+
+def utc_bounds(start: str, end: str) -> tuple[str, str]:
+    """JST midnight boundaries expressed in the canonical UTC ledger clock.
+
+    Club entries store their user-specified local date and continue using
+    `bounds` directly. Online hands, quiz credits, manual adjustments and
+    Sit&Go payouts store UTC timestamps; comparing their UTC date to JST
+    season dates would put the first 9 hours of a new season in the old one.
+    """
+    def convert(day: str) -> str:
+        if day == "0000-01-01":
+            return day
+        local_midnight = datetime.combine(date.fromisoformat(day), time.min, ZoneInfo("Asia/Tokyo"))
+        return local_midnight.astimezone(timezone.utc).isoformat()
+
+    return convert(start), convert(end)
+
+
+def next_month(day: str) -> str:
+    """First day of the following calendar month, without external deps."""
+    current = date.fromisoformat(day[:7] + "-01")
+    year, month = current.year, current.month
+    return f"{year + (month == 12):04d}-{1 if month == 12 else month + 1:02d}-01"
 
 
 def install(app, server, db, admin_console) -> None:
