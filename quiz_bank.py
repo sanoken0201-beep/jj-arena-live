@@ -398,11 +398,30 @@ one-pair-depth|同じトップペアでも、深いスタックでリバーの�
 for _category, _rows in _REVIEWED_202610.items():
     POOLS[_category].extend(_concepts(_category, _rows))
 
+
+# Add a measured share of advanced, independently authored theory questions.
+# Reference links are stored as metadata and exposed only after answering.
+from quiz_advanced_bank import ADVANCED_ROWS, SOURCES
+
+for _category, _raw in ADVANCED_ROWS.items():
+    for _row in _raw.strip().splitlines():
+        _slug, _prompt, _correct, _wrong1, _wrong2, _wrong3, _explanation, _source = _row.split("|")
+        _question = _q(
+            f"{_category}-advanced-{_slug}", _category, CATEGORY_LABELS[_category],
+            "【応用】" + _prompt,
+            [("a", _correct), ("b", _wrong1), ("c", _wrong2), ("d", _wrong3)],
+            "a", _explanation,
+        )
+        _question["difficulty"] = "intermediate"
+        _question["source_title"], _question["source_url"] = SOURCES[_source]
+        POOLS[_category].append(_question)
+
+
 for category, pool in POOLS.items():
     for q in pool:
         q["category"] = category
         q["category_label"] = CATEGORY_LABELS[category]
-    assert len(pool) == 20, (category, len(pool))
+    assert len(pool) == 23, (category, len(pool))
 assert len(POOLS) == 10
-assert len({q["key"] for pool in POOLS.values() for q in pool}) == 200
-assert len({q["prompt"] for pool in POOLS.values() for q in pool}) == 200
+assert len({q["key"] for pool in POOLS.values() for q in pool}) == 230
+assert len({q["prompt"] for pool in POOLS.values() for q in pool}) == 230
