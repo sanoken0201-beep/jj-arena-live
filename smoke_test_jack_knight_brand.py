@@ -48,7 +48,7 @@ def contract() -> tuple[str, str]:
     cleaned = html.replace(KNIGHT_SVG, "").replace(
         '<article class="hero card jj-jack-hero">', '<article class="hero card">'
     ).replace("<h3>JJ Arena</h3>", "<h3>次の1ハンドを、<br>みんなで。</h3>")
-    cleaned = cleaned.replace("ランキング・活動予定・学習・オンライン卓", "後期ランキング、活動予定、学習、戦略議論、リアルタイムNLHをひとつに。JJの運営とプレイを、より速くシンプルに。")
+    cleaned = cleaned.replace("予定・ランキング<br>学習・オンライン卓", "後期ランキング、活動予定、学習、戦略議論、リアルタイムNLHをひとつに。JJの運営とプレイを、より速くシンプルに。")
     cleaned = cleaned.replace("\n<!-- " + MARKER + " -->\n", "")
     assert cleaned == previous_html, "non-Home markup changed"
     assert css.startswith(previous_css), "existing stylesheet changed instead of being kept intact"
@@ -60,7 +60,7 @@ def contract() -> tuple[str, str]:
     assert gzip_delta <= 900, f"CSS transfer grew excessively: {gzip_delta} bytes"
     assert "<h3>JJ Arena</h3>" in html
     assert "<h3>次の1ハンドを" not in html
-    assert "ランキング・活動予定・学習・オンライン卓" in html
+    assert "予定・ランキング<br>学習・オンライン卓" in html
     print(f"JJ_JACK_KNIGHT_STATIC_OK SVG={len(KNIGHT_SVG.encode())}B CSS_gzip_delta={gzip_delta}B",flush=True)
     return html, css
 
@@ -116,7 +116,7 @@ def browser_check(html: str, css: str) -> None:
             assert all(info[k] for k in ("art","inset","titleClear","actionClear","leaderClear","descriptionClear","noPageOverflow")), f"{w}px: {info}"
             assert info["title"]=="JJ Arena" and info["buttons"]==2
             if w<=390:
-                assert info["artWidth"]>=88 and info["artHeight"]>=105, f"Knight is postage-stamp sized at {w}px: {info}"
+                assert info["artWidth"]>=105 and info["artHeight"]>=130, f"Knight is postage-stamp sized at {w}px: {info}"
             print(f"JJ_JACK_KNIGHT_BROWSER_OK width={w} art={info['artWidth']}px",flush=True)
             page.close()
         browser.close()
