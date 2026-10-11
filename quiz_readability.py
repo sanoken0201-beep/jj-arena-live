@@ -150,7 +150,7 @@ def _clear_numeric_prompt(key: str) -> str | None:
     A label such as "MDF" should not turn into a long noun phrase when a
     generic glossary replacement runs inside a mathematical question.
     """
-    match = re.fullmatch(r"(pot|bluff|decision|mdf|spr)-(\\d+)-(\\d+)", key)
+    match = re.fullmatch(r"(pot|bluff|decision|mdf|spr)-(\d+)-(\d+)", key)
     if not match:
         return None
     kind, left, right = match.group(1), int(match.group(2)), int(match.group(3))
