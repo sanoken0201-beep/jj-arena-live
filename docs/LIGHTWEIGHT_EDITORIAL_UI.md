@@ -1,53 +1,33 @@
-# JJ Arena Lightweight Editorial UI
+# JJ Arena Graphics-Only Theme (Draft)
 
-Date: 2026-10-11
-Status: Draft PR, not a production design approval
+Updated 2026-10-11. Following user clarification, this PR is a **color and graphic treatment**, NOT an editorial layout redesign.
 
-## Decision
+## User intent / design decision
 
-The redesign should make the product feel like a restrained club/competition
-interface, not a generic generated SaaS dashboard. Above all, it must not make
-the app heavier. Preserve all Ring and Sit&Go game behavior.
+- Improve the overall distinctive identity through color, backgrounds, restrained graphic details and consistent brand accents.
+- Keep the original screen layout, card arrangement, text sizes, spacing, hit targets, ranking podium order, navigation and all online poker operations intact.
+- Preserve Japanese legibility and visual contrast.
+- Avoid new image files, external fonts, runtime JavaScript, web requests and heavy blur/animation.
 
-## Phase 1
+## Trial color direction
 
-- Home: flat editorial hero, a compact vertical top-five list, readable session
-  and table panels. The current Home elements and IDs must remain unchanged.
-- Rankings: preserve filters, player search, podium and all table data, but
-  replace promotional gradients and elevated cards with dividers.
-- Shared primitives: smaller corner radii, reduced nonessential shadows,
-  flat primary buttons, and a solid mobile sticky header.
-- No new SVGs, photos, icon frameworks, fonts, JS, or network dependencies.
-- Do not edit materialized_v1244. Perform transformations only during the
-  deterministic served-asset build; never on each request.
+- Chalk white: `#F3F1EC`
+- Deep maritime blue: `#192D3B` / action teal `#245366`
+- Copper: `#996035`; pale copper `#E7C5A1`
+- Main text: `#192E3A`; muted text: `#53636C`
+- Accent: simple flat-color backgrounds and unobtrusive JJ watermark on home hero.
 
-## Acceptance: required before merging
+All color choices are a **reversible proposal**, not yet approved.
 
-1. Generated stylesheet raw and gzip byte counts must not exceed the
-   equivalent generated stylesheet with this transform disabled.
-2. Run lightweight editorial smoke tests and all affected browser tests.
-   Compare actual final served assets, not only the canonical input.
-3. Manually inspect Home/Rankings on narrow phone widths (320-390px), normal
-   phones, tablet and desktop. Verify no clipped names or point totals, no
-   scrolling traps, no loss of ranking search/filter/podium content and no
-   tap targets below 44px.
-4. Compare actual cold and warm loads on a production-equivalent deployment:
-   mobile p75 LCP <= 2.5s, INP <= 200ms, CLS <= 0.1.
-   Also reject any statistically meaningful latency regression against a
-   pre-release baseline. A byte-budget pass is NOT proof of Core Web Vitals.
-5. Compare poker action latency, hand log, timers, reconnect and Sit&Go
-   separately. This redesign must not alter these product paths.
-6. Keep changes on a draft PR until CI and browser validation complete.
+## Constraints and verification
 
-## Follow-up phases (not part of this PR)
-
-- Poker Lab: editorial diagrams and compact teaching panels.
-- Online poker: tournament-broadcast style only if table readability, motion
-  cost and action responsiveness remain unchanged or improve.
-- Admin: high-density utilitarian tables, focusing on mobile safe areas.
-- Remove obsolete declarations rather than layering more overriding CSS.
+1. No change to layout-related CSS declarations, no element order or component logic changes. A stylesheet contract test compares existing and themed Home/Ranking layout selectors.
+2. Compare generated CSS (raw/gzip) against the same build with the theme disabled. Require no size increase.
+3. Browser checks use Japanese test fonts installed **only on CI runners**; screenshots cover Home/Ranking at widths 320, 360, 390, 760, 1024 and 1440px.
+4. Contrast for major text must meet at least 4.5:1. Existing font sizes and tap-target dimensions remain unchanged; pre-existing accessibility issues are out of scope for this purely graphic change.
+5. Run existing stability, poker visibility, Sit&Go, points, PWA cache and production release CI tests.
+6. Do not release until screenshots are reviewed and the trial palette is accepted; actual production LCP/INP/CLS must still be measured before deployment.
 
 ## Rollback
 
-Revert the editorial transform invocation and asset version change. No DB
-migration or application/game logic changes are involved.
+Revert the single build-time theme transformation from `served_assets.py` and the asset version bump. No application logic or database migration.
