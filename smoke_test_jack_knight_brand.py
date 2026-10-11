@@ -7,6 +7,7 @@ session, database or JavaScript; uses fonts already present on CI runners.
 """
 
 import gzip
+import shutil
 import re
 from pathlib import Path
 from unittest.mock import patch
@@ -69,7 +70,10 @@ def browser_check(html: str, css: str) -> None:
     assert match, "Home section no longer present"
     fixture = '<!doctype html><html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>' + css + '</style></head><body><main class="main" style="margin-left:0;max-width:none">' + match.group(1) + '</main></body></html>'
     with sync_playwright() as p:
-        browser = p.chromium.launch(headless=True,args=["--no-sandbox","--disable-dev-shm-usage"])
+        executable = next((shutil.which(x) for x in ("google-chrome", "chromium", "chromium-browser", "google-chrome-stable") if shutil.which(x)), None)
+        if not executable:
+            raise RuntimeError("Chrome or Chromium is required for knight UI screenshots")
+        browser = p.chromium.launch(executable_path=executable, headless=True,args=["--no-sandbox","--disable-dev-shm-usage"])
         SCREENSHOT_DIR.mkdir(parents=True,exist_ok=True)
         for w,h in ((320,640),(390,844),(760,1024),(1024,768),(1440,900)):
             page = browser.new_page(viewport={"width":w,"height":h},device_scale_factor=1)
