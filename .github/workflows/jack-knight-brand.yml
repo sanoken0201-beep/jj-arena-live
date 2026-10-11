@@ -1,0 +1,44 @@
+name: Jack Knight Screen Art
+
+on:
+  push:
+    branches:
+      - 'feature/**'
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  home-visual:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version-file: .python-version
+          cache: pip
+      - name: Install production dependencies
+        run: python -m pip install -r requirements.txt
+      - name: Validate build-time SVG and unchanged game/leaderboard UI
+        run: |
+          python -m py_compile jack_knight_brand.py smoke_test_jack_knight_brand.py
+          python smoke_test_jack_knight_brand.py
+          python build_served_assets.py
+      - name: Install browser test driver and Japanese fonts (CI only)
+        run: |
+          python -m pip install playwright==1.58.0
+          sudo apt-get update -qq
+          sudo apt-get install -qq -y fonts-noto-cjk
+      - name: Verify home hero in Chromium and record screenshots
+        run: python smoke_test_jack_knight_brand.py --browser
+      - name: Attach real-browser screenshot gallery
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: jack-knight-home-screenshots
+          path: test-artifacts/jack-knight/
+          if-no-files-found: ignore
