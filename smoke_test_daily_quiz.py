@@ -77,7 +77,7 @@ def bank_checks():
         "pot-100-75": "必要な最低勝率",
         "mdf-100-50": "最低ディフェンス頻度（MDF）",
         "spr-3600-1200": "残りチップ÷ポット（SPR）",
-        "decision-30-35": "どちらが有利ですか",
+        "decision-30-35": "最も適切な判断はどれですか",
     }.items():
         assert phrase in make_readable(questions[key])["prompt"], key
 
