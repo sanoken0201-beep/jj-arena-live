@@ -44,7 +44,7 @@ KNIGHT_SVG = """<svg class="jj-jack-knight" xmlns="http://www.w3.org/2000/svg" v
 CSS = r"""
 /* JJ Jack-knight: original, decorative screen illustration. Gameplay excluded. */
 #homeView .hero.jj-jack-hero{
-  background:#1B2855;
+  background:#1B2855!important;
   border:1px solid #657CC5;
   box-shadow:0 14px 34px rgba(17,30,73,.15);
 }
@@ -54,6 +54,8 @@ CSS = r"""
   pointer-events:none;
 }
 #homeView .jj-jack-hero .eyebrow{color:#9AE7EF}
+#homeView .jj-jack-hero p{color:#E4E9FA!important}
+#homeView .jj-jack-hero .leader-box{background:rgba(21,32,74,.94)!important;backdrop-filter:none}
 #homeView .jj-jack-hero .primary{background:#F5C557;color:#1B2855}
 #homeView .jj-jack-hero .soft{background:#33477D;color:#fff;border-color:#7385BD}
 #homeView .jj-jack-knight{
@@ -66,7 +68,7 @@ CSS = r"""
   #homeView .jj-jack-knight{right:130px;width:146px;height:181px;bottom:-25px;opacity:.68}
 }
 @media(max-width:760px){
-  #homeView .jj-jack-knight{right:12px;top:13px;bottom:auto;width:66px;height:82px;opacity:.95}
+  #homeView .jj-jack-knight{right:12px;top:12px;bottom:auto;width:66px;height:82px;opacity:.95}
   #homeView .jj-jack-hero .eyebrow{max-width:calc(100% - 78px)}
 }
 @media(max-width:360px){
