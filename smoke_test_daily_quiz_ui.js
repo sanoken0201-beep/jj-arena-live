@@ -19,7 +19,7 @@ const context=vm.createContext({
   window:{addEventListener:()=>{}},
   document:{hidden:false,querySelectorAll:()=>[],addEventListener:addListener},
   api:async()=>{state.calls++;if(state.fail)throw Error('offline');return state.q},
-  post:async(path,body)=>{state.posts.push(body);return {correct:false,awarded:10,correct_label:'正解',explanation:'理由を確認',progress:{...progress,answered:1,earned:10,remaining:9}}}
+  post:async(path,body)=>{state.posts.push(body);return {correct:false,awarded:10,correct_label:'正解',explanation:'理由を確認',source_title:'Equity Realization',source_url:'https://blog.gtowizard.com/equity-realization/',progress:{...progress,answered:1,earned:10,remaining:9}}}
 });
 vm.runInContext(addon,context);
 (async()=>{
@@ -28,6 +28,7 @@ vm.runInContext(addon,context);
   const stage=nodes.get('#quizStage').innerHTML;
   assert(choices.includes('data-daily-answer="opaque-choice"'));
   assert(choices.includes('<span>A</span>'));
+  assert(!stage.includes('blog.gtowizard.com'),'Sources must not be visible before answer');
   assert(stage.includes('DAILY QUIZ'));
   assert(stage.includes('問題 1 / 10'));
   assert(stage.includes('今日 +0pt'));
@@ -37,6 +38,9 @@ vm.runInContext(addon,context);
   assert.equal(state.posts[0].answer,'opaque-choice');
   const result=nodes.get('#quizStage').innerHTML;
   assert(result.includes('理由を確認'));
+  assert(result.includes('href="https://blog.gtowizard.com/equity-realization/"'));
+  assert(result.includes('rel="noopener noreferrer"'));
+  assert(result.includes('Equity Realization'));
   assert(result.includes('あなたの回答'));
   assert(result.includes('正解'));
   assert(result.includes('今日合計 <b>+10pt</b>'));
