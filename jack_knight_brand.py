@@ -68,15 +68,15 @@ CSS = r"""
   #homeView .jj-jack-knight{right:248px;width:146px;height:181px;bottom:-25px;opacity:.92}
 }
 @media(max-width:760px){
-  #homeView .jj-jack-knight{right:12px;top:10px;bottom:auto;width:96px;height:118px;opacity:1}
-  #homeView .jj-jack-hero .eyebrow{max-width:calc(100% - 112px)}
+  #homeView .jj-jack-knight{right:10px;top:8px;bottom:auto;width:124px;height:153px;opacity:1}
+  #homeView .jj-jack-hero .eyebrow{max-width:calc(100% - 136px)}
   #homeView .jj-jack-hero h3{max-width:calc(100% - 112px)}
 }
 @media(max-width:560px){
-  #homeView .jj-jack-hero p{max-width:calc(100% - 112px)!important}
+  #homeView .jj-jack-hero p{max-width:calc(100% - 136px)!important}
 }
 @media(max-width:360px){
-  #homeView .jj-jack-knight{right:9px;top:10px;width:88px;height:109px}
+  #homeView .jj-jack-knight{right:9px;top:8px;width:105px;height:130px}
 }
 """
 
@@ -100,7 +100,7 @@ def transform_index(html: str) -> str:
     previous_intro = "後期ランキング、活動予定、学習、戦略議論、リアルタイムNLHをひとつに。JJの運営とプレイを、より速くシンプルに。"
     if html.count(previous_intro) != 1:
         raise RuntimeError("Jack knight home description drift")
-    html = html.replace(previous_intro, "ランキング・活動予定・学習・オンライン卓", 1)
+    html = html.replace(previous_intro, "予定・ランキング<br>学習・オンライン卓", 1)
     return html + "\n<!-- " + MARKER + " -->\n"
 
 
