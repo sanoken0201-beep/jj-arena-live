@@ -301,3 +301,29 @@ deployment. Do not schedule tournaments across a season boundary.
 Before requesting a new season activation, the admin browser calls `GET /api/admin/console/seasons/{season_id}/readiness`. This read-only, administrator-authenticated endpoint reports whether the season is still a draft, whether its start matches the current season's exclusive end, whether the start date has arrived in JST and whether Ring or Sit&Go is currently active. The check is only advisory; `POST .../activate` revalidates every condition with its database lock and PIN confirmation. The administrator PIN now uses a masked, short-lived form dialog instead of a visible browser text prompt. The admin's current-season labels and the player ranking tabs no longer use hard-coded 後期/前期 descriptions. This does not change any historical points or activate a season early.
 
 Production verification needs a confirmed Render workspace selection before the Render connector can inspect services, deploys and logs. After confirmation, compare the deployed commit SHA with the latest merged main commit, verify health, and run only non-destructive authenticated checks of the season list, current period and archive. Never use the activation POST as a smoke test.
+
+
+## 17. Final audit: delegated administrator and JST accounting boundaries
+
+The canonical v1.24.4 bootstrap originally enforced its environment-defined
+administrator on **every** database initialization, resetting that user's PIN,
+revoking sessions and demoting successor administrators. The materialized
+runtime now installs a root-level bootstrap guard before importing the core
+server: when an enabled administrator already exists, the audited role grants
+and PINs are authoritative and are preserved across server restarts. The
+existing environment-backed bootstrap remains an emergency fallback if there
+is no enabled administrator. Ordinary deployments must not be used as a
+credential-reset mechanism.
+
+Official Club entries are user-entered local dates. Online Ring results,
+quiz/Sit&Go rewards and manual ledger transactions use a UTC timestamp.
+Season boundaries and monthly ledger sums are now converted from JST midnight
+to UTC for those timestamped sources. For example, 2027-04-01 00:00 JST is
+2027-03-31 15:00 UTC. An administrator's datetime-local input is treated as
+JST and persisted as UTC; explicitly offset-aware input is converted to UTC.
+Raw historical points are preserved, not repriced, moved or rewritten.
+Future Sit&Go balance queries use the active period rather than constants.
+
+Before the 2027-04-01 rollover, ensure all tournament payments and settlements
+belong to their intended season and require that no Ring or Sit&Go is active.
+The rollover action itself remains administrator/PIN guarded and manual.
