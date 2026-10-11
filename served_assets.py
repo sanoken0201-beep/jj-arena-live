@@ -407,6 +407,12 @@ def build_app_js() -> str:
             raise RuntimeError(f"daily quiz reward copy drift: {old[:48]}")
         js = js.replace(old, new, 1)
 
+    # Show a trusted reference after an advanced quiz answer, never before.
+    quiz_explanation_anchor = """<p class="jj-quiz-explanation">${safe(r.explanation||'')}</p>"""
+    quiz_source_link = """${r.source_url&&String(r.source_url).startsWith('https://blog.gtowizard.com/')?`<p class="jj-quiz-source">参考記事：<a href="${safe(r.source_url)}" target="_blank" rel="noopener noreferrer">${safe(r.source_title||'GTO Wizard Blog')}</a></p>`:''}"""
+    if js.count(quiz_explanation_anchor) != 2:
+        raise RuntimeError('advanced quiz source link anchor drift')
+    js = js.replace(quiz_explanation_anchor, quiz_explanation_anchor + quiz_source_link)
     # ranking summary flicker guard 2026-10-01
     # Keep already-rendered summary content visible while the same member's
     # ranking refreshes. First load and account switches still get a skeleton.
