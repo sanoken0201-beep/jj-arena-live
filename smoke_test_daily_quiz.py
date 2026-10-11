@@ -51,7 +51,7 @@ def bank_checks():
     answer_labels = {
         "pot_odds-multiway-price": "14%",
         "pot_odds-tie-share": "30%",
-        "equity-turn-outs": "20%",
+        "equity-weighted-two-hands": "50%",
         "equity-flop-two-outs": "35%",
         "mdf-quarter-pot": "80%",
         "mdf-bluff-ev": "25",
