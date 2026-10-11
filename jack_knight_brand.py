@@ -68,11 +68,15 @@ CSS = r"""
   #homeView .jj-jack-knight{right:248px;width:146px;height:181px;bottom:-25px;opacity:.92}
 }
 @media(max-width:760px){
-  #homeView .jj-jack-knight{right:12px;top:5px;bottom:auto;width:60px;height:72px;opacity:.98}
-  #homeView .jj-jack-hero .eyebrow{max-width:calc(100% - 78px)}
+  #homeView .jj-jack-knight{right:12px;top:10px;bottom:auto;width:96px;height:118px;opacity:1}
+  #homeView .jj-jack-hero .eyebrow{max-width:calc(100% - 112px)}
+  #homeView .jj-jack-hero h3{max-width:calc(100% - 112px)}
+}
+@media(max-width:560px){
+  #homeView .jj-jack-hero p{max-width:calc(100% - 112px)!important}
 }
 @media(max-width:360px){
-  #homeView .jj-jack-knight{right:9px;top:4px;width:52px;height:65px}
+  #homeView .jj-jack-knight{right:9px;top:10px;width:88px;height:109px}
 }
 """
 
@@ -92,6 +96,11 @@ def transform_index(html: str) -> str:
     if html.count(home_heading) != 1:
         raise RuntimeError("Jack knight original home heading drift")
     html = html.replace(home_heading, "<h3>JJ Arena</h3>", 1)
+    # Short factual navigation, no promotional or invented catchphrase.
+    previous_intro = "後期ランキング、活動予定、学習、戦略議論、リアルタイムNLHをひとつに。JJの運営とプレイを、より速くシンプルに。"
+    if html.count(previous_intro) != 1:
+        raise RuntimeError("Jack knight home description drift")
+    html = html.replace(previous_intro, "ランキング・活動予定・学習・オンライン卓", 1)
     return html + "\n<!-- " + MARKER + " -->\n"
 
 
