@@ -31,7 +31,7 @@
     if (!response.ok) throw new Error(typeof data.detail === 'string' ? data.detail : 'HTTP ' + response.status);
     return data;
   };
-  // A normal window.prompt exposes the acting administrator's PIN in clear
+  // A native text prompt exposes the acting administrator's PIN in clear
   // text. Use a short-lived masked form that never stores the PIN.
   function requestPin(){
     return new Promise(resolve=>{
