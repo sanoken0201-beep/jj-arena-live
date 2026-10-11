@@ -78,13 +78,15 @@ def browser_check(html: str, css: str) -> None:
         for w,h in ((320,640),(390,844),(760,1024),(1024,768),(1440,900)):
             page = browser.new_page(viewport={"width":w,"height":h},device_scale_factor=1)
             page.set_content(fixture)
-            page.wait_for_timeout(250)
+            page.wait_for_timeout(850)
             info = page.evaluate("""() => {
               const by=s=>document.querySelector(s);
               const rect=s=>by(s).getBoundingClientRect();
               const overlap=(a,b)=>a.left<b.right && a.right>b.left && a.top<b.bottom && a.bottom>b.top;
               const img=rect('.jj-jack-knight'), hero=rect('.jj-jack-hero'),
-                    primary=rect('.jj-jack-hero .primary');
+                    primary=rect('.jj-jack-hero .primary'),
+                    leader=rect('.jj-jack-hero .leader-box'),
+                    description=rect('.jj-jack-hero p');
               const titleRange=document.createRange();
               titleRange.selectNodeContents(by('.jj-jack-hero h3'));
               const title=titleRange.getBoundingClientRect();
@@ -93,6 +95,8 @@ def browser_check(html: str, css: str) -> None:
                 inset:img.left>=hero.left-2 && img.right<=hero.right+2,
                 titleClear:!overlap(img,title),
                 actionClear:!overlap(img,primary),
+                leaderClear:!overlap(img,leader),
+                descriptionClear:!overlap(img,description),
                 noPageOverflow:document.documentElement.scrollWidth<=innerWidth+4,
                 pageScrollWidth:document.documentElement.scrollWidth,
                 overflowNodes:Array.from(document.querySelectorAll('main,section,article,div,svg')).filter(e=>e.getBoundingClientRect().right>innerWidth+4).slice(0,5).map(e=>({tag:e.tagName,cls:e.className.baseVal||e.className,right:Math.round(e.getBoundingClientRect().right)})),
@@ -104,7 +108,7 @@ def browser_check(html: str, css: str) -> None:
               return v;
             }""")
             page.screenshot(path=str(SCREENSHOT_DIR/f"home-{w}.png"),full_page=True)
-            assert all(info[k] for k in ("art","inset","titleClear","actionClear","noPageOverflow")), f"{w}px: {info}"
+            assert all(info[k] for k in ("art","inset","titleClear","actionClear","leaderClear","descriptionClear","noPageOverflow")), f"{w}px: {info}"
             assert info["title"]=="JJ Arena" and info["buttons"]==2
             print(f"JJ_JACK_KNIGHT_BROWSER_OK width={w} art={info['artWidth']}px",flush=True)
             page.close()
