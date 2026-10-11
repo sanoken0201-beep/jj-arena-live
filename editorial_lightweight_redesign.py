@@ -87,6 +87,7 @@ def transform_styles(source: str) -> str:
         ("#homeView .hero p{font-size:.82rem!important;line-height:1.65!important;opacity:.88}", "#homeView .hero p{font-size:.875rem!important;line-height:1.65!important;opacity:1}"),
         (".top-grid{display:flex!important;gap:9px!important;overflow-x:auto!important;margin:0 -12px!important;padding:2px 12px 12px!important;scroll-snap-type:x mandatory;scrollbar-width:none}",
          ".top-grid{display:grid!important;grid-template-columns:1fr!important;gap:0!important;overflow:visible!important;margin:0!important;padding:0!important;scroll-snap-type:none}"),
+        ("#rankingView .segmented button{flex:1 0 auto;min-height:40px!important;white-space:nowrap}", "#rankingView .segmented button{flex:1 0 auto;min-height:44px!important;white-space:nowrap}"),
         (".podium-card{display:grid!important;grid-template-columns:62px 1fr auto!important;align-items:center!important;gap:8px!important;padding:13px 14px!important}", ".podium-card{display:grid!important;grid-template-columns:46px minmax(0,1fr)!important;align-items:center!important;gap:5px 9px!important;padding:13px 10px!important}"),
         (".podium-card strong{grid-column:2;font-size:1rem!important}", ".podium-card strong{grid-column:2;font-size:1rem!important;overflow-wrap:anywhere}"),
         (".podium-card>b{grid-column:3;font-size:1rem!important}", ".podium-card>b{grid-column:2;font-size:1.05rem!important}"),
