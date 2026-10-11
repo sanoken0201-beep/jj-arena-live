@@ -150,6 +150,23 @@ AUDIT_JS = r'''(mode) => {
     if(a.left<b.right && a.right>b.left && a.top<b.bottom && a.bottom>b.top)
       errors.push(left+': overlaps numeric score');
   }
+  if(mode==='home'){
+    const heroName=document.querySelector('.leader-box strong').getBoundingClientRect();
+    const heroPoints=document.querySelector('.leader-box b').getBoundingClientRect();
+    if(heroName.left<heroPoints.right && heroName.right>heroPoints.left &&
+       heroName.top<heroPoints.bottom && heroName.bottom>heroPoints.top)
+      errors.push('Home leader name overlaps leader points');
+    if(vw>760){
+      for(const item of document.querySelectorAll('#homeTop .top-player')){
+        const score=item.querySelector('b').getBoundingClientRect();
+        const meta=item.querySelector('.hint').getBoundingClientRect();
+        if(Math.abs((score.top+score.bottom)/2-(meta.top+meta.bottom)/2)>18)
+          errors.push('Home leaderboard entries are on a separate row');
+        if(item.getBoundingClientRect().height>100)
+          errors.push('Home leaderboard has excessive row height');
+      }
+    }
+  }
   if(vw<=760){
     const controls=mode==='home' ? ['.section-head .link-btn'] :
       ['.segmented button:nth-child(1)','.segmented button:nth-child(2)',
