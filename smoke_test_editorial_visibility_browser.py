@@ -9,6 +9,7 @@ Japanese names. No network/API, game mutation, or third-party visual assets.
 import json
 import os
 import shutil
+import subprocess
 from pathlib import Path
 
 from playwright.sync_api import sync_playwright
@@ -116,6 +117,8 @@ AUDIT_JS = r'''(mode) => {
       .reduce((sum,v,i)=>sum+v*[0.2126,0.7152,0.0722][i],0);
   }
   const errors=[],metrics=[];
+  const view=document.querySelector(mode==='home'?'#homeView':'#rankingView');
+  if(Number(getComputedStyle(view).opacity)<0.99)errors.push('view is still fading; evaluate fully visible page');
   for (const selector of nodes) {
     const e=document.querySelector(selector);
     if (!e) {errors.push(selector+': missing');continue;}
@@ -175,6 +178,10 @@ def _browser_executable() -> str | None:
 
 
 def main() -> None:
+    # A pass with tofu boxes instead of Japanese glyphs is not a valid test.
+    result=subprocess.run(["fc-list", ":lang=ja", "family"],capture_output=True,text=True,check=True)
+    if not result.stdout.strip():
+        raise AssertionError("Japanese fonts missing in Chromium runner: install Noto CJK for screenshot audit")
     css=build_styles()
     OUT.mkdir(parents=True, exist_ok=True)
     with sync_playwright() as p:
@@ -188,6 +195,7 @@ def main() -> None:
             for mode,section in (("home",HOME),("ranking",RANKING)):
                 page=browser.new_page(viewport={"width":width,"height":height},device_scale_factor=1)
                 page.set_content(HTML.replace("/* STYLE */",css).replace("<!-- BODY -->",section),wait_until="load")
+                page.wait_for_timeout(300)
                 result=page.evaluate(AUDIT_JS,mode)
                 (OUT/f"{mode}-{width}.png").parent.mkdir(parents=True, exist_ok=True)
                 page.screenshot(path=str(OUT/f"{mode}-{width}.png"),full_page=True)
