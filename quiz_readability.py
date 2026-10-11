@@ -64,7 +64,7 @@ _REPLACEMENTS: list[tuple[str, str]] = [
 def _ascii_token(token: str) -> re.Pattern[str]:
     # Python's Unicode \b does not see a boundary between ASCII letters and
     # Japanese characters because both are classified as word characters.
-    return re.compile(rf"(?<![A-Za-z0-9]){re.escape(token)}(?![A-Za-z0-9])")
+    return re.compile(rf"(?<![A-Za-z0-9（(]){re.escape(token)}(?![A-Za-z0-9])")
 
 
 _ABBREVIATIONS: list[tuple[re.Pattern[str], str]] = [
