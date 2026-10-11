@@ -36,7 +36,6 @@ _RULES: tuple[tuple[str, str | None], ...] = (
     (".top-player:first-child", "border-left:3px solid var(--green);background:var(--surface)"),
     (".top-player .rank", "font-size:1rem;color:var(--green);font-weight:800"),
     (".top-player strong", "display:block;margin:0;font-size:1rem;min-width:0;overflow-wrap:anywhere"),
-    (".top-player .hint", "font-size:.875rem;line-height:1.4;text-align:right;white-space:nowrap"),
     (".toolbar", "padding:12px;display:flex;gap:10px;align-items:center;position:sticky;top:102px;z-index:10;box-shadow:none"),
     (".podium", "display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:0;align-items:stretch;margin:18px 0 22px;max-width:none"),
     (".podium-card", "text-align:left;padding:17px 18px;min-height:0;display:flex;flex-direction:column;justify-content:center;border:0;border-bottom:1px solid var(--line);border-radius:0;box-shadow:none;overflow-wrap:anywhere"),
@@ -105,6 +104,10 @@ def transform_styles(source: str) -> str:
         css = _replace_exact(css, old, new)
     for selector, declaration in _RULES:
         css = _replace_rule(css, selector, declaration)
+    # This is a NEW selector; the canonical CSS has only a global .hint rule.
+    # Append it once alongside the existing Home leaderboard rule.
+    current = ".top-player strong{display:block;margin:0;font-size:1rem;min-width:0;overflow-wrap:anywhere}"
+    css = _replace_exact(css, current, current + ".top-player .hint{font-size:.875rem;line-height:1.4;text-align:right;white-space:nowrap}")
     # Home leaderboard metadata is secondary on small screens; keep names and
     # point totals visible with no horizontal scrolling.
     mobile_hint = ".top-player .hint{display:none!important}"
