@@ -176,7 +176,7 @@ def _clear_numeric_prompt(key: str) -> str | None:
         )
     return (
         f"現在のポットは{left:,}、互いに賭けられる残りチップは{right:,}です。"
-        "SPR（残りチップ÷ポット）はいくつですか？"
+        "残りチップ÷ポット（SPR）はいくつですか？"
     )
 
 
