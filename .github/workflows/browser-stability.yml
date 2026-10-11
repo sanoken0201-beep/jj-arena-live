@@ -47,3 +47,14 @@ jobs:
             python smoke_test_player_ux_phase5_layout.py
             python smoke_test_responsive_parity.py
           done
+
+      - name: Audit editorial readability at six Chromium viewport widths
+        run: python smoke_test_editorial_visibility_browser.py
+
+      - name: Upload editorial visibility screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: editorial-visibility-screenshots
+          path: test-artifacts/editorial-visibility/
+          if-no-files-found: ignore
