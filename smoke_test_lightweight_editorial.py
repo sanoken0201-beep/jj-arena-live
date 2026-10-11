@@ -12,7 +12,10 @@ from editorial_lightweight_redesign import MARKER, transform_styles
 def main() -> None:
     # Generate the exact same compiled CSS both with and without the last
     # editorial stage. Comparing canonical CSS alone is not a valid budget.
-    with patch.object(served_assets, "transform_editorial_styles", lambda css: css):
+    with (
+        patch.object(served_assets, "transform_editorial_styles", lambda css: css),
+        patch.object(served_assets, "EDITORIAL_MARKER", ""),
+    ):
         baseline = served_assets.build_styles()
     redesigned = served_assets.build_styles()
 
