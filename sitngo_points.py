@@ -154,11 +154,13 @@ class TournamentPoints:
         name=user['name']
         if con.execute("SELECT COUNT(*) n FROM users WHERE COALESCE(NULLIF(ranking_name,''),name)=?",(name,)).fetchone()['n']!=1:
             raise HTTPException(409,'ランキング名が重複しています。管理者に確認してください')
-        start=getattr(self.service.server,'FALL_SEASON_START','2026-09-01')
-        end=getattr(self.service.server,'FALL_SEASON_END','2027-04-01')
+        import season_management
+        active = season_management.active_season(self.db, con=con)
+        start, end = active['start_date'], active['end_exclusive']
+        utc_start, utc_end = season_management.utc_bounds(start, end)
         club=con.execute("SELECT COALESCE(SUM(points),0) n FROM entries WHERE name=? AND name<>'運営調整' AND date>=? AND date<?",(name,start,end)).fetchone()['n']
-        online=con.execute('''SELECT COALESCE(SUM(r.points),0) n FROM online_hand_results r JOIN online_hands h ON h.hand_id=r.hand_id WHERE r.ranking_name=? AND COALESCE(h.voided,0)=0 AND h.played_at>=? AND h.played_at<?''',(name,start,end)).fetchone()['n']
-        ledger=con.execute('SELECT COALESCE(SUM(amount),0) n FROM point_ledger WHERE user_id=? AND effective_at>=? AND effective_at<?',(uid,start,end)).fetchone()['n']
+        online=con.execute('''SELECT COALESCE(SUM(r.points),0) n FROM online_hand_results r JOIN online_hands h ON h.hand_id=r.hand_id WHERE r.ranking_name=? AND COALESCE(h.voided,0)=0 AND h.played_at>=? AND h.played_at<?''',(name,utc_start,utc_end)).fetchone()['n']
+        ledger=con.execute('SELECT COALESCE(SUM(amount),0) n FROM point_ledger WHERE user_id=? AND effective_at>=? AND effective_at<?',(uid,utc_start,utc_end)).fetchone()['n']
         return cents(club)+cents(online)+cents(ledger)
 
     def write(self,con,eid,uid,amount,kind,txid,reversal=None):
