@@ -53,6 +53,37 @@ def install(app, db, server, admin_console) -> None:
     def current_season(user=Depends(server.current_user)):
         return season_management.active_season(db)
 
+    @app.get("/api/admin/console/seasons/{season_id}/readiness")
+    def readiness(season_id: str, user=Depends(server.admin_user)):
+        """Advisory preflight only: POST always rechecks under the DB lock."""
+        blockers = []
+        with db.connect() as con:
+            current = season_management.active_season(db, con=con)
+            target = con.execute(
+                "SELECT * FROM jj_seasons WHERE season_id=?", (season_id,)
+            ).fetchone()
+            if not target:
+                raise HTTPException(404, "対象のシーズンがありません")
+            if target["status"] != "draft":
+                blockers.append("準備中のシーズンではありません")
+            if current["end_exclusive"] != target["start_date"]:
+                blockers.append("次期開始日が現行シーズンの終了日と一致していません")
+            day = today_jst()
+            if not target["start_date"] <= day < target["end_exclusive"]:
+                blockers.append("次期シーズンの開始日を迎えていません")
+            try:
+                _check_live_games(con)
+            except HTTPException as exc:
+                blockers.append(str(exc.detail))
+        return {
+            "can_activate": not blockers,
+            "blockers": blockers,
+            "active_season_id": current["season_id"],
+            "target_season_id": season_id,
+            "target_start": target["start_date"],
+            "today_jst": day,
+        }
+
     @app.post("/api/admin/console/seasons/{season_id}/activate")
     def activate(season_id: str, payload: ActivateIn, user=Depends(server.admin_user)):
         actor_id = int(user["id"])

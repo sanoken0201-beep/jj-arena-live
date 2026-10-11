@@ -262,6 +262,9 @@ def build_index() -> str:
     html = transform_sitngo_index(html)
     if SITNGO_UI_MARKER not in html:
         raise RuntimeError("Sit&Go index transform marker missing")
+    # Labels must stay correct after the 2027 season rollover.
+    html = html.replace('>後期総合</button>', '>シーズン総合</button>')
+    html = html.replace('>前期参考</button>', '>過去のシーズン</button>')
     # member point navigation 2026-09-28
     point_nav = '<button class="nav admin-only" data-view="points">＋ <span>ポイント入力</span></button>'
     if html.count(point_nav) != 1:
