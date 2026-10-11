@@ -147,6 +147,19 @@ AUDIT_JS = r'''(mode) => {
     if(a.left<b.right && a.right>b.left && a.top<b.bottom && a.bottom>b.top)
       errors.push(left+': overlaps numeric score');
   }
+  if(vw<=760){
+    const controls=mode==='home' ? ['.section-head .link-btn'] :
+      ['.segmented button:nth-child(1)','.segmented button:nth-child(2)',
+       '.segmented button:nth-child(3)','#rankMonth','#rankSearch'];
+    for(const selector of controls){
+      const e=document.querySelector(selector);
+      if(!e) {errors.push(selector+': missing control');continue;}
+      const box=e.getBoundingClientRect();
+      if(box.height<44)errors.push(selector+': tap target only '+box.height.toFixed(1)+'px');
+    }
+    if(mode==='ranking' && parseFloat(getComputedStyle(document.querySelector('#rankSearch')).fontSize)<16)
+      errors.push('ranking search input: font size below 16px causes mobile zoom');
+  }
   if (document.documentElement.scrollWidth>vw+2)
     errors.push('horizontal page overflow: '+document.documentElement.scrollWidth+' > '+vw);
   return {viewport:vw,mode,errors,metrics};
