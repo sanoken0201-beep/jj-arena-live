@@ -62,7 +62,6 @@ TEST_SUITES: dict[str, tuple[str, ...]] = {
         "smoke_test_prebuilt_assets.py",
         "smoke_test_pwa_update.py",
         "smoke_test_responsive_parity.py",
-        "smoke_test_editorial_visibility_browser.py",
         "audit_ui_labels.py",
         "smoke_test_ux_telemetry.py",
         "smoke_test_ux_telemetry_followup.py",
@@ -127,6 +126,7 @@ BROWSER_ONLY_TESTS = frozenset(
         "smoke_test_network_recovery_browser.py",
         "smoke_test_sitngo_browser.py",
         "smoke_test_responsive_parity.py",
+        "smoke_test_editorial_visibility_browser.py",
     }
 )
 
