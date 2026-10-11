@@ -167,7 +167,7 @@ def _clear_numeric_prompt(key: str) -> str | None:
     if kind == "decision":
         return (
             f"オールインにコールするために必要な勝率は{left}%で、推定勝率は{right}%です。"
-            "手数料・引き分け・順位賞金の影響がないとき、コールとフォールドのどちらが有利ですか？"
+            "手数料・引き分け・順位賞金の影響がないとき、最も適切な判断はどれですか？"
         )
     if kind == "mdf":
         return (
