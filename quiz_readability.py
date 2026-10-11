@@ -36,13 +36,11 @@ _REPLACEMENTS: list[tuple[str, str]] = [
     ("リスクプレミアム", "敗退や賞金差のため、チップだけで考えるより慎重さが必要になる度合い"),
     ("エフェクティブスタック", "対戦相手との間で実際に賭けられる残りチップ"),
     ("実効スタック", "対戦相手との間で実際に賭けられる残りチップ"),
-    ("ショーダウン", "最後までカードを開いて勝敗を決めること"),
     ("相手レンジ", "相手が持ちうる手札の候補"),
     ("到達レンジ", "そのアクションまで残っている手札候補"),
     ("チェックレンジ", "チェックする手札候補"),
     ("コールレンジ", "コールする手札候補"),
     ("続行レンジ", "続ける手札候補"),
-    ("レンジ", "持ちうる手札の候補"),
     ("クリーンアウト", "引けばほぼ確実に逆転できる残りカード"),
     ("アウト数", "逆転に使える残りカードの枚数"),
     ("オーバーカード", "ボードより高いランクの手札"),
@@ -59,22 +57,22 @@ _REPLACEMENTS: list[tuple[str, str]] = [
     ("+EV", "長期的に利益が出る"),
     ("エクイティ", "勝つ見込み"),
     ("レーキ", "手数料"),
-    ("EV", "長期的な平均損益"),
+    ("EV", "期待値（EV）"),
 ]
 
 
 def _ascii_token(token: str) -> re.Pattern[str]:
     # Python's Unicode \b does not see a boundary between ASCII letters and
     # Japanese characters because both are classified as word characters.
-    return re.compile(rf"(?<![A-Za-z0-9]){re.escape(token)}(?![A-Za-z0-9])")
+    return re.compile(rf"(?<![A-Za-z0-9（(]){re.escape(token)}(?![A-Za-z0-9])")
 
 
 _ABBREVIATIONS: list[tuple[re.Pattern[str], str]] = [
-    (_ascii_token("MDF"), "相手の純粋なブラフを簡単に利益にさせないための最低継続率（MDF）"),
-    (_ascii_token("SPR"), "実際に賭け合える残りチップ ÷ 現在のポット（SPR）"),
-    (_ascii_token("ICM"), "残りスタックと賞金配分からチップの賞金価値を考えるモデル（ICM）"),
-    (_ascii_token("OOP"), "相手より先に行動する側（OOP）"),
-    (_ascii_token("IP"), "相手より後に行動する側（IP）"),
+    (_ascii_token("MDF"), "最低ディフェンス頻度（MDF）"),
+    (_ascii_token("SPR"), "スタック対ポット比（SPR）"),
+    (_ascii_token("ICM"), "順位賞金を考慮したチップ価値のモデル（ICM）"),
+    (_ascii_token("OOP"), "先に行動する側（OOP）"),
+    (_ascii_token("IP"), "後に行動する側（IP）"),
     (_ascii_token("PKO"), "相手を飛ばすと賞金が得られる形式（PKO）"),
     (_ascii_token("FT"), "ファイナルテーブル（FT）"),
 ]
@@ -109,10 +107,16 @@ _VOCAB_PROMPTS = {
     "term-nut-advantage": "最強クラスの手札を、相手より多く持てる側の有利さを何と呼びますか？",
     "term-range-advantage": "持ちうる手札全体で比べたとき、平均的に相手より強い側の有利さを何と呼びますか？",
     "term-donk": "前の場面で最後にベットまたはレイズした相手に対し、次の場面で先にベットするプレイを何と呼びますか？",
+    "vocabulary-term-probe-new": "フロップでプリフロップのレイザーが後手からチェックし、相手がターンで先にベットするプレイを何と呼びますか？",
 }
 
 _GLOSSARY = {
     "ポットオッズ": "コール額に対して、最低どれくらい勝てばよいかを見る考え方",
+    "レンジ": "ある状況で持ちうる手札の候補と、その出現頻度",
+    "ショーダウン": "残ったプレイヤーが手札を開いて勝敗を決めること",
+    "MDF": "ゼロエクイティの純ブラフを自動的な利益にしない最低継続頻度",
+    "SPR": "実効スタックをその時点のポットで割った比率",
+    "ICM": "残りスタックと順位賞金から各チップの賞金価値を近似するモデル",
     "ブラフ": "弱い手でも、相手を降ろして勝つことを狙うベットやレイズ",
     "バリュー": "強い手で、より弱い手からコールをもらって利益を増やす狙い",
     "3ベット": "プリフロップで、最初のレイズに対してさらにレイズすること",
@@ -139,6 +143,43 @@ def _plain_text(text: str, *, vocabulary: bool = False) -> str:
     return out
 
 
+
+def _clear_numeric_prompt(key: str) -> str | None:
+    """Render repeated arithmetic questions as natural, concise Japanese.
+
+    A label such as "MDF" should not turn into a long noun phrase when a
+    generic glossary replacement runs inside a mathematical question.
+    """
+    match = re.fullmatch(r"(pot|bluff|decision|mdf|spr)-(\d+)-(\d+)", key)
+    if not match:
+        return None
+    kind, left, right = match.group(1), int(match.group(2)), int(match.group(3))
+    if kind == "pot":
+        return (
+            f"ポット{left}に相手が{right}をベットしました。あなたが{right}をコールすると"
+            "勝敗が確定します（引き分け・手数料なし）。必要な最低勝率は約何%ですか？"
+        )
+    if kind == "bluff":
+        return (
+            f"リバーでポット{left}に{right}を純ブラフします。コールされれば必ず負ける場合、"
+            "利益が0以上になるために相手がフォールドする必要のある割合は約何%ですか？"
+        )
+    if kind == "decision":
+        return (
+            f"オールインにコールするために必要な勝率は{left}%で、推定勝率は{right}%です。"
+            "手数料・引き分け・順位賞金の影響がないとき、最も適切な判断はどれですか？"
+        )
+    if kind == "mdf":
+        return (
+            f"ポット{left}に相手が{right}をベットしました。ゼロエクイティの純ブラフを"
+            "自動的な利益にしないための最低ディフェンス頻度（MDF）は約何%ですか？"
+        )
+    return (
+        f"現在のポットは{right:,}、互いに賭けられる残りチップは{left:,}です."
+        "残りチップ÷ポット（SPR）はいくつですか？"
+    )
+
+
 def _glossary_for(prompt: str, choices: list[dict[str, Any]], *, vocabulary: bool) -> list[dict[str, str]]:
     if vocabulary:
         # Defining answer options would give away a vocabulary question.
@@ -157,7 +198,10 @@ def make_readable(question: dict[str, Any]) -> dict[str, Any]:
     category = str(q.get("category") or "")
     vocabulary = category == "vocabulary"
     key = str(q.get("key") or "")
-    if key in _PROMPT_OVERRIDES:
+    numeric_prompt = _clear_numeric_prompt(key)
+    if numeric_prompt is not None:
+        q["prompt"] = numeric_prompt
+    elif key in _PROMPT_OVERRIDES:
         q["prompt"] = _PROMPT_OVERRIDES[key]
     elif vocabulary and key in _VOCAB_PROMPTS:
         q["prompt"] = _VOCAB_PROMPTS[key]

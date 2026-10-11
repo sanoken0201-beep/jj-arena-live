@@ -17,14 +17,19 @@ from urllib.parse import urlsplit
 
 from fastapi.testclient import TestClient
 import daily_quiz as dq
+from quiz_readability import audit_questions, make_readable
 from smoke_test_learning_integration import isolated_production_app, login, json_response
 
 
 def bank_checks():
     assert len(dq.POOLS) == 10
+    assert all(len(pool) == 20 for pool in dq.POOLS.values())
+    assert len({q['key'] for pool in dq.POOLS.values() for q in pool}) == 200
+    readability_errors = audit_questions(dq.POOLS)
+    assert not readability_errors, readability_errors
     start = datetime(2026, 9, 11)
     seen = {k: set() for k in dq.POOLS}
-    for offset in range(16):
+    for offset in range(20):
         day = (start + timedelta(days=offset)).date().isoformat()
         questions = dq.build_daily_questions(day)
         assert questions == dq.build_daily_questions(day)
@@ -41,7 +46,41 @@ def bank_checks():
                 values = [float(c['label'][:-1]) for c in choices]
                 correct = next(float(c['label'][:-1]) for c in choices if c['value'] == q['correct'])
                 assert all(v == correct or abs(v-correct) >= 10 for v in values), q
-    assert all(len(v) == 16 for v in seen.values())
+    assert all(len(v) == 20 for v in seen.values())
+    # Reference examples: regression on independently checked poker arithmetic.
+    answer_labels = {
+        "pot_odds-multiway-price": "14%",
+        "pot_odds-tie-share": "30%",
+        "equity-weighted-two-hands": "50%",
+        "equity-flop-two-outs": "35%",
+        "mdf-quarter-pot": "80%",
+        "mdf-bluff-ev": "25",
+        "spr-half-spr": "0.5",
+        "spr-after-bet-call": "1.3",
+        "combo-a5s-different-block": "2コンボ",
+        "combo-a5s-same-block": "3コンボ",
+        "icm-heads-up-payout": "55",
+        "bet_sizing-bluff-break-even": "43%",
+        "hand_reasoning-river-indifference": "フォールドと同じ0です",
+    }
+    questions = {q["key"]: q for pool in dq.POOLS.values() for q in pool}
+    for key, expected in answer_labels.items():
+        q = questions[key]
+        assert next(c["label"] for c in q["choices"] if c["value"] == q["correct"]) == expected
+        readable = make_readable(q)
+        assert "ベット持ちうる手札の候補" not in readable["prompt"]
+        assert "こと勝率" not in readable["prompt"]
+        assert len(readable["prompt"]) < 250
+    spr_numeric = make_readable(questions["spr-3600-1200"])["prompt"]
+    assert "ポットは1,200" in spr_numeric and "残りチップは3,600" in spr_numeric
+    for key, phrase in {
+        "pot-100-75": "必要な最低勝率",
+        "mdf-100-50": "最低ディフェンス頻度（MDF）",
+        "spr-3600-1200": "残りチップ÷ポット（SPR）",
+        "decision-30-35": "最も適切な判断はどれですか",
+    }.items():
+        assert phrase in make_readable(questions[key])["prompt"], key
+
     class StatRows:
         def execute(self, _): return self
         def fetchall(self):
