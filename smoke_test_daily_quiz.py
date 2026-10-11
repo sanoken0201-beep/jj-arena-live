@@ -71,6 +71,8 @@ def bank_checks():
         assert "ベット持ちうる手札の候補" not in readable["prompt"]
         assert "こと勝率" not in readable["prompt"]
         assert len(readable["prompt"]) < 250
+    spr_numeric = make_readable(questions["spr-3600-1200"])["prompt"]
+    assert "ポットは1,200" in spr_numeric and "残りチップは3,600" in spr_numeric
     for key, phrase in {
         "pot-100-75": "必要な最低勝率",
         "mdf-100-50": "最低ディフェンス頻度（MDF）",
