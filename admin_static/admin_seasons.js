@@ -1,4 +1,4 @@
-/* Season metadata admin panel. The active ranking window is not switched here. */
+/* Season setup, readiness checks and audited manual rollover. */
 (() => {
   const $ = selector => document.querySelector(selector);
   const form = $('#seasonCreateForm');
@@ -31,6 +31,43 @@
     if (!response.ok) throw new Error(typeof data.detail === 'string' ? data.detail : 'HTTP ' + response.status);
     return data;
   };
+  // A normal window.prompt exposes the acting administrator's PIN in clear
+  // text. Use a short-lived masked form that never stores the PIN.
+  function requestPin(){
+    return new Promise(resolve=>{
+      const dialog=document.createElement('dialog');
+      dialog.setAttribute('aria-label','管理者PIN確認');
+      dialog.style.cssText='max-width:min(92vw,420px);width:100%;padding:22px;border-radius:14px;';
+      dialog.innerHTML='<form class="form-stack">'
+        +'<h3>管理者PINの確認</h3>'
+        +'<label>現在の6桁PIN<input name="pin" type="password" inputmode="numeric" '
+        +'pattern="[0-9]{6}" minlength="6" maxlength="6" autocomplete="off" required></label>'
+        +'<p class="field-note">現在操作している管理者本人のPINを入力してください。</p>'
+        +'<button class="primary" type="submit">確認する</button>'
+        +'<button class="soft" type="button" data-season-cancel>キャンセル</button>'
+        +'</form>';
+      document.body.appendChild(dialog);
+      const input=dialog.querySelector('input');
+      let finished=false;
+      const finish=value=>{
+        if(finished)return;
+        finished=true;
+        dialog.close();
+        dialog.remove();
+        resolve(value);
+      };
+      dialog.querySelector('form').addEventListener('submit',e=>{
+        e.preventDefault();
+        if(!/^[0-9]{6}$/.test(input.value))return showError('PINは6桁の数字です');
+        finish(input.value);
+        input.value='';
+      });
+      dialog.querySelector('[data-season-cancel]').addEventListener('click',()=>finish(null));
+      dialog.addEventListener('cancel',e=>{e.preventDefault();finish(null)});
+      dialog.showModal();
+      input.focus();
+    });
+  }
   const statusLabel = {active:'集計中',archived:'過去',draft:'準備中'};
   function render(items) {
     const current = items.find(item => item.status === 'active');
@@ -91,13 +128,15 @@
     if(!button)return;
     const seasonId=button.dataset.seasonActivate;
     const oldId=button.dataset.seasonCurrent;
-    if(!window.confirm('現在のシーズンを終了し、次のランキングを0から開始します。過去の成績は保存します。続行しますか？'))return;
-    const pin=window.prompt('現在操作している管理者の6桁PINを入力してください');
-    if(pin===null)return;
-    if(!/^[0-9]{6}$/.test(pin))return showError('PINは6桁の数字です');
-    if(!window.confirm('最終確認：シーズンを切り替えます。開始後は元のシーズンを再開できません。'))return;
     button.disabled=true;
     try{
+      const check=await json('/api/admin/console/seasons/'+encodeURIComponent(seasonId)+'/readiness');
+      if(!check.can_activate)return showError('開始できません：'+check.blockers.join(' / '));
+      if(check.active_season_id!==oldId)return showError('現行シーズンが更新されています。再読み込みしてください');
+      if(!window.confirm('現在のシーズンを終了し、次のランキングを0から開始します。過去の成績は保存します。続行しますか？'))return;
+      const pin=await requestPin();
+      if(pin===null)return;
+      if(!window.confirm('最終確認：シーズンを切り替えます。開始後は元のシーズンを再開できません。'))return;
       await json('/api/admin/console/seasons/'+encodeURIComponent(seasonId)+'/activate',{
         method:'POST',body:JSON.stringify({
           expected_current_season_id:oldId,current_pin:pin,confirmation:'START NEW SEASON'
