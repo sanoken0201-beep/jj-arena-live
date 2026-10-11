@@ -90,6 +90,7 @@ def transform_styles(source: str) -> str:
         (".podium-card strong{grid-column:2;font-size:1rem!important}", ".podium-card strong{grid-column:2;font-size:1rem!important;overflow-wrap:anywhere}"),
         (".podium-card>b{grid-column:3;font-size:1rem!important}", ".podium-card>b{grid-column:2;font-size:1.05rem!important}"),
         (".podium-card .hint{grid-column:2/4!important}", ".podium-card .hint{grid-column:2!important}"),
+        ("#rankingView td{display:block!important;padding:0!important;border:0!important;min-width:0}", "#rankingView td{display:block!important;padding:0!important;border:0!important;min-width:0;font-size:.875rem!important;line-height:1.45}"),
         ("#rankingView td:nth-child(2){overflow:hidden;text-overflow:ellipsis;white-space:nowrap}", "#rankingView td:nth-child(2){overflow:visible;text-overflow:clip;white-space:normal!important;overflow-wrap:anywhere}"),
         ("#rankingView tr{display:grid!important;grid-template-columns:50px minmax(0,1fr) auto!important;", "#rankingView tr{display:grid!important;grid-template-columns:40px minmax(0,1fr) auto!important;"),
         (".top-player{flex:0 0 min(72vw,280px)!important;scroll-snap-align:start;padding:15px!important;min-height:128px!important}",
