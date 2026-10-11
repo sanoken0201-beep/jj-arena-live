@@ -249,3 +249,20 @@ Ring now requires current hand/turn identity and validates arrival against the a
 Season rollover is now implemented in `season_rollover.py` and installed from `app.py`. An administrator can activate a draft only after the active season's scheduled end, with contiguous dates, no active Ring hand or Sit&Go, a matching current season ID, a PIN recheck and an audited transaction. The new ranking window resets totals without deleting original point ledger, entries, online hands or Sit&Go settlement records. The legacy `fall` ranking parameter resolves the active season; the original 2026 Winter archive remains selectable as `archive:fall`. Active period also controls the home ranking, month selector, admin summaries and input date validation.
 
 For operational safety, administrators can first inspect the read-only `/api/admin/console/seasons/{id}/readiness` blockers; the browser uses a masked PIN dialog. These are source/CI capabilities only until their exact Render production deployment is independently confirmed.
+
+
+## Final season/admin correctness review (2026-10-11)
+
+A bootstrap guard installed **before importing** canonical `server` preserves
+administrators created through the role delegation API and does not change
+their PINs or revoke their sessions on repeat `init_db()` /
+`seed_if_needed()`. A missing enabled administrator retains the seeded
+recovery route. Canonical source files remain immutable.
+
+`season_management.utc_bounds` converts active/archived JST dates to UTC
+for Ring results, the manual/quiz/Sit&Go ledger, monthly ranking slices and
+administrator overviews; manually entered naive datetime-local strings are
+JST and newly persisted in UTC. Club-entry dates stay on their local calendar.
+Sit&Go balance reads now use the active interval. Independent regression
+asserts both sides of the 2027-04-01 00:00 JST boundary, historical ranking
+retention, and admin succession across repeat database initialization.
