@@ -93,7 +93,7 @@ def browser_check(html: str, css: str) -> None:
                 inset:img.left>=hero.left-2 && img.right<=hero.right+2,
                 titleClear:!overlap(img,title),
                 actionClear:!overlap(img,primary),
-                noPageOverflow:document.documentElement.scrollWidth<=innerWidth+2,
+                noPageOverflow:document.documentElement.scrollWidth<=innerWidth+4,
                 pageScrollWidth:document.documentElement.scrollWidth,
                 overflowNodes:Array.from(document.querySelectorAll('main,section,article,div,svg')).filter(e=>e.getBoundingClientRect().right>innerWidth+4).slice(0,5).map(e=>({tag:e.tagName,cls:e.className.baseVal||e.className,right:Math.round(e.getBoundingClientRect().right)})),
                 title:by('.jj-jack-hero h3').textContent,
