@@ -59,20 +59,20 @@ CSS = r"""
 #homeView .jj-jack-hero .primary{background:#F5C557;color:#1B2855}
 #homeView .jj-jack-hero .soft{background:#33477D;color:#fff;border-color:#7385BD}
 #homeView .jj-jack-knight{
-  position:absolute;right:164px;bottom:-42px;width:190px;height:235px;
+  position:absolute;right:245px;bottom:-60px;width:190px;height:235px;
   display:block;flex:none;pointer-events:none;user-select:none;
   opacity:1;z-index:0;filter:none;
 }
 #homeView .jj-jack-hero>div{position:relative;z-index:1}
 @media(max-width:1200px){
-  #homeView .jj-jack-knight{right:130px;width:146px;height:181px;bottom:-25px;opacity:.68}
+  #homeView .jj-jack-knight{right:248px;width:146px;height:181px;bottom:-25px;opacity:.92}
 }
 @media(max-width:760px){
-  #homeView .jj-jack-knight{right:12px;top:12px;bottom:auto;width:66px;height:82px;opacity:.95}
+  #homeView .jj-jack-knight{right:12px;top:5px;bottom:auto;width:60px;height:72px;opacity:.98}
   #homeView .jj-jack-hero .eyebrow{max-width:calc(100% - 78px)}
 }
 @media(max-width:360px){
-  #homeView .jj-jack-knight{right:9px;top:9px;width:52px;height:65px}
+  #homeView .jj-jack-knight{right:9px;top:4px;width:52px;height:65px}
 }
 """
 
