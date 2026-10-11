@@ -25,7 +25,8 @@ def bank_checks():
     assert len(dq.POOLS) == 10
     assert all(len(pool) == 20 for pool in dq.POOLS.values())
     assert len({q['key'] for pool in dq.POOLS.values() for q in pool}) == 200
-    assert audit_questions(dq.POOLS) == []
+    readability_errors = audit_questions(dq.POOLS)
+    assert not readability_errors, readability_errors
     start = datetime(2026, 9, 11)
     seen = {k: set() for k in dq.POOLS}
     for offset in range(20):
