@@ -71,14 +71,15 @@ def transform_styles(source: str) -> str:
     # Shared low-paint primitives apply across views, but leave poker layout alone.
     for old, new in (
         ("--radius:22px;", "--radius:12px;"),
-        ("--muted:#6d786f;", "--muted:#56635a;"),
         ("--radius-sm:14px;", "--radius-sm:8px;"),
         ("--shadow-xs:0 1px 2px rgba(23,31,27,.04);", "--shadow-xs:none;"),
         ("--shadow-sm:0 10px 30px rgba(28,38,32,.06);", "--shadow-sm:none;"),
         ("--shadow-md:0 20px 60px rgba(28,38,32,.10);", "--shadow-md:none;"),
         (".eyebrow{font-size:.66rem;font-weight:850;", ".eyebrow{font-size:.75rem;font-weight:800;"),
         (".hint{color:var(--muted);font-size:.78rem;", ".hint{color:var(--muted);font-size:.875rem;"),
-        (".segmented button,.side-tabs button{border:0;background:transparent;color:var(--muted);border-radius:9px;padding:8px 12px;font-size:.72rem;", ".segmented button,.side-tabs button{border:0;background:transparent;color:var(--muted);border-radius:9px;padding:8px 12px;font-size:.875rem;"),
+        ("th{font-size:.61rem;color:var(--muted);", "th{font-size:.75rem;color:#536158;"),
+        ("td{font-size:.82rem}", "td{font-size:.875rem}"),
+        (".segmented button,.side-tabs button{border:0;background:transparent;color:var(--muted);border-radius:9px;padding:8px 12px;font-size:.72rem;", ".segmented button,.side-tabs button{border:0;background:transparent;color:#536158;border-radius:9px;padding:8px 12px;font-size:.875rem;"),
         (".card{border-radius:18px!important;box-shadow:0 8px 28px rgba(26,55,42,.055)!important;border-color:rgba(34,75,55,.09)!important}",
          ".card{border-radius:12px!important;box-shadow:none!important;border-color:var(--line)!important}"),
         ("background:rgba(247,250,248,.92)!important;border-bottom:1px solid rgba(32,67,51,.08);backdrop-filter:blur(18px) saturate(1.35);-webkit-backdrop-filter:blur(18px) saturate(1.35)",
