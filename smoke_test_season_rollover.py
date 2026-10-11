@@ -68,6 +68,21 @@ def main() -> None:
         assert response.status_code==201,response.text
         season_id=response.json()["season_id"]
         endpoint="/api/admin/console/seasons/"+season_id+"/activate"
+        readiness_endpoint="/api/admin/console/seasons/"+season_id+"/readiness"
+        assert member.get(readiness_endpoint).status_code==403
+        early_readiness=admin.get(readiness_endpoint)
+        assert early_readiness.status_code==200,early_readiness.text
+        assert early_readiness.json()["can_activate"] is False
+        assert any("開始日" in blocker for blocker in early_readiness.json()["blockers"])
+        assert early_readiness.json()["active_season_id"]=="fall"
+        assert admin.get("/api/admin/console/seasons/no-such-season/readiness").status_code==404
+        js=admin.get("/admin-static/admin_seasons.js").text
+        assert 'type="password"' in js and 'window.prompt' not in js
+        assert "/readiness" in js
+        html=admin.get("/admin").text
+        assert "今季Pt" in html and "後期Pt" not in html
+        page=admin.get("/").text
+        assert "シーズン総合" in page and "過去のシーズン" in page
         body={"expected_current_season_id":"fall","current_pin":"654321",
               "confirmation":"START NEW SEASON"}
         assert member.post(endpoint,json=body).status_code==403
@@ -86,8 +101,14 @@ def main() -> None:
             with patch.object(season_rollover,"_check_live_games",
                               side_effect=__import__("fastapi").HTTPException(
                                   409,"a tournament is still running")):
+                waiting=admin.get(readiness_endpoint)
+                assert waiting.status_code==200
+                assert waiting.json()["can_activate"] is False
+                assert "a tournament is still running" in waiting.json()["blockers"]
                 busy=admin.post(endpoint,json=body)
                 assert busy.status_code==409,busy.text
+            prepared=admin.get(readiness_endpoint)
+            assert prepared.status_code==200 and prepared.json()["can_activate"],prepared.text
             active=admin.post(endpoint,json=body)
         assert active.status_code==200,active.text
         assert active.json()["current"]["season_id"]==season_id
@@ -95,6 +116,9 @@ def main() -> None:
         assert admin.post(endpoint,json=body).status_code==409
 
         assert admin.get("/api/season/current").json()["season_id"]==season_id
+        after_readiness=admin.get(readiness_endpoint)
+        assert after_readiness.status_code==200 and not after_readiness.json()["can_activate"]
+        assert "準備中" in after_readiness.json()["blockers"][0]
         public=member.get("/api/seasons").json()
         assert [x["season_id"] for x in public][:2]==[season_id,"fall"],public
         assert public[1]["status"]=="archived"
