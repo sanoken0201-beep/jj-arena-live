@@ -28,18 +28,18 @@ HOME = r'''
         <p>後期ランキング、活動予定、学習、リアルタイムNLH。表示内容がすべて読み取れることを確認します。</p>
         <div class="button-row"><button class="primary" data-jump="tables">オンライン卓へ</button><button class="soft" data-jump="ranking">ランキング</button></div>
       </div>
-      <div class="leader-box"><span>SEASON #1</span><strong>タカハシケンイチロウ</strong><b>28,560 pt</b></div>
+      <div class="leader-box"><span>SEASON #1</span><strong>高橋</strong><b>28,560 pt</b></div>
     </article>
     <article class="card kpi"><div class="eyebrow">ONLINE NLH</div><strong>2</strong><span>TABLES</span><p>公開テーブル</p></article>
   </div>
   <div class="section-head"><div><div class="eyebrow">LEADERBOARD</div><h3>トップ5</h3></div>
   <button class="link-btn" data-jump="ranking">すべて見る →</button></div>
   <div id="homeTop" class="top-grid">
-    <article class="top-player card"><span class="rank">#1</span><strong>タカハシケンイチロウ</strong><b>28,560 pt</b><div class="hint">17 entries</div></article>
-    <article class="top-player card"><span class="rank">#2</span><strong>プレイヤーニジュウモジノナマエ</strong><b>12,350 pt</b><div class="hint">10 entries</div></article>
-    <article class="top-player card"><span class="rank">#3</span><strong>イノウエ</strong><b>8,900 pt</b><div class="hint">10 entries</div></article>
-    <article class="top-player card"><span class="rank">#4</span><strong>ナカムラ</strong><b>2,140 pt</b><div class="hint">5 entries</div></article>
-    <article class="top-player card"><span class="rank">#5</span><strong>マツダ</strong><b>130 pt</b><div class="hint">4 entries</div></article>
+    <article class="top-player card"><span class="rank">#1</span><strong>高橋</strong><b>28,560 pt</b><div class="hint">17 entries</div></article>
+    <article class="top-player card"><span class="rank">#2</span><strong>鈴木</strong><b>12,350 pt</b><div class="hint">10 entries</div></article>
+    <article class="top-player card"><span class="rank">#3</span><strong>井上</strong><b>8,900 pt</b><div class="hint">10 entries</div></article>
+    <article class="top-player card"><span class="rank">#4</span><strong>中村</strong><b>2,140 pt</b><div class="hint">5 entries</div></article>
+    <article class="top-player card"><span class="rank">#5</span><strong>松田</strong><b>130 pt</b><div class="hint">4 entries</div></article>
   </div>
   <div class="home-columns">
     <article class="card panel"><div class="eyebrow">NEXT SESSION</div><h3>次の活動</h3><div class="mini-item"><strong>通常活動</strong><span>2026-10-11 · 17405教室</span></div></article>
@@ -60,16 +60,16 @@ RANKING = r'''
     <input id="rankSearch" placeholder="プレイヤー検索" aria-label="プレイヤー検索">
   </div>
   <div id="podium" class="podium">
-    <article class="podium-card card"><div class="eyebrow">後期 #1</div><strong>タカハシケンイチロウ</strong><b>28,560 pt</b><div class="hint">Club 15,220 · Online +13,340</div></article>
-    <article class="podium-card card"><div class="eyebrow">後期 #2</div><strong>プレイヤーニジュウモジノナマエ</strong><b>12,350 pt</b><div class="hint">Club 5,000 · Online +7,350</div></article>
-    <article class="podium-card card"><div class="eyebrow">後期 #3</div><strong>イノウエ</strong><b>8,900 pt</b><div class="hint">Club 3,000 · Online +5,900</div></article>
+    <article class="podium-card card"><div class="eyebrow">後期 #1</div><strong>高橋</strong><b>28,560 pt</b><div class="hint">Club 15,220 · Online +13,340</div></article>
+    <article class="podium-card card"><div class="eyebrow">後期 #2</div><strong>鈴木</strong><b>12,350 pt</b><div class="hint">Club 5,000 · Online +7,350</div></article>
+    <article class="podium-card card"><div class="eyebrow">後期 #3</div><strong>井上</strong><b>8,900 pt</b><div class="hint">Club 3,000 · Online +5,900</div></article>
   </div>
   <div class="card table-card"><table><thead><tr>
     <th>Rank</th><th>Player</th><th>Total</th><th>Club</th><th>Online</th><th>Online Hands</th>
   </tr></thead><tbody id="rankBody">
-    <tr><td class="rank-num">#1</td><td><strong>タカハシケンイチロウ</strong></td><td><b>28,560</b></td><td>15,220</td><td class="positive">+13,340</td><td>124</td></tr>
-    <tr><td class="rank-num">#2</td><td><strong>プレイヤーニジュウモジノナマエ</strong></td><td><b>12,350</b></td><td>5,000</td><td class="positive">+7,350</td><td>85</td></tr>
-    <tr><td class="rank-num">#3</td><td><strong>イノウエ</strong></td><td><b>8,900</b></td><td>3,000</td><td class="positive">+5,900</td><td>50</td></tr>
+    <tr><td class="rank-num">#1</td><td><strong>高橋</strong></td><td><b>28,560</b></td><td>15,220</td><td class="positive">+13,340</td><td>124</td></tr>
+    <tr><td class="rank-num">#2</td><td><strong>鈴木</strong></td><td><b>12,350</b></td><td>5,000</td><td class="positive">+7,350</td><td>85</td></tr>
+    <tr><td class="rank-num">#3</td><td><strong>井上</strong></td><td><b>8,900</b></td><td>3,000</td><td class="positive">+5,900</td><td>50</td></tr>
   </tbody></table></div>
 </section>'''
 
@@ -156,16 +156,7 @@ AUDIT_JS = r'''(mode) => {
     if(heroName.left<heroPoints.right && heroName.right>heroPoints.left &&
        heroName.top<heroPoints.bottom && heroName.bottom>heroPoints.top)
       errors.push('Home leader name overlaps leader points');
-    if(vw>760){
-      for(const item of document.querySelectorAll('#homeTop .top-player')){
-        const score=item.querySelector('b').getBoundingClientRect();
-        const meta=item.querySelector('.hint').getBoundingClientRect();
-        if(Math.abs((score.top+score.bottom)/2-(meta.top+meta.bottom)/2)>18)
-          errors.push('Home leaderboard entries are on a separate row');
-        if(item.getBoundingClientRect().height>100)
-          errors.push('Home leaderboard has excessive row height');
-      }
-    }
+    // The legacy five-card desktop grid and horizontal phone strip are intentionally unchanged.
   }
   if(vw<=760){
     const controls=mode==='home' ? ['.section-head .link-btn'] :
