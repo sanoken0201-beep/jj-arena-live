@@ -3,7 +3,10 @@ from __future__ import annotations
 
 import json
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
+from zoneinfo import ZoneInfo
+
+_JST = ZoneInfo('Asia/Tokyo')
 
 from fastapi import HTTPException
 
@@ -29,7 +32,8 @@ def apply_point(db, console, p, user):
             raise HTTPException(400, '修正対象の反映日時を指定してください')
         import season_management
         start, end = season_management.bounds(db, "fall")
-        if not start <= effective_date.date().isoformat() < end:
+        effective_day = (effective_date.astimezone(_JST) if effective_date.tzinfo else effective_date).date().isoformat()
+        if not start <= effective_day < end:
             raise HTTPException(400, '反映日時は現在のシーズン内を指定してください')
     direction = p.direction.strip().lower()
     if direction not in {"credit", "debit"}:
@@ -70,6 +74,13 @@ def apply_point(db, console, p, user):
             raise HTTPException(404, "user not found")
         signed = amount if direction == "credit" else -amount
         effective = console._effective(p.effective_at, db)
+        if p.effective_at:
+            parsed = datetime.fromisoformat(effective.replace("Z","+00:00"))
+            # Admin datetime-local controls send JST without an offset.
+            # Normalize it to the same UTC representation as quiz/Sit&Go.
+            if parsed.tzinfo is None:
+                parsed = parsed.replace(tzinfo=_JST)
+            effective = parsed.astimezone(timezone.utc).isoformat()
         tx = "pt-" + uuid.uuid4().hex
         con.execute("""INSERT INTO point_ledger
             (id,user_id,amount,kind,reason,effective_at,created_by,created_at,reversal_of,scope)

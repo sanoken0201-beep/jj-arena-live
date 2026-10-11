@@ -93,7 +93,22 @@ def run() -> None:
             ]
             assert all("654321" not in row["detail_json"] and "112233" not in row["detail_json"]
                        for row in audit), "A PIN appeared in role audit"
-    print("JJ_ADMIN_ROLE_DELEGATION_OK")
+
+        # Both core init paths execute at every Render restart. They must not
+        # re-promote the original seeded owner, demote the successor, replace
+        # the successor PIN, or invalidate delegated administrators' sessions.
+        assert successor.get("/api/admin/console/users").status_code == 200
+        production.db.init_db()
+        production.db.seed_if_needed()
+        with production.db.connect() as con:
+            roles = {int(row["id"]):row["role"] for row in con.execute(
+                "SELECT id,role FROM users WHERE id IN (?,?)", (admin_id,next_id)
+            ).fetchall()}
+            assert roles == {admin_id:"member", next_id:"admin"}, roles
+        assert successor.get("/api/admin/console/users").status_code == 200
+        assert original.get("/api/admin/console/users").status_code == 403
+        assert login(successor, "ヒキツギ", "112233", "admin") == next_id
+    print("JJ_ADMIN_ROLE_DELEGATION_RESTART_OK; JJ_ADMIN_ROLE_DELEGATION_OK")
 
 
 if __name__ == "__main__":
