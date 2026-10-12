@@ -21,6 +21,7 @@ SOURCES = {
     "multi": ("10 Tips for Multiway Pots in Poker", "https://blog.gtowizard.com/10-tips-multiway-pots-in-poker/"),
     "multistreet": ("The Math of Multi-Street Bluffs", "https://blog.gtowizard.com/the-math-of-multistreet-bluffs/"),
     "range": ("What Is Equity in Poker?", "https://blog.gtowizard.com/what-is-equity-in-poker/"),
+    "monotone": ("Maximizing Value on Monotone Flops", "https://blog.gtowizard.com/maximizing-value-on-monotone-flops/"),
     "solving": ("How to Study GTO Solutions", "https://blog.gtowizard.com/how-to-study-gto-solutions/"),
 }
 
