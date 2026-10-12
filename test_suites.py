@@ -54,6 +54,7 @@ TEST_SUITES: dict[str, tuple[str, ...]] = {
     ),
     "learning": (
         "smoke_test_daily_quiz.py",
+        "smoke_test_quiz_full_audit.py",
         "smoke_test_quiz_admin_ai.py",
     ),
     "browser_contract": (
@@ -155,6 +156,7 @@ PRODUCTION_RELEASE_SELECTION: tuple[tuple[str, tuple[str, ...]], ...] = (
     )),
     ("learning", (
         "smoke_test_daily_quiz.py",
+        "smoke_test_quiz_full_audit.py",
         "smoke_test_quiz_admin_ai.py",
     )),
     ("runtime_release", (
