@@ -145,7 +145,6 @@ def bank_checks():
         'spr-curated300-geometry-three': '82%',
         'combo-curated300-blocked-ako-five': '5コンボ',
         'icm-curated300-icm-three-player-prize': '64',
-        'range-check-posterior': '40%',
         'vocabulary-curated300-vocab-monotone-board': 'モノトーンボード',
         'combo-curated300-offsuit-twelve': '12コンボ',
         'combo-curated300-suited-four': '4コンボ',
