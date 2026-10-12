@@ -3,6 +3,7 @@ from __future__ import annotations
 """Final mobile table readability and expandable live hand-log treatment."""
 
 MARKER = "v84 mobile poker seat-card clearance 2026-10-08"
+DESKTOP_SHOWDOWN_MARKER = "v87 desktop opposite-seat showdown visibility 2026-10-12"
 
 JS_PATCH = r'''
   // v84 mobile poker seat-card clearance 2026-10-08
@@ -87,6 +88,23 @@ body.jj-poker-simple.jj-v80-handlog-expanded #pokerRoom .jj-v4-side-head{
   background:#101c17!important;border-bottom:1px solid rgba(255,255,255,.1)!important;
 }
 body.jj-poker-simple.jj-v80-handlog-expanded #pokerRoom .side-tabs{display:none!important}
+
+/* v87 desktop opposite-seat showdown visibility 2026-10-12
+   The top seat's legacy hand offset clips exposed cards at the table edge.
+   Place that seat's hand beside its plaque, clear of the community cards. */
+@media(min-width:761px){
+  body.jj-poker-simple #pokerRoom .jj-seat[data-jj-visual="3"]:not(.is-hero) .jj-hole{
+    position:absolute!important;left:calc(100% + 8px)!important;right:auto!important;
+    top:0!important;bottom:auto!important;
+    transform:none!important;display:flex!important;gap:4px!important;
+    z-index:14!important;margin:0!important;
+  }
+}
+@media(min-width:761px) and (max-height:500px){
+  body.jj-poker-simple #pokerRoom .jj-seat[data-jj-visual="3"]:not(.is-hero) .jj-hole .card-face{
+    width:32px!important;height:40px!important;font-size:.8rem!important;
+  }
+}
 
 @media(max-width:760px) and (orientation:portrait){
   body.jj-poker-simple.jj-mobile-table-open #pokerRoom .jj-seat{width:98px!important}
@@ -289,4 +307,4 @@ def transform_styles(source: str) -> str:
     return source.rstrip() + "\n" + CSS + "\n"
 
 
-__all__ = ["MARKER", "transform_app_js", "transform_styles"]
+__all__ = ["MARKER", "DESKTOP_SHOWDOWN_MARKER", "transform_app_js", "transform_styles"]

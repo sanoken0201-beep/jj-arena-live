@@ -1,11 +1,13 @@
 from __future__ import annotations
 import json
+import sys
 from datetime import datetime, timedelta, timezone
 import shutil
 import tempfile
 from pathlib import Path
 from playwright.sync_api import sync_playwright
 from served_assets import build_all, ASSET_VERSION
+from materialized_v1244 import poker_engine
 
 ROOT = Path(__file__).resolve().parent
 HOOKS = r'''
@@ -43,8 +45,35 @@ def state(check=False, waiting=False, players=2):
         "hand":{"id":"visibility-hand","phase":"preflop","action_seat":1 if waiting else 0,"action_deadline":(datetime.now(timezone.utc)+timedelta(seconds=45)).isoformat(),"board":[],"current_bet":100,"log":["Player 1 posts 1bb","Hero calls 1bb","Player 2 raises to 4bb"]},
         "legal":{"can_act":not waiting,"can_check":check,"can_call":not check,"can_raise":not waiting,"can_all_in":not waiting,"call_amount":0 if check else 50,"min_raise_to":200,"max_raise_to":15000},"last_result":None}
 
+
+def server_showdown_state():
+    table = poker_engine.blank_table_state(
+        table_id="jj-table-a", name="JJ Table A", max_seats=6,
+        small_blind=50, big_blind=100, min_buyin=100, max_buyin=2000,
+    )
+    poker_engine.seat_player(table, user_id=1, name="Hero", seat=0, stack=1000)
+    poker_engine.seat_player(table, user_id=2, name="Opposite", seat=3, stack=1000)
+    poker_engine.start_hand(table)
+    actor = next(player for player in table["seats"] if player["seat"] == table["hand"]["action_seat"])
+    poker_engine.apply_action(table, actor["user_id"], "allin")
+    caller = next(player for player in table["seats"] if player["seat"] == table["hand"]["action_seat"])
+    poker_engine.apply_action(table, caller["user_id"], "call")
+    for _ in range(4):
+        table["hand"]["runout_due_at_epoch"] = poker_engine.time.time() - 1
+        assert poker_engine.advance_forced_runout(table)
+    public = poker_engine.public_state(table, 1)
+    opponent = next(player for player in public["seats"] if player["user_id"] == 2)
+    assert opponent["cards"] != ["??", "??"] and len(opponent["cards"]) == 2
+    assert 2 in public["hand"]["revealed_user_ids"]
+    return public
+
 def main():
     chrome = next((shutil.which(n) for n in ("google-chrome","google-chrome-stable","chrome","chromium","chromium-browser","msedge") if shutil.which(n)),None)
+    if not chrome:
+        chrome = next((str(path) for path in (
+            Path(r"C:\Program Files\Google\Chrome\Application\chrome.exe"),
+            Path(r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe"),
+        ) if path.exists()), None)
     assert chrome, "Chrome is required"
     artifacts=ROOT/"test-artifacts"/"poker-simple"
     artifacts.mkdir(parents=True,exist_ok=True)
@@ -60,7 +89,11 @@ def main():
         html=(root/"index.html").read_text(encoding="utf-8").replace('"/static/','"static/')
         (root/"index.html").write_text(html,encoding="utf-8")
         browser=p.chromium.launch(executable_path=chrome,headless=True,args=["--no-sandbox","--allow-file-access-from-files"])
-        for width,height in ((390,664),(360,640),(390,844),(844,390),(1366,768),(1024,768)):
+        showdown = server_showdown_state()
+        viewports = ((761,768),(844,390),(1024,768),(1366,768),(1440,900)) if "--desktop-showdown-only" in sys.argv else (
+            (390,664),(360,640),(390,844),(761,768),(844,390),(1024,768),(1366,768),(1440,900)
+        )
+        for width,height in viewports:
             page=browser.new_page(viewport={"width":width,"height":height})
             errors=[]
             page.on("pageerror",lambda err:errors.append(str(err)))
@@ -106,6 +139,32 @@ def main():
                         assert opponent_cards["spread"],(width,height,players,waiting,"opponent seats collapsed",opponent_cards)
                         assert opponent_cards["topSeat"],(width,height,players,waiting,"opposite hand missing")
                     page.screenshot(path=str(artifacts/f"{width}x{height}-{players}-{'wait' if waiting else 'act'}.png"))
+            if width>=761:
+                page.evaluate("s=>JJ_TEST.setState(s)",showdown)
+                page.locator('.jj-seat[data-jj-visual="3"] .jj-hole .card-face').first.wait_for(state="visible")
+                page.wait_for_timeout(1200)
+                opposite=page.evaluate("""() => {
+                  const table=document.getElementById('pokerTable').getBoundingClientRect();
+                  const seat=document.querySelector('.jj-seat[data-jj-visual="3"]');
+                  const cards=[...seat.querySelectorAll('.jj-hole .card-face')];
+                  const boardCards=[...document.querySelectorAll('#boardCards .card-face')].map(card=>card.getBoundingClientRect());
+                  const plaque=seat.querySelector('.jj-seat-box').getBoundingClientRect();
+                  const intersects=(a,b)=>!(a.right<=b.left||a.left>=b.right||a.bottom<=b.top||a.top>=b.bottom);
+                  const details=cards.map(card=>{
+                    const r=card.getBoundingClientRect();
+                    const iw=Math.max(0,Math.min(table.right,r.right)-Math.max(table.left,r.left));
+                    const ih=Math.max(0,Math.min(table.bottom,r.bottom)-Math.max(table.top,r.top));
+                    const target=document.elementFromPoint(r.left+r.width/2,r.top+r.height/2);
+                    return {fraction:(iw*ih)/Math.max(1,r.width*r.height),hittable:!!target&&card.contains(target),boardClear:boardCards.every(board=>!intersects(r,board)),rect:{left:r.left,top:r.top,right:r.right,bottom:r.bottom}};
+                  });
+                  return {count:cards.length,details,boardCards:boardCards.map(r=>({left:r.left,top:r.top,right:r.right,bottom:r.bottom})),plaque:{left:plaque.left,top:plaque.top,right:plaque.right,bottom:plaque.bottom},table:{left:table.left,top:table.top,right:table.right,bottom:table.bottom}};
+                }""")
+                page.screenshot(path=str(artifacts/f"{width}x{height}-server-showdown.png"))
+                assert opposite["count"]==2,(width,height,"server showdown hand missing",opposite)
+                assert len(opposite["boardCards"])==5,(width,height,"showdown board incomplete",opposite)
+                assert all(card["fraction"]>=.95 for card in opposite["details"]),(width,height,"opposite hand clipped",opposite)
+                assert all(card["hittable"] for card in opposite["details"]),(width,height,"opposite hand occluded",opposite)
+                assert all(card["boardClear"] for card in opposite["details"]),(width,height,"opposite hand covers board",opposite)
             if width<=390 and height>=640:
                 layout_cases=[]
                 for name,waiting,phase,board_count,result,all_in in (

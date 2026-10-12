@@ -70,8 +70,8 @@ def main() -> None:
             assert "v84 mobile poker seat-card clearance 2026-10-08" in compiled_js, (
                 "compiled browser asset must include mobile opponent-card and hand-log repairs"
             )
-            assert served_assets.ASSET_VERSION == 86, (
-                "browser asset version must advance with the two-table visibility copy fix"
+            assert served_assets.ASSET_VERSION == 87, (
+                "browser asset version must advance with the desktop showdown visibility fix"
             )
             second = served_assets.build_all(root)
             served_assets.validate_built_assets(root)
