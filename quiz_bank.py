@@ -124,7 +124,7 @@ def _vocabulary_questions() -> list[dict[str, Any]]:
         _q("term-donk", "vocabulary", "ポーカー語彙", "前ストリートのアグレッサーではないOOP側が、次ストリートでその相手より先にベットするプレイは？", [("donk", "ドンクベット"), ("cbet", "コンティニュエーションベット"), ("squeeze", "スクイーズ"), ("coldcall", "コールドコール")], "donk", "前ストリートのアグレッサーへOOPから先に打つベットをドンクベットと呼びます。"),
         _q("term-overbet", "vocabulary", "ポーカー語彙", "オーバーベットの一般的な意味は？", [("overbet", "現在のポット額を上回るサイズのベット"), ("allin", "必ずオールインになるベット"), ("min", "最小レイズ"), ("threebet", "プリフロップ3ベット")], "overbet", "ポット額より大きいベットサイズをオーバーベットと呼びます。"),
         _q("term-float", "vocabulary", "ポーカー語彙", "フロップで直ちに強いハンドがなくてもコールし、後のストリートでポット獲得を狙うプレイを表す語は？", [("float", "フロート"), ("squeeze", "スクイーズ"), ("donk", "ドンク"), ("limp", "リンプ")], "float", "後のストリートで主導権やフォールドを狙うための軽いコールをフロートと呼びます。"),
-        _q("term-coldcall", "vocabulary", "ポーカー語彙", "自分がまだチップを入れていない状態で、レイズに対してリレイズせずコールすることは？", [("coldcall", "コールドコール"), ("checkraise", "チェックレイズ"), ("probe", "プローブ"), ("isolate", "アイソレート")], "coldcall", "それまでアクションへ参加していないプレイヤーがレイズをコールするのがコールドコールです。"),
+        _q("term-coldcall", "vocabulary", "ポーカー語彙", "自分がまだ自発的にチップを投入していない状態で、先行するレイズに対しリレイズせずコールすることは？", [("coldcall", "コールドコール"), ("checkraise", "チェックレイズ"), ("probe", "プローブ"), ("isolate", "アイソレート")], "coldcall", "それまでアクションへ参加していないプレイヤーがレイズをコールするのがコールドコールです。"),
         _q("term-effective", "vocabulary", "ポーカー語彙", "2人のオールイン可能額を実質的に決める『エフェクティブスタック』は通常どれ？", [("shorter", "2人のうち短い方のスタック"), ("larger", "2人のうち大きい方のスタック"), ("sum", "2人のスタック合計"), ("average", "2人の平均スタック")], "shorter", "相手より多い超過分は相手から獲得できないため、短い方がエフェクティブスタックです。"),
     ]
 
@@ -386,7 +386,7 @@ bluff-break-even|リバーでポット100に75を純ブラフします。コー�
 frequency-weight|特定のハンドが6コンボあり、そのうち25%の頻度でベットします。ベットレンジに入る重み付きコンボ数はいくつですか？|1.5コンボ|3コンボ|6コンボ|0.25コンボ|6コンボに25%のアクション頻度を掛けるので、6×0.25＝1.5コンボです。
 queen-removal|ボードと自分の手札でQを合計3枚確認できています。相手のQQは何コンボ残りますか？|0コンボ|1コンボ|3コンボ|6コンボ|残りQが1枚しかなく、相手はQQの2枚を作れません。
 conditional-range|相手がプリフロップで広くオープンし、フロップで一部のハンドだけベットしました。ベット後の相手レンジを推定する方法は？|ベットする頻度を各コンボに反映します|プリフロップの全コンボを均等に残します|役が完成したコンボだけに固定します|自分の2枚だけから確定します|アクションによる選別後のレンジは、元のコンボ数とそのアクションの頻度で重み付けします。
-fold-blocker|リバーのブラフ候補が、相手のフォールドしそうなハンドを多くブロックしています。このブロッカーについて考えられるのは？|ブラフの成功率を下げる方向に働く場合があります|ブラフの成功率を必ず上げます|相手のコール可能なハンドをすべて消します|相手がフォールドする頻度と無関係です|降りる組み合わせを減らすカードは、ブラフに不利なブロッカーになる場合があります。
+check-posterior|フロップで相手のA群4コンボが50%の頻度でチェックし、B群12コンボが25%の頻度でチェックします。チェックを見た後の相手レンジに占めるA群の割合は？|40%|20%|60%|80%|チェック後の重み付きコンボはA群4×0.5＝2、B群12×0.25＝3。A群は2÷5＝40%です。
 """,
     "hand_reasoning": """
 river-indifference|リバーでポット100に相手が100をベット。相手は必ずベットするバリュー8コンボと、必ずベットするブラフ4コンボだけを持ちます。自分はバリューには必ず負け、ブラフには必ず勝つ場合、コールの期待値は？|フォールドと同じ0です|必ずプラスです|必ずマイナスです|ブラフの頻度は関係ありません|勝てる比率は4÷12＝約33.3%で、必要勝率100÷300＝約33.3%。コールの増分期待値は0です。
@@ -417,11 +417,29 @@ for _category, _raw in ADVANCED_ROWS.items():
         POOLS[_category].append(_question)
 
 
+# 2026-10-12: 70 fresh independent items; 7 per category.
+# All existing question keys, content, daily rewards and persisted sets remain.
+from quiz_expansion_300 import ROWS as _CURATED_300_ROWS
+
+for _category, _raw in _CURATED_300_ROWS.items():
+    for _line in _raw.strip().splitlines():
+        _slug, _prompt, _correct, _wrong1, _wrong2, _wrong3, _explanation, _source, _difficulty = _line.split("|")
+        _question = _q(
+            f"{_category}-curated300-{_slug}", _category, CATEGORY_LABELS[_category],
+            ("【応用】" if _difficulty == "intermediate" else "") + _prompt,
+            [("a", _correct), ("b", _wrong1), ("c", _wrong2), ("d", _wrong3)],
+            "a", _explanation,
+        )
+        _question["difficulty"] = _difficulty
+        _question["source_title"], _question["source_url"] = SOURCES[_source]
+        POOLS[_category].append(_question)
+
+
 for category, pool in POOLS.items():
     for q in pool:
         q["category"] = category
         q["category_label"] = CATEGORY_LABELS[category]
-    assert len(pool) == 23, (category, len(pool))
+    assert len(pool) == 30, (category, len(pool))
 assert len(POOLS) == 10
-assert len({q["key"] for pool in POOLS.values() for q in pool}) == 230
-assert len({q["prompt"] for pool in POOLS.values() for q in pool}) == 230
+assert len({q["key"] for pool in POOLS.values() for q in pool}) == 300
+assert len({q["prompt"] for pool in POOLS.values() for q in pool}) == 300
