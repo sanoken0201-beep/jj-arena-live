@@ -43,6 +43,8 @@ KNIGHT_SVG = """<svg class="jj-jack-knight" xmlns="http://www.w3.org/2000/svg" v
 
 CSS = r"""
 /* JJ Jack-knight: original, decorative screen illustration. Gameplay excluded. */
+/* No view fade on this brand-heavy panel: preserve full text contrast on entry. */
+#homeView.active-view{animation:none!important;opacity:1}
 #homeView .hero.jj-jack-hero{
   background:#1B2855!important;
   border:1px solid #657CC5;
