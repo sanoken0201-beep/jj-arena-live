@@ -269,6 +269,13 @@ body.jj-poker-simple.jj-v80-handlog-expanded #pokerRoom .side-tabs{display:none!
   body.jj-poker-simple.jj-mobile-table-open #pokerRoom .jj-seat{width:92px!important}
   body.jj-poker-simple.jj-mobile-table-open #pokerRoom .jj-seat-box .name{font-size:.69rem!important;max-width:78px!important}
 }
+
+/* Short portrait tables leave less space between the top seat and board. */
+@media(max-width:760px) and (max-height:700px) and (orientation:portrait){
+  body.jj-poker-simple.jj-mobile-table-open #pokerRoom .jj-seat[data-jj-visual="3"]:not(.is-hero){
+    top:7%!important;
+  }
+}
 '''
 
 

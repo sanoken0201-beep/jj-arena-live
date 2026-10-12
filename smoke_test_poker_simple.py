@@ -91,7 +91,7 @@ def main():
         browser=p.chromium.launch(executable_path=chrome,headless=True,args=["--no-sandbox","--allow-file-access-from-files"])
         showdown = server_showdown_state()
         viewports = ((761,768),(844,390),(1024,768),(1366,768),(1440,900)) if "--desktop-showdown-only" in sys.argv else (
-            (390,664),(360,640),(390,844),(761,768),(844,390),(1024,768),(1366,768),(1440,900)
+            (390,664),(360,640),(390,844),(430,640),(761,768),(844,390),(1024,768),(1366,768),(1440,900)
         )
         for width,height in viewports:
             page=browser.new_page(viewport={"width":width,"height":height})
@@ -139,7 +139,7 @@ def main():
                         assert opponent_cards["spread"],(width,height,players,waiting,"opponent seats collapsed",opponent_cards)
                         assert opponent_cards["topSeat"],(width,height,players,waiting,"opposite hand missing")
                     page.screenshot(path=str(artifacts/f"{width}x{height}-{players}-{'wait' if waiting else 'act'}.png"))
-            if width>=761:
+            if width>=761 or (width<=430 and height>=640):
                 page.evaluate("s=>JJ_TEST.setState(s)",showdown)
                 page.locator('.jj-seat[data-jj-visual="3"] .jj-hole .card-face').first.wait_for(state="visible")
                 page.wait_for_timeout(1200)
