@@ -69,11 +69,12 @@ from mobile_poker_readability import MARKER as MOBILE_POKER_READABILITY_MARKER, 
 from read_efficiency import transform_app_js as transform_read_efficiency_app_js
 from season_browser_integration import transform_app_js as transform_season_app_js
 from ring_buyin_browser import MARKER as RING_BUYIN_MARKER, transform_app_js as transform_ring_buyin_app_js
+from jack_knight_brand import MARKER as JACK_KNIGHT_MARKER, transform_index as transform_jack_knight_index, transform_styles as transform_jack_knight_styles
 
 ROOT = Path(__file__).resolve().parent
 MATERIALIZED_STATIC = ROOT / "materialized_v1244" / "static"
 BUILD_ROOT = ROOT / ".jj_build"
-ASSET_VERSION = 86
+ASSET_VERSION = 87
 BUILD_FORMAT = 1
 
 _TODAYS_JJ_MARKER = "v2 today's-jj contrast hardening 2026-09-12"
@@ -278,6 +279,9 @@ def build_index() -> str:
         '<article class="card panel"><div class="eyebrow">POINT ENTRY</div><h3>公式ポイント入力</h3>',
         1,
     )
+    html = transform_jack_knight_index(html)
+    if JACK_KNIGHT_MARKER not in html:
+        raise RuntimeError("Jack knight home screen marker missing")
     return html
 
 
@@ -463,6 +467,9 @@ def build_styles() -> str:
     css = transform_mobile_poker_readability_styles(css)
     if MOBILE_POKER_READABILITY_MARKER not in css:
         raise RuntimeError("mobile poker readability style transform marker missing")
+    css = transform_jack_knight_styles(css)
+    if JACK_KNIGHT_MARKER not in css:
+        raise RuntimeError("Jack knight CSS marker missing")
     return css
 
 
