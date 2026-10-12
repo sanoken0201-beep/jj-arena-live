@@ -125,6 +125,11 @@ addEventListener('load',()=>setTimeout(()=>{
   const opponentSeats=[...document.querySelectorAll('.jj-seat:not(.is-hero)')];
   const opponentCardsClearOwnPlaques=opponentSeats.every(seat=>!intersects(seat.querySelector('.jj-hole').getBoundingClientRect(),seat.querySelector('.seat-box').getBoundingClientRect()));
   const boardBox=document.getElementById('boardCards').getBoundingClientRect();
+  const topHoleIntersection={
+    width:Math.max(0,Math.min(table.right,topHole.right)-Math.max(table.left,topHole.left)),
+    height:Math.max(0,Math.min(table.bottom,topHole.bottom)-Math.max(table.top,topHole.top))
+  };
+  const topHoleVisibleFraction=(topHoleIntersection.width*topHoleIntersection.height)/Math.max(1,topHole.width*topHole.height);
   const noBoardOverlap=board.every((a,i)=>board.every((b,j)=>i===j||!intersects(a,b)));
   const checks={
     noHorizontalOverflow:document.documentElement.scrollWidth<=innerWidth+2,
@@ -135,7 +140,8 @@ addEventListener('load',()=>setTimeout(()=>{
     noBoardCardOverlap:noBoardOverlap,
     topHoleClearOfBoard:!intersects(topHole,boardBox),
     sideHoleClearOfBoard:!intersects(sideHole,boardBox),
-    opponentCardsClearOwnPlaques
+    opponentCardsClearOwnPlaques,
+    topHoleInsideTable:topHoleVisibleFraction>=.95
   };
   const metric=r=>({left:Math.round(r.left),top:Math.round(r.top),right:Math.round(r.right),bottom:Math.round(r.bottom),width:Math.round(r.width),height:Math.round(r.height)});
   const diagnostics={checks,inner:{width:innerWidth,height:innerHeight},table:metric(table),result:metric(result),bar:metric(bar),hand:metric(hand),board:metric(boardBox),topHole:metric(topHole),sideHole:metric(sideHole)};
@@ -149,6 +155,12 @@ def _chrome() -> str:
         path = shutil.which(name)
         if path:
             return path
+    for path in (
+        Path(r"C:\Program Files\Google\Chrome\Application\chrome.exe"),
+        Path(r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe"),
+    ):
+        if path.exists():
+            return str(path)
     raise AssertionError("Chrome/Chromium is required")
 
 
@@ -215,6 +227,7 @@ def main() -> None:
     assert "margin:0!important" in final_css
     assert "top:calc(100% + 8px)!important" in final_css
     assert "bottom:calc(100% + 8px)!important" in final_css
+    assert "v87 desktop opposite-seat showdown visibility 2026-10-12" in final_css
 
     chrome = _chrome()
     with tempfile.TemporaryDirectory(prefix="jj-responsive-parity-") as td:
@@ -243,6 +256,9 @@ def main() -> None:
         # represent faithfully; narrow-phone sizing is additionally guarded by
         # the CSS contract assertions above.
         for width, height in ((500, 700), (560, 800), (640, 900), (760, 1024)):
+            _run(chrome, poker_fixture, width, height, 'data-poker-ok="1"')
+
+        for width, height in ((1024, 768), (1366, 768), (1440, 900)):
             _run(chrome, poker_fixture, width, height, 'data-poker-ok="1"')
 
     print("JJ_RESPONSIVE_PARITY_OK phone/boundary/tablet/landscape/mobile-poker")
