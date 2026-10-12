@@ -23,13 +23,13 @@ from smoke_test_learning_integration import isolated_production_app, login, json
 
 def bank_checks():
     assert len(dq.POOLS) == 10
-    assert all(len(pool) == 23 for pool in dq.POOLS.values())
-    assert len({q['key'] for pool in dq.POOLS.values() for q in pool}) == 230
+    assert all(len(pool) == 30 for pool in dq.POOLS.values())
+    assert len({q['key'] for pool in dq.POOLS.values() for q in pool}) == 300
     readability_errors = audit_questions(dq.POOLS)
     assert not readability_errors, readability_errors
     start = datetime(2026, 9, 11)
     seen = {k: set() for k in dq.POOLS}
-    for offset in range(23):
+    for offset in range(30):
         day = (start + timedelta(days=offset)).date().isoformat()
         questions = dq.build_daily_questions(day)
         assert questions == dq.build_daily_questions(day)
@@ -46,7 +46,7 @@ def bank_checks():
                 values = [float(c['label'][:-1]) for c in choices]
                 correct = next(float(c['label'][:-1]) for c in choices if c['value'] == q['correct'])
                 assert all(v == correct or abs(v-correct) >= 10 for v in values), q
-    assert all(len(v) == 23 for v in seen.values())
+    assert all(len(v) == 30 for v in seen.values())
     # Reference examples: regression on independently checked poker arithmetic.
     answer_labels = {
         "pot_odds-multiway-price": "14%",
@@ -81,7 +81,7 @@ def bank_checks():
     }.items():
         assert phrase in make_readable(questions[key])["prompt"], key
 
-    advanced = [q for pool in dq.POOLS.values() for q in pool if q.get('difficulty') == 'intermediate']
+    advanced = [q for pool in dq.POOLS.values() for q in pool if '-advanced-' in q['key']]
     assert len(advanced) == 30
     assert all(q['prompt'].startswith('【応用】') for q in advanced)
     assert all(q['source_url'].startswith('https://blog.gtowizard.com/') for q in advanced)
@@ -109,6 +109,69 @@ def bank_checks():
     for key, label in known_answers.items():
         q = next(q for q in advanced if q['key'] == key)
         assert next(c['label'] for c in q['choices'] if c['value'] == q['correct']) == label
+
+    # 2026-10-12 curated 70-question expansion: 7 per category.
+    from quiz_expansion_300 import ROWS as expansion_rows, validate as validate_expansion
+    validate_expansion()
+    expanded = [q for pool in dq.POOLS.values() for q in pool if '-curated300-' in q['key']]
+    assert len(expanded) == 70
+    assert all(sum('-curated300-' in q['key'] for q in pool) == 7 for pool in dq.POOLS.values())
+    assert sum(q['difficulty'] == 'intermediate' for q in expanded) == 40
+    assert sum(q['difficulty'] == 'standard' for q in expanded) == 30
+    assert all(q['source_url'].startswith('https://blog.gtowizard.com/') for q in expanded)
+    assert all(q['prompt'].startswith('【応用】') == (q['difficulty'] == 'intermediate') for q in expanded)
+    expected300 = {
+        'pot_odds-curated300-river-half-160': '25%',
+        'pot_odds-curated300-river-double-150': '40%',
+        'pot_odds-curated300-third-player-call': '20%',
+        'pot_odds-curated300-raise-to-180': '26%',
+        'pot_odds-curated300-rake-adjusted': '21%',
+        'pot_odds-curated300-implied-guarantee': '＋10',
+        'equity-curated300-turn-nine-clean': '20%',
+        'equity-curated300-flop-eight-clean': '31%',
+        'equity-curated300-win-tie-40': '40%',
+        'equity-curated300-eqr-56': '56',
+        'equity-curated300-eqr-inverse': '120%',
+        'equity-curated300-equity-two-groups': '45%',
+        'mdf-curated300-mdf-half-100': '67%',
+        'mdf-curated300-mdf-double-100': '33%',
+        'mdf-curated300-alpha-120-80': '40%',
+        'mdf-curated300-bluff-ev-plus4': '＋4',
+        'mdf-curated300-bluffcatcher-12': 'フォールドが有利です',
+        'spr-curated300-spr-two': '2',
+        'spr-curated300-spr-quarter': '0.25',
+        'spr-curated300-spr-after-call': '0.75',
+        'spr-curated300-geometry-one': '37%',
+        'spr-curated300-geometry-three': '82%',
+        'combo-curated300-pair-six': '6コンボ',
+        'combo-curated300-offsuit-twelve': '12コンボ',
+        'combo-curated300-suited-four': '4コンボ',
+        'combo-curated300-one-ace-block': '3コンボ',
+        'combo-curated300-same-suit-block': '3コンボ',
+        'combo-curated300-two-queens-board': '1コンボ',
+        'combo-curated300-weight-bluff-value': '33%',
+        'icm-curated300-icm-bf-150': '60%',
+        'icm-curated300-icm-bf-two': '67%',
+        'icm-curated300-icm-win-70': '＋20',
+        'bet_sizing-curated300-size-value-ratio-half': '3コンボ',
+        'bet_sizing-curated300-size-value-ratio-over': '4コンボ',
+        'bet_sizing-curated300-size-raise-call': '60',
+        'bet_sizing-curated300-size-geometry-half': '毎回50%ポット',
+        'bet_sizing-curated300-size-call-response': '50のベット',
+        'bet_sizing-curated300-size-bluff-plus2': '＋2',
+        'range-curated300-range-bet-posterior': '57%',
+        'range-curated300-range-weight-20': '20%',
+    }
+    for key, expected in expected300.items():
+        question = next((q for q in expanded if q['key'] == key), None)
+        assert question is not None, key
+        correct_label = next(c['label'] for c in question['choices'] if c['value'] == question['correct'])
+        assert correct_label == expected, (key, correct_label)
+        readable = make_readable(question)
+        assert readable['source_url'] == question['source_url']
+        assert len(readable['prompt']) <= 250
+        assert len({c['label'] for c in readable['choices']}) == 4
+
     class StatRows:
         def execute(self, _): return self
         def fetchall(self):
