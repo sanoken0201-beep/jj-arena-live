@@ -10,8 +10,10 @@ A graphic for the **actual Home screen**, not a stand-alone generated fantasy il
 
 - Home banner: vector knight built inline in the HTML as an absolute decorative child. It does not change button/navigation positions or the leader statistics.
 - Desktop: 190 × 235 CSS pixels on the right half, clipped by the existing hero card. At mid-width, 146 × 181.
-- 320–760px screens: 52–66 CSS pixels near the top-right of the hero card, kept away from heading/actions.
+- 320px screens: 105 × 130 CSS pixels; 390–760px screens: 124 × 153 pixels near the upper-right, clear of heading/description/actions. The Jack remains inside the existing Home hero.
 - Ranking and Ring/Sit&Go gameplay: no knight DOM or rendering. The feature is limited to Home.
+- Hero title uses only **JJ Arena**. The description lists factual sections; it does not include a slogan. On small phones the canonical Home action buttons are already hidden by the original mobile design; navigation remains in the mobile dock.
+- Only the Home view's entry fade is disabled, to avoid transient low-contrast screenshots/text on medium screens.
 
 ## Brand colors
 
@@ -24,7 +26,7 @@ Midnight `#1B2855`, cyan `#27C7D9`, magenta `#CB4295`, parchment `#F4E8BD`, copp
 - No font/image downloads, no JavaScript, no keyframe animation, no network request.
 - Canonical `materialized_v1244/` is untouched; one build-time injection produces the required HTML and CSS.
 - New cache version forces updated clients to fetch the new home assets.
-- Regression tests compare non-Home HTML byte-for-byte, verify preexisting CSS remains intact and cap compressed CSS growth; real Chromium screenshots at 320, 390, 760, 1024, and 1440px.
+- Regression tests compare non-Home HTML byte-for-byte, verify preexisting CSS remains intact and cap compressed CSS growth; real Chromium screenshots at 320, 390, 760, 1024, and 1440px, including the actual compiled desktop/mobile app shell. Contrast/opacity and figure/text overlaps are checked after layout settling.
 - No production deployment until full CI, screenshot review and performance evaluation.
 
 ## Scope boundary
