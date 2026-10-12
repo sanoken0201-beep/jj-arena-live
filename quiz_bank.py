@@ -417,11 +417,29 @@ for _category, _raw in ADVANCED_ROWS.items():
         POOLS[_category].append(_question)
 
 
+# 2026-10-12: 70 fresh independent items; 7 per category.
+# All existing question keys, content, daily rewards and persisted sets remain.
+from quiz_expansion_300 import ROWS as _CURATED_300_ROWS
+
+for _category, _raw in _CURATED_300_ROWS.items():
+    for _line in _raw.strip().splitlines():
+        _slug, _prompt, _correct, _wrong1, _wrong2, _wrong3, _explanation, _source, _difficulty = _line.split("|")
+        _question = _q(
+            f"{_category}-curated300-{_slug}", _category, CATEGORY_LABELS[_category],
+            ("【応用】" if _difficulty == "intermediate" else "") + _prompt,
+            [("a", _correct), ("b", _wrong1), ("c", _wrong2), ("d", _wrong3)],
+            "a", _explanation,
+        )
+        _question["difficulty"] = _difficulty
+        _question["source_title"], _question["source_url"] = SOURCES[_source]
+        POOLS[_category].append(_question)
+
+
 for category, pool in POOLS.items():
     for q in pool:
         q["category"] = category
         q["category_label"] = CATEGORY_LABELS[category]
-    assert len(pool) == 23, (category, len(pool))
+    assert len(pool) == 30, (category, len(pool))
 assert len(POOLS) == 10
-assert len({q["key"] for pool in POOLS.values() for q in pool}) == 230
-assert len({q["prompt"] for pool in POOLS.values() for q in pool}) == 230
+assert len({q["key"] for pool in POOLS.values() for q in pool}) == 300
+assert len({q["prompt"] for pool in POOLS.values() for q in pool}) == 300
