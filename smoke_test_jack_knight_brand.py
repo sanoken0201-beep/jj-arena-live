@@ -53,7 +53,7 @@ def contract() -> tuple[str, str]:
     assert cleaned == previous_html, "non-Home markup changed"
     assert css.startswith(previous_css), "existing stylesheet changed instead of being kept intact"
     assert css.endswith(CSS + "\n/* " + MARKER + " */\n")
-    assert "transition:" not in CSS and "animation:" not in CSS
+    assert "transition:" not in CSS and "@keyframes" not in CSS and "animation:none" in CSS
     assert css.count("@font-face") == previous_css.count("@font-face")
     assert css.count("@import") == previous_css.count("@import")
     gzip_delta = len(gzip.compress(css.encode("utf-8"),mtime=0)) - len(gzip.compress(previous_css.encode("utf-8"),mtime=0))
@@ -108,6 +108,7 @@ def browser_check(html: str, css: str) -> None:
                 buttons:by('.jj-jack-hero .button-row').children.length,
                 artWidth:Math.round(img.width),
                 artHeight:Math.round(img.height),
+                heroOpacity:+getComputedStyle(by('#homeView')).opacity,
                 browserWidth:innerWidth
               };
               return v;
@@ -115,6 +116,7 @@ def browser_check(html: str, css: str) -> None:
             page.screenshot(path=str(SCREENSHOT_DIR/f"home-{w}.png"),full_page=True)
             assert all(info[k] for k in ("art","inset","titleClear","actionClear","leaderClear","descriptionClear","noPageOverflow")), f"{w}px: {info}"
             assert info["title"]=="JJ Arena" and info["buttons"]==2
+            assert info["heroOpacity"]>=.99, f"Home view dimmed at {w}px: {info}"
             if w<=390:
                 assert info["artWidth"]>=105 and info["artHeight"]>=130, f"Knight is postage-stamp sized at {w}px: {info}"
             print(f"JJ_JACK_KNIGHT_BROWSER_OK width={w} art={info['artWidth']}px",flush=True)
@@ -135,7 +137,7 @@ def browser_check(html: str, css: str) -> None:
             "<style>" + css + "\n#authView{display:none!important}</style></head>",
             1,
         )
-        for w,h in ((320,640),(390,844),(1024,768),(1440,900)):
+        for w,h in ((320,640),(390,844),(760,1024),(1024,768),(1440,900)):
             page=browser.new_page(viewport={"width":w,"height":h},device_scale_factor=1)
             page.set_content(full_fixture)
             page.wait_for_timeout(850)
@@ -150,7 +152,8 @@ def browser_check(html: str, css: str) -> None:
                 artVisible:fig.width>90,
                 navPresent:!!nav,
                 noPageOverflow:document.documentElement.scrollWidth<=innerWidth+4,
-                artContained:fig.left>=box.left-2&&fig.right<=box.right+2
+                artContained:fig.left>=box.left-2&&fig.right<=box.right+2,
+                fullOpacity:Number(getComputedStyle(document.querySelector('#homeView')).opacity)>=.99
               }
             }""")
             page.screenshot(path=str(SCREENSHOT_DIR/f"app-shell-{w}.png"),full_page=True)
