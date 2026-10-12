@@ -70,6 +70,7 @@ def main() -> None:
             "smoke_test_sitngo_acceptance_manifest.py",
             "audit_ui_labels.py",
             "smoke_test_daily_quiz.py",
+            "smoke_test_quiz_full_audit.py",
             "smoke_test_quiz_admin_ai.py",
         }
         assert gate.RELEASE_TESTS == production_release_tests()
@@ -78,6 +79,7 @@ def main() -> None:
         assert ("ring_gameplay", "smoke_test_rake_settlement_fix.py") in gate.RELEASE_TESTS
         assert ("ring_gameplay", "smoke_test_ring_admin_config.py") in gate.RELEASE_TESTS
         assert ("learning", "smoke_test_daily_quiz.py") in gate.RELEASE_TESTS
+        assert ("learning", "smoke_test_quiz_full_audit.py") in gate.RELEASE_TESTS
         assert ("learning", "smoke_test_quiz_admin_ai.py") in gate.RELEASE_TESTS
         assert ("runtime_release", "smoke_test_rake_integrity_runtime_audit.py") in gate.RELEASE_TESTS
         assert {filename for _, filename in gate.RELEASE_TESTS} == expected
