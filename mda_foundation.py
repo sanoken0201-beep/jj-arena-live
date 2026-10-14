@@ -291,30 +291,30 @@ def coverage_report(con: Any) -> dict[str, Any]:
     """
     def scalar(sql: str) -> int:
         row = con.execute(sql).fetchone()
-        return int(row[0] or 0)
+        return int(row["n"] or 0)
     valid = "h.completed_at IS NOT NULL AND COALESCE(h.partial_capture,0)=0"
     return {
         "completed_full_hands": scalar(
-            f"SELECT COUNT(*) FROM jj_hand_history h WHERE {valid}"
+            f"SELECT COUNT(*) AS n FROM jj_hand_history h WHERE {valid}"
         ),
         "completed_partial_hands": scalar(
-            "SELECT COUNT(*) FROM jj_hand_history WHERE completed_at IS NOT NULL AND COALESCE(partial_capture,0)<>0"
+            "SELECT COUNT(*) AS n FROM jj_hand_history WHERE completed_at IS NOT NULL AND COALESCE(partial_capture,0)<>0"
         ),
         "incomplete_hands": scalar(
-            "SELECT COUNT(*) FROM jj_hand_history WHERE completed_at IS NULL"
+            "SELECT COUNT(*) AS n FROM jj_hand_history WHERE completed_at IS NULL"
         ),
         "full_hand_player_rows": scalar(
-            f"SELECT COUNT(*) FROM jj_hand_players p JOIN jj_hand_history h ON h.hand_id=p.hand_id WHERE {valid}"
+            f"SELECT COUNT(*) AS n FROM jj_hand_players p JOIN jj_hand_history h ON h.hand_id=p.hand_id WHERE {valid}"
         ),
         "full_hand_action_rows": scalar(
-            f"SELECT COUNT(*) FROM jj_hand_actions a JOIN jj_hand_history h ON h.hand_id=a.hand_id WHERE {valid}"
+            f"SELECT COUNT(*) AS n FROM jj_hand_actions a JOIN jj_hand_history h ON h.hand_id=a.hand_id WHERE {valid}"
         ),
         "full_hands_missing_actions": scalar(
-            f"SELECT COUNT(*) FROM jj_hand_history h WHERE {valid} "
+            f"SELECT COUNT(*) AS n FROM jj_hand_history h WHERE {valid} "
             "AND NOT EXISTS (SELECT 1 FROM jj_hand_actions a WHERE a.hand_id=h.hand_id)"
         ),
         "full_hand_distinct_players": scalar(
-            f"SELECT COUNT(DISTINCT p.user_id) FROM jj_hand_players p JOIN jj_hand_history h "
+            f"SELECT COUNT(DISTINCT p.user_id) AS n FROM jj_hand_players p JOIN jj_hand_history h "
             f"ON h.hand_id=p.hand_id WHERE {valid}"
         ),
     }
