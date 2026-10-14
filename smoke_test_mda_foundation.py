@@ -191,7 +191,7 @@ def run():
         assert report["read_only"] and report["recent_hands_usable"] == 1
         assert report["recent_decisions_extracted"] == 3
         assert report["frequency"]["rfi"]["status"] == "insufficient_sample"
-        assert "recent" not in str(report) and "actor_id" not in str(report)
+        assert "recent" not in str(report["frequency"]) and "actor_id" not in str(report)
     finally:
         con.close()
 
