@@ -5,6 +5,7 @@ User identifiers are INTERNAL only; never serialize raw decisions to a member AP
 """
 from __future__ import annotations
 
+from collections import Counter
 from dataclasses import dataclass
 from math import sqrt
 from typing import Any, Iterable, Mapping, Sequence
@@ -28,7 +29,7 @@ class Decision:
     action: str
     position: str
     pot_type: str
-    player_count: int
+    players_dealt_in: int
     stack_bb_at_start: float
     facing_chips: int
     pot_before_chips: int
@@ -76,7 +77,12 @@ def _texture(board: Sequence[str], street: str) -> str | None:
     suits = [str(card)[-1:].lower() for card in cards]
     if any(s not in {"s", "h", "d", "c"} for s in suits):
         return None
-    pairing = "trips+" if len(set(ranks)) <= count - 2 else "paired" if len(set(ranks)) < count else "unpaired"
+    multiplicities = Counter(ranks).values()
+    pairing = (
+        "trips_plus" if max(multiplicities) >= 3 else
+        "double_paired" if sum(v >= 2 for v in multiplicities) >= 2 else
+        "paired" if any(v >= 2 for v in multiplicities) else "unpaired"
+    )
     suit_counts = sorted((suits.count(s) for s in set(suits)), reverse=True)
     return f"{pairing}:{suit_counts[0]}max"
 
@@ -148,7 +154,7 @@ def derive_decisions(
             action=action,
             position=str(player.get("position") or ""),
             pot_type=_pot_type(raise_count),
-            player_count=_integer(hand.get("player_count"), len(persons)),
+            players_dealt_in=_integer(hand.get("player_count"), len(persons)),
             stack_bb_at_start=float(player.get("effective_stack_bb") or 0),
             facing_chips=facing,
             pot_before_chips=pot,
