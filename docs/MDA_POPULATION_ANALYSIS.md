@@ -89,3 +89,25 @@ Phase 3 — evaluate and expand:
 - Are timeout actions separate from regular human actions in the official sample? Default = yes.
 - Are samples pooled across all season/room/rule changes? Default = segregate and explicitly filter.
 - What are actual completed/valid hand counts and DB growth? Requires read-only production coverage check with confirmed Render workspace.
+
+
+## Phase 1 implementation (2026-10-15; draft PR #200)
+
+The first foundation is available in this feature branch, **not deployed**:
+
+- \`mda_foundation.py\`: standalone pure functions \`derive_decisions\`, \`derive_opportunities\`, \`summarize\`, \`coverage_report\`.
+- \`mda_offline_audit.py\`: read-only PostgreSQL or SQLite connection with a recent-hand audit, at most 500 complete hands. It deliberately never imports app/FastAPI or reads hole-card/name columns.
+- \`smoke_test_mda_foundation.py\`: synthetic action chronology and database fixture coverage, selected by \`test_suites.py\`'s production release suite.
+
+Offline run, inside an environment that already has authorized database access:
+
+\`\`\`bash
+python smoke_test_mda_foundation.py
+python mda_offline_audit.py --sqlite /path/to/local-jj.sqlite3 --limit 200
+# Production shell: use the existing DATABASE_URL secret, never print/paste its value.
+python mda_offline_audit.py --limit 200
+\`\`\`
+
+The CLI prints no raw identity, card or hand details. For all metrics, its API-safe summary suppresses exact counts if opportunities are fewer than 100 or distinct players fewer than 8. Running with \`--limit 200\` samples at most 200 **recent completed full-capture hands**, which is not necessarily representative and should not be taken as the true population rate. \`full_hands_missing_actions\` and \`recent_hands_rejected\` indicate further replay-validation needs. No query against real production data has been performed in this PR.
+
+**Scope limitation:** the foundation treats effective stack as the *hand-start value*, not the true street-by-street effective stack. Flop bet_pct_pot is populated for unopposed first bets only; raises require a separate sizing definition. The 95% Wilson interval ignores player-level clustering. Do not infer a theoretically profitable exploit or GTO deviation from these raw rates. The feature pipeline and all its actor identifiers are private server-side material; do not expose its dataclasses or current participant hand-history access to generic member routes.
