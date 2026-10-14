@@ -155,6 +155,46 @@ def run():
         }, audit
     finally:
         con.close()
+    # End-to-end offline projection reads a strict field whitelist and
+    # publishes only suppressed population statistics for the tiny fixture.
+    from mda_offline_audit import audit_recent
+    con = sqlite3.connect(":memory:")
+    con.row_factory = sqlite3.Row
+    try:
+        con.execute(
+            "CREATE TABLE jj_hand_history("
+            "hand_id TEXT PRIMARY KEY, table_id TEXT, big_blind INTEGER,"
+            "board_json TEXT, player_count INTEGER, completed_at TEXT, partial_capture INTEGER)"
+        )
+        con.execute(
+            "CREATE TABLE jj_hand_players("
+            "hand_id TEXT,user_id INTEGER,position TEXT,effective_stack_bb REAL)"
+        )
+        con.execute(
+            "CREATE TABLE jj_hand_actions("
+            "hand_id TEXT,seq INTEGER,user_id INTEGER,street TEXT,action TEXT,"
+            "pot_before INTEGER,amount_chips INTEGER,facing_chips INTEGER,timed_out INTEGER)"
+        )
+        con.execute(
+            "INSERT INTO jj_hand_history VALUES (?,?,?,?,?,?,?)",
+            ("recent", "jj-table-a", 100, "[]", 3, "2026-10-14", 0),
+        )
+        con.executemany("INSERT INTO jj_hand_players VALUES (?,?,?,?)", [
+            ("recent", 10, "BTN", 150), ("recent", 20, "SB", 100), ("recent", 30, "BB", 100),
+        ])
+        con.executemany("INSERT INTO jj_hand_actions VALUES (?,?,?,?,?,?,?,?,?)", [
+            ("recent", 1, 10, "preflop", "raise", 150, 300, 100, 0),
+            ("recent", 2, 20, "preflop", "fold", 450, 0, 250, 0),
+            ("recent", 3, 30, "preflop", "fold", 450, 0, 200, 0),
+        ])
+        report = audit_recent(con, limit=10)
+        assert report["read_only"] and report["recent_hands_usable"] == 1
+        assert report["recent_decisions_extracted"] == 3
+        assert report["frequency"]["rfi"]["status"] == "insufficient_sample"
+        assert "recent" not in str(report) and "actor_id" not in str(report)
+    finally:
+        con.close()
+
     print("smoke_test_mda_foundation: PASS")
 
 
