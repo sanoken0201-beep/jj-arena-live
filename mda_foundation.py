@@ -291,7 +291,11 @@ def coverage_report(con: Any) -> dict[str, Any]:
     """
     def scalar(sql: str) -> int:
         row = con.execute(sql).fetchone()
-        return int(row["n"] or 0)
+        try:
+            value = row["n"]
+        except (TypeError, KeyError, IndexError):  # bare sqlite3.Connection returns tuples
+            value = row[0] if row else 0
+        return int(value or 0)
     valid = "h.completed_at IS NOT NULL AND COALESCE(h.partial_capture,0)=0"
     return {
         "completed_full_hands": scalar(
