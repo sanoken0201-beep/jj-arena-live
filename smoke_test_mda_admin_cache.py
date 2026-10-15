@@ -151,8 +151,6 @@ def run():
     assert _cell(got.json(), "K5o")["open_frequency"] == 40
     assert got.json()["position"] == "BTN"
     assert db.query_count == 2, "endpoint performed more than one DB read"
-    assert client.get("/api/admin/mda/grid?game=Ring&table_size=6&position=BTN/SB",
-                      headers={"x-test-role":"admin"}).status_code == 500 if False else True
     # Stale cache for another scope must not be used in this scope.
     absent = client.get(
         "/api/admin/mda/grid?game=Sit%26Go&table_size=2&position=BTN%2FSB",
