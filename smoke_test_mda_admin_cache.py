@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+from pathlib import Path
 import json
 import sqlite3
 from types import SimpleNamespace
@@ -158,6 +159,22 @@ def run():
     )
     assert absent.json()["status"] == "not_ready"
     assert len(got.content) < 50000
+    # Check the SPA installs lightweight lazy-loading assets instead of tying
+    # rendering to poker action/WebSocket traffic.
+    root = Path(__file__).resolve().parent / "materialized_v1244" / "static"
+    html = (root / "index.html").read_text(encoding="utf-8")
+    js = (root / "mda-view.js").read_text(encoding="utf-8")
+    css = (root / "mda-view.css").read_text(encoding="utf-8")
+    app_js = (root / "app.js").read_text(encoding="utf-8")
+    assert 'data-view="mda"' in html
+    assert 'id="mdaView" class="view admin-only"' in html
+    assert 'mda-view.js?v=1' in html and 'mda-view.css?v=1' in html
+    assert "mda:['POPULATION MDA','MDA分析']" in app_js
+    assert "MutationObserver" in js and "active-view" in js
+    assert "textContent" in js and ".innerHTML" not in js
+    assert "setInterval(" not in js and "new WebSocket(" not in js
+    assert ".mda-matrix" in css and "overflow-x:auto" in css
+
     db.raw.close()
     print("smoke_test_mda_admin_cache: PASS")
 
