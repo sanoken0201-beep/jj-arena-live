@@ -30,9 +30,9 @@ def action(seq, actor, kind, amount=0):
     }
 
 
-def ev(uid, holding, opened, *, hand_id="h", position="BTN"):
+def ev(uid, holding, opened, *, hand_id="h", position="BTN", table_size=3):
     return PrivateRfiEvidence(
-        hand_id=hand_id, actor_id=uid, position=position, holding=holding, opened=opened
+        hand_id=hand_id, actor_id=uid, position=position, table_size=table_size, holding=holding, opened=opened
     )
 
 
@@ -77,17 +77,17 @@ def run():
     assert [(e.position, e.holding, e.opened) for e in events] == [
         ("BTN", "K5o", True),
     ]  # SB folded facing the BTN raise; SB was NOT in an RFI opportunity.
-    guesses = infer_plus_hypotheses(events, position="BTN")
+    guesses = infer_plus_hypotheses(events, position="BTN", table_size=3)
     k5 = next(h for h in guesses if h.notation == "K5o+")
     assert k5.seed == "K5o"
     assert k5.status == "tentative"
     assert k5.candidates == expand_plus("K5o+")
     assert k5.seed_open_count == 1
     assert not k5.contradiction_classes
-    assert summarize_range(events, position="BTN") == {
-        "status": "insufficient_sample", "position": "BTN",
+    assert summarize_range(events, position="BTN", table_size=3) == {
+        "status": "insufficient_sample", "position": "BTN", "table_size": 3,
     }
-    assert infer_plus_hypotheses(events, position="CO") == ()
+    assert infer_plus_hypotheses(events, position="CO", table_size=3) == ()
 
     # Limp from BTN means there is *no* observed BTN raise, so no K5o+.
     limped = extract_rfi_evidence(
@@ -95,7 +95,7 @@ def run():
         [action(1, 10, "call", 100), action(2, 20, "raise", 300), action(3, 30, "fold")],
     )
     assert limped[0].opened is False
-    assert not infer_plus_hypotheses(limped, position="BTN")
+    assert not infer_plus_hypotheses(limped, position="BTN", table_size=3)
     assert not extract_rfi_evidence(
         {**hand(), "partial_capture": 1}, actors(), [action(1, 10, "raise", 300)]
     )
@@ -110,15 +110,15 @@ def run():
     # Explicit real folds on stronger kickers can challenge monotone guesses.
     noisy = [ev(10, "K5o", True)]
     noisy.extend(ev(i % 8, "K6o", False, hand_id=f"f{i}") for i in range(8))
-    assert infer_plus_hypotheses(noisy, position="BTN")[0].contradiction_classes == ("K6o",)
+    assert infer_plus_hypotheses(noisy, position="BTN", table_size=3)[0].contradiction_classes == ("K6o",)
 
     # Different positions and suitedness are intentionally not pooled.
     mixed = [ev(10, "K5o", True), ev(11, "K4s", True, position="CO")]
-    assert len(infer_plus_hypotheses(mixed, position="BTN")) == 1
-    assert infer_plus_hypotheses(mixed, position="CO")[0].notation == "K4s+"
+    assert len(infer_plus_hypotheses(mixed, position="BTN", table_size=3)) == 1
+    assert infer_plus_hypotheses(mixed, position="CO", table_size=3)[0].notation == "K4s+"
 
     # A5s wheel effects are non-monotone: do not auto-create A5s+.
-    assert not infer_plus_hypotheses([ev(10, "A5s", True)], position="BTN")
+    assert not infer_plus_hypotheses([ev(10, "A5s", True)], position="BTN", table_size=3)
 
     # Publishing a class requires *both* whole-cohort and per-cell thresholds.
     records = [
@@ -127,7 +127,7 @@ def run():
     ]
     # A separate sparse cell remains UNKNOWN, not a guessed 100% open.
     records.extend(ev(12, "AA", True, hand_id=f"extra{i}") for i in range(2))
-    summary = summarize_range(records, position="BTN")
+    summary = summarize_range(records, position="BTN", table_size=3)
     assert summary["status"] == "ok"
     assert len(summary["cells"]) == 169
     assert summary["cells"]["K5o"]["status"] == "observed"
@@ -144,7 +144,7 @@ def run():
 
     # Even 100 opportunities can be private if one player dominates.
     one_person = [ev(10, "K5o", True, hand_id=f"p{i}") for i in range(120)]
-    assert summarize_range(one_person, position="BTN")["status"] == "insufficient_sample"
+    assert summarize_range(one_person, position="BTN", table_size=3)["status"] == "insufficient_sample"
 
     # End-to-end audit: sensitive hole cards exist only in this isolated test DB;
     # public JSON must suppress the tiny pool and never expose them.
@@ -183,7 +183,7 @@ def run():
             ("secret-hand-A", 2, 20, "preflop", "fold", 450, 0, 250, 0),
             ("secret-hand-A", 3, 30, "preflop", "fold", 450, 0, 200, 0),
         ])
-        output = report_rfi_range(con, position="BTN", limit=5)
+        output = report_rfi_range(con, table_size=3, position="BTN", limit=5)
         assert output["range"]["status"] == "insufficient_sample"
         assert output["hypotheses"] == []
         serial = json.dumps(output)
@@ -194,7 +194,7 @@ def run():
                     ("unfinished", "jj-table-a", 100, "[]", 2, None, 0))
         con.execute("INSERT INTO jj_hand_history VALUES (?,?,?,?,?,?,?)",
                     ("partial", "jj-table-a", 100, "[]", 2, "2026-10-15", 1))
-        assert report_rfi_range(con, limit=5)["hands_examined"] == 1
+        assert report_rfi_range(con, table_size=3, position="BTN", limit=5)["hands_examined"] == 1
     finally:
         con.close()
 
