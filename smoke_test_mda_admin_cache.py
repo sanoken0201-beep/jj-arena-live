@@ -21,6 +21,7 @@ from mda_ranges import POSITIONS_BY_SIZE, expand_plus
 def _reports():
     ring = {
         "format_version": "mda-all-players-v1", "game": "Ring",
+        "source_ring_tables": ["jj-table-a", "jj-table-b"],
         "coverage": {"complete_scan": True},
         "cohorts_by_players_dealt_in": {
             "6": {
@@ -45,6 +46,7 @@ def _reports():
     }
     sitngo = {
         "format_version": "mda-sitngo-rfi-v1", "game": "Sit&Go",
+        "source": "sitngo_hands",
         "coverage": {"complete_scan": True},
         "cohorts_by_players_dealt_in": {},
     }
@@ -128,6 +130,20 @@ def run():
         assert all(secret not in serialized for secret in (
             "actor_id", "user_id", "hand_id", "hole_cards_json", "secret",
         ))
+    # Publishing old Table-A-only or invented tournament sources must fail,
+    # even when their reports claim a complete scan.
+    for altered_ring, altered_sng in (
+        (dict(ring, source_ring_tables=["jj-table-a"]), sitngo),
+        (dict(ring, source_ring_tables=["jj-table-b"]), sitngo),
+        (ring, dict(sitngo, source="wrong_table")),
+    ):
+        try:
+            snapshot_documents(altered_ring, altered_sng, generated_at=stamp)
+        except ValueError:
+            pass
+        else:
+            raise AssertionError("unverified source coverage entered cache")
+
     partial = dict(ring, coverage={"complete_scan": False})
     try:
         snapshot_documents(partial, sitngo, generated_at=stamp)
