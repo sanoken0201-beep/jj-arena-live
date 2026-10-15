@@ -13,6 +13,7 @@ from fastapi import Depends, FastAPI, Header, HTTPException
 from fastapi.testclient import TestClient
 
 from mda_admin_api import install
+from mda_cache_contract import POSITIONS_BY_SIZE as CACHE_POSITIONS
 from mda_snapshot_cache import FORMAT, cache_key, snapshot_documents
 from mda_ranges import POSITIONS_BY_SIZE, expand_plus
 
@@ -90,6 +91,17 @@ class DB:
 
 def run():
     assert cache_key("Ring", 6, "BTN") == "Ring:6:BTN"
+    assert CACHE_POSITIONS == POSITIONS_BY_SIZE, "lightweight web contract drifted from offline analyzer"
+    # The live route must not import DB-scanning analyzers just to serve
+    # one cached row. Keep this check in a fresh interpreter.
+    import subprocess, sys
+    proc = subprocess.run(
+        [sys.executable, "-c",
+         "import sys, mda_admin_api; assert 'mda_all_players_offline_audit' not in sys.modules; assert 'mda_sitngo_offline_audit' not in sys.modules"],
+        cwd=str(Path(__file__).resolve().parent), capture_output=True, text=True,
+        timeout=15,
+    )
+    assert proc.returncode == 0, proc.stderr
     for args in (("Ring", 6, "BTN/SB"), ("Ring", 7, "BTN"), ("Unknown", 6, "BTN")):
         try:
             cache_key(*args)
