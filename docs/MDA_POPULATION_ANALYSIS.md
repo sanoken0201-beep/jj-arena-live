@@ -185,3 +185,21 @@ python smoke_test_mda_range_revisions.py
 This means estimates **can be updated and prior conclusions retracted on every audit invocation**, but automatic background refresh, durable revision storage and visualization remain a later, explicitly reviewed stage. Never run these large privacy-sensitive queries in an active table websocket/request handler or expose fine-grained snapshot differences to members or opponents.
 
 All old examples omitting \`--table-size\` are superseded by these Phase 1C examples.
+
+
+## Phase 1D: analyze every recorded player (2026-10-15)
+
+**Clarification: the population is not administrators only.** Admin-only described the credentials required to execute a trusted offline job, **not a filter on whose hands are studied**. The MDA source is every participant recorded in eligible hands, whether the account is an administrator or an ordinary member. The queries do not join or filter on users.role, user identity, account privileges, or a requesting admin's hand involvement.
+
+The new file mda_all_players_offline_audit.py performs a full-history (by default) cursor-paginated read-only scan across completed, fully recorded hands of public Ring table jj-table-a. It includes ALL dealt-in participants from 2, 3, 4, 5 and 6 handed games, without pooling those cohorts, and all recorded decisions, including decisions made by players without an available 2-card record. Metrics derive from actual action opportunities and remain grouped by dealt-in table size and position. Where cards are valid, the same data also contributes to the 169-class empirical RFI range and tentative, revisable plus hypotheses. The BB is counted among player/decision coverage and in other applicable metrics even though BB RFI is not applicable. No user account role filter exists.
+
+- Default invocation: python mda_all_players_offline_audit.py --sqlite /path/to/local-jj.sqlite3
+- Authorized production shell: python mda_all_players_offline_audit.py (requires already configured DATABASE_URL).
+- Test-only bounded subset: python mda_all_players_offline_audit.py --max-hands 500. This is clearly marked as a **partial** scan, not the full population.
+- Regression: python smoke_test_mda_all_players.py.
+
+The processing does not hold the entire raw hand history in memory. It fetches 200 complete hands at a time, joins their players/actions in batches, and retains anonymizable class/metric counts and internal unique-player sets for thresholding. Neither raw cards nor individual hand IDs/user IDs are serialized to output. All statistical strata remain subject to group and 169-class sample suppression, and no person-specific profile is returned.
+
+**Important distinction:** at this phase, all hands **are data inputs**, but only authorized administrators can execute the offline data processing tool. There is no live API, member dashboard, opponent HUD or public full card-history access. A future member-accessible feature should show only sufficiently aggregated, delayed population frequencies after a privacy/security review. Individual players may continue viewing their own already-authorized hand analyses.
+
+This implementation covers the Ring historical source; Sit&Go records are stored separately and still need a separate ingestion/replay adapter before they can be claimed as part of *all online poker formats*. Likewise, missing/partial hands cannot safely be treated as complete evidence; the scan reports rejected records. No verified live production counts are implied by adding this code.
