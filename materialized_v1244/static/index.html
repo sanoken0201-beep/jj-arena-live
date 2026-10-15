@@ -10,6 +10,7 @@
   <link rel="manifest" href="/static/manifest.webmanifest" />
   <link rel="icon" href="/static/icon.svg" type="image/svg+xml" />
   <link rel="stylesheet" href="/static/styles.css?v=56" />
+  <link rel="stylesheet" href="/static/mda-view.css?v=1" />
 </head>
 <body>
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
@@ -45,6 +46,7 @@
         <button class="nav" data-view="schedule">◫ <span>予定表</span></button>
         <button class="nav" data-view="news">◉ <span>お知らせ</span></button>
         <button class="nav" data-view="lab">⚡ <span>Poker Lab</span></button>
+        <button class="nav admin-only" data-view="mda">▦ <span>MDA分析</span></button>
         <button class="nav" data-view="discussion">◌ <span>戦略議論</span></button>
       </nav>
       <div class="sidebar-bottom"><div class="live-dot"><i></i> REALTIME</div><button id="logoutBtn" class="ghost">ログアウト</button></div>
@@ -127,11 +129,37 @@
         <div class="lab-grid"><article class="card panel"><div class="eyebrow">POT ODDS SPRINT</div><h3>10問スプリント</h3><div id="quizStage" class="quiz-stage"></div><div id="quizChoices" class="quiz-choices"></div><div class="quiz-score"><span>Score</span><strong id="quizScore">0 / 0</strong></div><button id="restartQuiz" class="soft full">リスタート</button></article><article class="card panel"><div class="eyebrow">RULE</div><h3>計算</h3><p class="big-copy">必要勝率 = Call ÷ (現在のPot + 相手Bet + 自分のCall)</p><p>実戦判断の速度を上げるための基礎ドリルです。公式ポイントには影響しません。</p></article></div>
       </section>
 
+      <section id="mdaView" class="view admin-only" aria-label="MDA Population">
+        <div class="section-head"><div><div class="eyebrow">PRIVATE POPULATION MDA</div><h3>人数別プリフロップレンジ</h3></div></div>
+        <p class="hint">JJで完了したすべてのプレイヤーのハンドから、統計的に観測できる範囲を表示します。個別プレイヤーのカードや推定は表示しません。データは定期更新用の保存済みスナップショットのみを読み取ります。</p>
+        <div class="mda-controls card">
+          <label>ゲーム
+            <select id="mdaGame"><option value="Ring">Ring</option><option value="Sit&Go">Sit&amp;Go</option></select>
+          </label>
+          <label>参加人数
+            <select id="mdaSize"><option value="6">6人</option><option value="5">5人</option><option value="4">4人</option><option value="3">3人</option><option value="2">2人</option></select>
+          </label>
+          <label>ポジション <select id="mdaPosition"></select></label>
+          <button class="soft" id="mdaRefresh" type="button">表示を更新</button>
+        </div>
+        <div id="mdaMessage" class="notice" role="status" aria-live="polite">データを確認しています。</div>
+        <div class="mda-legend" aria-label="表示凡例">
+          <span><i class="mda-swatch mda-swatch-observed"></i>観測済み（頻度表示）</span>
+          <span><i class="mda-swatch mda-swatch-hypothesis"></i>推定候補（頻度不明）</span>
+          <span><i class="mda-swatch mda-swatch-unknown"></i>不明（サンプル不足）</span>
+        </div>
+        <div class="mda-scroll" tabindex="0" aria-label="169種類のスターティングハンド表：横スクロール可能">
+          <div id="mdaMatrix" class="mda-matrix" role="grid" aria-label="13×13スターティングハンド"></div>
+        </div>
+        <p class="hint">観測済みでも、そのハンドが常にオープンされるという意味ではありません。数値は該当する実際の判断機会でのオープン頻度です。推定はオープン確認済みを意味せず、データ更新で取り消される場合があります。</p>
+      </section>
+
       <section id="discussionView" class="view"><div class="section-head"><div><div class="eyebrow">OPEN TABLE</div><h3>戦略議論</h3></div><button id="newThreadBtn" class="primary">＋ 新規議論</button></div><div id="threads" class="threads"></div></section>
     </main>
   </div>
 
   <dialog id="modal"><button id="modalClose" class="modal-close">×</button><div id="modalBody"></div></dialog>
   <script src="/static/app.js?v=56"></script>
+  <script defer src="/static/mda-view.js?v=1"></script>
 </body>
 </html>
