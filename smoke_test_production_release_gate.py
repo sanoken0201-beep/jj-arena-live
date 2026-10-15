@@ -45,6 +45,7 @@ def main() -> None:
             "smoke_test_mda_range_revisions.py",
             "smoke_test_mda_all_players.py",
             "smoke_test_mda_sitngo_ingest.py",
+            "smoke_test_mda_range_grid_coverage.py",
             "smoke_test_runtime_observability.py",
             "smoke_test_rake_integrity_runtime_audit.py",
             "smoke_test_point_ledger_precision.py",

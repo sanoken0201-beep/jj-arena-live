@@ -226,3 +226,44 @@ Run only with already-authorized read access, on a trusted admin machine:
     python mda_sitngo_offline_audit.py
 
 Caveats: Do not claim Sit&Go full street-by-street MDA. **3Bet, 4Bet, pot-relative sizing, flop cbet, ICM**, and postflop decision sequences need a future **structured and append-only Sit&Go action capture** (designed without slowing the action path). A text log is insufficiently precise for such claims. Privacy thresholds and statistical cluster-dependence warnings apply separately to tournament hands. The production Render workspace and database need confirmed scope before any actual-data read, so this stage creates only the parser and offline CLI, not verified live estimates.
+
+
+## Phase 1F: production coverage gate and 13x13 presentation contract
+
+The connected Render dashboard confirms the primary PostgreSQL 18 database is available. Its external IP allowlist is empty, so the hosted connector's direct SQL query is BLOCKED. Keep external connection blocked: no permissive IP allowlist or credentials exported to a third party.
+
+### Cheap trusted internal coverage gate
+
+After review and deployment of the source to the already-linked service, open the existing Render service Shell (internal private database network) and run:
+
+    python mda_coverage_gate.py
+
+On a read-only SQLite copy:
+
+    python mda_coverage_gate.py --sqlite /path/to/local-copy.db
+    python smoke_test_mda_range_grid_coverage.py
+
+The command reads SQL aggregates only; it never returns names, hole-card values, IDs or individual hand rows. Reports stored/completed/full-capture Ring hand counts by actual dealt-in 2–6 players, distinct members, card-missing counts, hands with recorded actions, and overall Sit&Go snapshots/events; also checks presence of the required source tables. The PostgreSQL connection is read-only with a 5-second per-statement timeout. Results are coarse coverage checks, NOT actual 169-class RFI samples or solver-verified ranges.
+
+Do not run heavyweight historical MDA on the small primary during gameplay without checking timeouts, query plans, resource headroom, and sample size. Prefer off-peak execution or an isolated replica for large data.
+
+### Privacy-preserving 13x13 grid
+
+mda_range_grid.py provides a pure range_matrix(sanitized_report, table_size=6, position="BTN") function from already suppressed offline data, accepting Ring and Sit&Go population audit JSON and range-only rfi-range-v2 JSON. No database connection or card access is needed.
+
+13 ranks A..2 run down both axes. Pairs are diagonal, suited classes above diagonal, offsuit below. Each of the 169 cells has exactly one primary status:
+
+- observed: actual sample-qualified RFI action percentage and number of opportunities. NOT theoretical opening range certainty.
+- hypothesis: an unobserved stronger-kicker candidate from an independently publishable observed seed and a validated plus assumption without counterevidence. No inferred action percentage is ever filled.
+- unknown: insufficient evidence. Never interpret as 0% or 100%.
+- Entirely suppressed cohorts show 169 unknown cells; even if accidentally present, per-class data is ignored.
+- A withdrawn/contradicted hypothesis reverts to unknown rather than persisting in a cache.
+- Games (Ring/Sit&Go), actual table sizes (2..6), and positions remain strictly independent. HU BTN/SB is not the six-handed BTN. BB RFI is not applicable.
+
+Generate output from already sanitized reports:
+
+    python mda_range_grid.py --input sanitized-ring.json --table-size 6 --position BTN
+    python mda_range_grid.py --input sanitized-sitngo.json --table-size 2 --position BTN/SB
+    python mda_range_grid.py --input sanitized-ring.json --table-size 6 --position BTN --no-hypotheses
+
+The output is structured JSON ready for an eventual lightweight, cached visual table. No live app route or UI is added. Public/member delivery requires a separate privacy and differencing review: delayed snapshots, suppressed small cohorts, and rate limits should prevent reverse engineering hidden cards or recent actions.
