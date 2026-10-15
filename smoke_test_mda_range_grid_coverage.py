@@ -168,8 +168,12 @@ def run():
     }, table_size=2, position="BTN/SB")
     assert hu["status"] == "insufficient_sample"
 
+    # An absent but valid 3-handed cohort must return unknown, never leak
+    # a six-handed BTN grid. Invalid position/size combinations must fail.
+    other = range_matrix(report, table_size=3, position="BTN")
+    assert other["status"] == "insufficient_sample"
+    assert all(c["status"] == "unknown" for row in other["grid"] for c in row)
     for args in (
-        {"table_size": 3, "position": "BTN"},
         {"table_size": 6, "position": "BTN/SB"},
         {"table_size": 1, "position": "BTN"},
     ):
