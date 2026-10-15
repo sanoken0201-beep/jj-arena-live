@@ -216,6 +216,31 @@ def infer_plus_hypotheses(
         if event.position == position and event.table_size == table_size and event.holding in HAND_CLASSES:
             stats[event.holding][0] += 1
             stats[event.holding][1] += int(event.opened)
+    return infer_plus_from_counts(
+        stats,
+        position=position,
+        table_size=table_size,
+        min_seed_opens=min_seed_opens,
+        min_seed_opportunities=min_seed_opportunities,
+        min_conflict_opportunities=min_conflict_opportunities,
+    )
+
+
+def infer_plus_from_counts(
+    stats: Mapping[str, Sequence[int]],
+    *,
+    position: str,
+    table_size: int,
+    min_seed_opens: int = 1,
+    min_seed_opportunities: int = 1,
+    min_conflict_opportunities: int = 8,
+) -> tuple[PlusHypothesis, ...]:
+    """Build the same hypotheses from streaming private class counters.
+
+    Each value is (eligible opportunities, opens). No actor identifiers,
+    hand IDs or card combinations should be present in this input.
+    """
+    _validate_cohort(position, table_size)
     groups: dict[tuple[str, str], list[str]] = defaultdict(list)
     for hand in HAND_CLASSES:
         if len(hand) != 3:
