@@ -49,12 +49,12 @@
       "size": 1012
     },
     "static/mda-view.js": {
-      "sha256": "b634937f29e17cf90dd6bd7d68e31da739cb355a6bc0fef46150d3c7bc64e8bb",
-      "size": 6321
+      "sha256": "4fe1c8fea96cfed2f5fa27de90a3dddba608aaed5c8d652d3717638f5cb3314e",
+      "size": 6482
     },
     "static/mda-view.css": {
-      "sha256": "caf32bbb873c23eef821bf490be7865b1099f33da248f059f9799ef432988ba8",
-      "size": 2995
+      "sha256": "77812f52092e1de1e8c6519c2fd0915f0ac9a9b5db3360318fb322ef5cd8b9f5",
+      "size": 3051
     }
   },
   "runtime_version": "1.24.4",
