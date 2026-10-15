@@ -75,8 +75,8 @@ def run():
         [action(1, 10, "raise", 300), action(2, 20, "fold"), action(3, 30, "fold")],
     )
     assert [(e.position, e.holding, e.opened) for e in events] == [
-        ("BTN", "K5o", True), ("SB", "AA", False),
-    ]
+        ("BTN", "K5o", True),
+    ]  # SB folded facing the BTN raise; SB was NOT in an RFI opportunity.
     guesses = infer_plus_hypotheses(events, position="BTN")
     k5 = next(h for h in guesses if h.notation == "K5o+")
     assert k5.seed == "K5o"
