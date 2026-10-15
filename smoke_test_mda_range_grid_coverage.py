@@ -133,8 +133,8 @@ def run():
     assert _cell(grid, "A2o")["status"] == "unknown"
     assert _cell(grid, "A2o")["open_frequency"] is None
     assert "Kh" not in json.dumps(grid) and '"actor_id"' not in json.dumps(grid)
-    assert range_matrix(report, table_size=6, position="BTN",
-                        include_hypotheses=False)["grid"][7][1]["status"] == "unknown" or True
+    assert _cell(range_matrix(report, table_size=6, position="BTN",
+                              include_hypotheses=False), "K6o")["status"] == "unknown"
 
     disputed = _report()
     disputed["cohorts_by_players_dealt_in"]["6"]["positions"]["BTN"]["rfi_range"]["hypotheses"][0]["has_counterevidence"] = True
