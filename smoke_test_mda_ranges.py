@@ -87,7 +87,7 @@ def run():
     assert summarize_range(events, position="BTN", table_size=3) == {
         "status": "insufficient_sample", "position": "BTN", "table_size": 3,
     }
-    assert infer_plus_hypotheses(events, position="CO", table_size=3) == ()
+    assert infer_plus_hypotheses(events, position="CO", table_size=4) == ()
 
     # Limp from BTN means there is *no* observed BTN raise, so no K5o+.
     limped = extract_rfi_evidence(
@@ -113,9 +113,9 @@ def run():
     assert infer_plus_hypotheses(noisy, position="BTN", table_size=3)[0].contradiction_classes == ("K6o",)
 
     # Different positions and suitedness are intentionally not pooled.
-    mixed = [ev(10, "K5o", True), ev(11, "K4s", True, position="CO")]
+    mixed = [ev(10, "K5o", True), ev(11, "K4s", True, position="CO", table_size=4)]
     assert len(infer_plus_hypotheses(mixed, position="BTN", table_size=3)) == 1
-    assert infer_plus_hypotheses(mixed, position="CO", table_size=3)[0].notation == "K4s+"
+    assert infer_plus_hypotheses(mixed, position="CO", table_size=4)[0].notation == "K4s+"
 
     # A5s wheel effects are non-monotone: do not auto-create A5s+.
     assert not infer_plus_hypotheses([ev(10, "A5s", True)], position="BTN", table_size=3)
