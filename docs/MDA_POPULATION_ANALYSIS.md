@@ -267,3 +267,36 @@ Generate output from already sanitized reports:
     python mda_range_grid.py --input sanitized-ring.json --table-size 6 --position BTN --no-hypotheses
 
 The output is structured JSON ready for an eventual lightweight, cached visual table. No live app route or UI is added. Public/member delivery requires a separate privacy and differencing review: delayed snapshots, suppressed small cohorts, and rate limits should prevent reverse engineering hidden cards or recent actions.
+
+
+## Phase 1G: admin-only cached MDA dashboard and offline publishing
+
+The analyzed population continues to include ALL recorded Ring and Sit&Go participants regardless of account role. The new permission distinction is that aggregate review is limited to administrators and never reveals a per-opponent hand.
+
+Architecture:
+
+- mda_snapshot_cache.py: offline full-history Ring and Sit&Go scan on a trusted host; reject partial sample publications; prepare only anonymous per-game, per-dealt-in-table-size, per-position 13x13 grid data; optional explicit publication of at most 40 rows into the durable PostgreSQL table jj_mda_population_cache. Publish all rows atomically at the end of a completed scan. No original user IDs, exact hole cards, player names or hand identifiers are retained in cache.
+- mda_admin_api.py: private admin route at /api/admin/mda/grid?game=Ring&table_size=6&position=BTN. Protected by the existing server.admin_user dependency. One indexed cache SELECT, no full-history scan, no writes, no user-specific query and no live HUD.
+- materialized_v1244/static/index.html and mda-view.js / mda-view.css: a new administrator-only responsive population MDA tab. It loads only on activation; format, actual table size and position controls; horizontal scrolling on narrow phones. Observed percentage, plus candidate and suppressed unknown have distinct styling and labels. No table-state listeners, no timers, no WebSocket/polling additions.
+- app_materialized.py mounts the route without creating or reading any large database table on app startup.
+- smoke_test_mda_admin_cache.py verifies sample and role separation, non-admin access denial before database hit, revisions/withdrawals, and safe row-only GET.
+
+### Operator sequence
+
+1. Review/merge staged draft PRs #200 through #206; the new CLI is only present in the deployed branch.
+2. First run the low-cost internal DB coverage gate and inspect actual count/record quality. Keep the production database's external IP allowlist closed.
+
+       python mda_coverage_gate.py
+
+3. Prefer executing full-history scans off peak in a separate background or Render Cron worker, ideally using a replica, not the web worker handling games. The primary PostgreSQL is small; examine resource headroom. Publishing requires explicit acknowledgement:
+
+       python mda_snapshot_cache.py --permit-primary-scan
+       python mda_snapshot_cache.py --permit-primary-scan --publish
+
+   First is a non-writing dry run. Second atomically writes only sanitized population grid cache rows. Local SQLite test source supports dry run without write using --sqlite.
+
+4. Open the MDA tab while signed in as an administrator. If no cache has been published, the tab says that no snapshot is ready. A frontend request never triggers an expensive scan.
+
+Automatic refresh is **prepared but NOT activated**. An off-peak separately configured Render Cron can run the publishing command, but creating a scheduled service may incur hosting costs and full-table DB load. This PR does not create the cron resource or automatically deploy it. Render services do not share persistent filesystems; using a durable DB cache prevents ephemeral Cron/Web differences. Member-facing aggregated MDA access is not enabled until additional disclosure/differencing review.
+
+This is not a completed live production data audit. All CI assertions run on disposable fixtures. The public Ring source is still jj-table-a and the Sit&Go source is sitngo_hands.
