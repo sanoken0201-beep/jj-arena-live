@@ -55,38 +55,14 @@ def install(app, server, db):
         position: str = Query("BTN", max_length=8),
         admin=Depends(server.admin_user),
     ):
-        # Defense in depth even if client nav was hidden by frontend CSS.
-        try:
-            key = cache_key(game, table_size, position)
-        except ValueError as exc:
-            raise HTTPException(422, str(exc)) from exc
+        # MDA v1 169-class/plus-range UI has been withdrawn. There is no
+        # scientific basis to classify unseen classes as excluded or included.
+        # This URL will never read any legacy range snapshot, even if an
+        # operator had previously enabled its old environment flag.
         response.headers["Cache-Control"] = "private, no-store"
         response.headers["X-Content-Type-Options"] = "nosniff"
-        # Deployment-safe rollout: the newly deployed UI cannot publish
-        # inferred population data until the administrator explicitly opts in.
-        # This check happens AFTER the admin role dependency and BEFORE any SQL.
-        if os.environ.get("JJ_MDA_ADMIN_ENABLED") != "1":
-            return {
-                "status": "not_ready", "game": game,
-                "rollout": "disabled",
-                "table_size": table_size, "position": position,
-                "message": "MDAの公開は運営の確認待ちです。",
-            }
-        doc = _read_cached_grid(db, key)
-        if doc is None:
-            return {
-                "status": "not_ready", "game": game,
-                "table_size": table_size, "position": position,
-                "message": "MDAのスナップショットはまだ公開されていません。",
-            }
-        # Detect cache corruption or a mismatched scope instead of showing
-        # other positions/format's data.
-        if (
-            doc.get("game") != game or
-            doc.get("table_size") != table_size or
-            doc.get("position") != position or
-            len(doc.get("grid") or []) != 13 or
-            any(len(row) != 13 for row in doc["grid"])
-        ):
-            raise HTTPException(503, "MDA cache cohort is inconsistent")
-        return {"status": "ok", **doc}
+        return {
+            "status": "not_ready",
+            "rollout": "legacy_range_retired",
+            "message": "旧169ハンド推定は廃止しました。オンライン卓の行動頻度MDAへ移行中です。",
+        }
