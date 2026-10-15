@@ -44,6 +44,14 @@ def snapshot_documents(
             or report.get("coverage", {}).get("complete_scan") is not True
         ):
             raise ValueError("refusing non-full-history/unknown-format MDA source")
+    # Fail closed if a legacy Table-A-only population report is handed to
+    # the publisher. Both public Ring tables and the completed Sit&Go source
+    # are required before any anonymous cache can be generated.
+    approved_ring = ("jj-table-a", "jj-table-b")
+    if ring.get("source_ring_tables") != list(approved_ring):
+        raise ValueError("full Ring MDA requires both approved public tables")
+    if sitngo.get("source") != "sitngo_hands":
+        raise ValueError("Sit&Go MDA requires the completed snapshot source")
     if not isinstance(generated_at, str) or not generated_at.endswith("+00:00"):
         raise ValueError("generated_at must be a UTC ISO8601 timestamp")
     docs = {}
