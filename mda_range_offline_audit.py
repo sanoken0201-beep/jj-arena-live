@@ -50,7 +50,7 @@ def report_rfi_range(
     rows = con.execute(
         """SELECT hand_id,big_blind,board_json,player_count,completed_at,partial_capture
            FROM jj_hand_history
-           WHERE table_id='jj-table-a' AND player_count=?
+           WHERE table_id IN ('jj-table-a','jj-table-b') AND player_count=?
              AND completed_at IS NOT NULL AND COALESCE(partial_capture,0)=0
            ORDER BY completed_at DESC, hand_id DESC LIMIT ?""",
         (table_size, limit),
@@ -114,8 +114,9 @@ def report_rfi_range(
         "format_version": "rfi-range-v2",
         "mode": "offline_admin_only",
         "game": "Ring",
-        "table": "jj-table-a",
+        "table": "all_public_ring",
         "table_size": table_size,
+        "source_ring_tables": ["jj-table-a", "jj-table-b"],
         "position": position,
         "sample_policy": "latest_completed_full_hands_per_table_size",
         "requested_hand_limit": limit,

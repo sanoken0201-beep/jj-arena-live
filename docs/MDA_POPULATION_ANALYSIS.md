@@ -300,3 +300,18 @@ Architecture:
 Automatic refresh is **prepared but NOT activated**. An off-peak separately configured Render Cron can run the publishing command, but creating a scheduled service may incur hosting costs and full-table DB load. This PR does not create the cron resource or automatically deploy it. Render services do not share persistent filesystems; using a durable DB cache prevents ephemeral Cron/Web differences. Member-facing aggregated MDA access is not enabled until additional disclosure/differencing review.
 
 This is not a completed live production data audit. All CI assertions run on disposable fixtures. The public Ring source is still jj-table-a and the Sit&Go source is sitngo_hands.
+
+
+## Phase 1H: complete all-Ring source coverage and deployment preflight
+
+Critical correction to earlier Phase 1D and Phase 1F notes: the first population scanner was accidentally restricted to Ring Table A. JJ Arena uses two approved public online Ring tables, jj-table-a AND jj-table-b. An all-player audit that excludes one table is not complete.
+
+- The full Ring analyzer, bounded range/revisions audit and aggregate-only production coverage gate now consider BOTH official Ring tables, but continue excluding unrelated/private table IDs.
+- Both approved Ring tables share the same format. They are pooled *only* within identical 2–6 dealt-in table-size and position cohorts. No cross-format pooling with Sit&Go. In particular, HU BTN/SB and six-handed BTN remain distinct.
+- The production coverage gate now reports combined per-size counts plus per-table completed/stored counts, so missing Table B data can be diagnosed immediately. No identifying hand, player or card rows are retrieved.
+- The full Ring auditor lists both source tables explicitly. Bounded RFI reports change their source identity to all_public_ring; older Table-A-only snapshots must NOT be compared to the new expanded population as though the sample were unchanged. Establish a new all-Ring revision baseline.
+- Regression tests now contain distinct completed-hand records and action frequencies on both tables; additional Table B fold decisions must cause previously measured 100% BTN opens to be recomputed to less than 100%, not held fixed.
+
+Deployment preflight: The actual connected Render service jj-arena-live has autoDeploy=yes, autoDeployTrigger=checksPass and branch=main. Any PR merged into main can immediately deploy to the single live web instance. PRs #200 through #207 therefore remain draft/unmerged until the combined patch, rollout window and rollback path are explicitly reviewed. Keep the external Postgres IP allowlist blocked; production auditing must use a trusted internal network host. Heavy historical scans stay off-peak and opt-in. No scheduled background job is provisioned here.
+
+References to only Table A in older sections are descriptions of previous intermediate versions, not the current implementation.

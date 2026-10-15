@@ -54,7 +54,7 @@ def audit_coverage(con: Any) -> dict[str, Any]:
                                      AND COALESCE(partial_capture,0)=0
                                        THEN 1 ELSE 0 END),0) AS fully_captured_hands
                FROM jj_hand_history
-               WHERE table_id='jj-table-a'
+               WHERE table_id IN ('jj-table-a','jj-table-b')
                GROUP BY player_count ORDER BY player_count"""
         ).fetchall()]
     if "jj_hand_history" in available and "jj_hand_players" in available:
@@ -67,7 +67,7 @@ def audit_coverage(con: Any) -> dict[str, Any]:
                               THEN 1 ELSE 0 END),0) AS missing_card_rows
                FROM jj_hand_players p
                JOIN jj_hand_history h ON h.hand_id=p.hand_id
-               WHERE h.table_id='jj-table-a' AND h.completed_at IS NOT NULL
+               WHERE h.table_id IN ('jj-table-a','jj-table-b') AND h.completed_at IS NOT NULL
                      AND COALESCE(h.partial_capture,0)=0
                GROUP BY h.player_count ORDER BY h.player_count"""
         ).fetchall()]
@@ -78,7 +78,7 @@ def audit_coverage(con: Any) -> dict[str, Any]:
                       COUNT(DISTINCT a.hand_id) AS hands_with_actions
                FROM jj_hand_actions a
                JOIN jj_hand_history h ON h.hand_id=a.hand_id
-               WHERE h.table_id='jj-table-a' AND h.completed_at IS NOT NULL
+               WHERE h.table_id IN ('jj-table-a','jj-table-b') AND h.completed_at IS NOT NULL
                      AND COALESCE(h.partial_capture,0)=0
                GROUP BY h.player_count ORDER BY h.player_count"""
         ).fetchall()]
@@ -90,6 +90,19 @@ def audit_coverage(con: Any) -> dict[str, Any]:
         ).fetchone()
         sng = {"status": "ok", "stored_snapshots": int(row["stored_snapshots"]),
                "events": int(row["events"])}
+
+    # Show coverage by official public Ring table so an unintentionally
+    # omitted second table is visible immediately in a production audit.
+    source_table_counts = []
+    if "jj_hand_history" in available:
+        source_table_counts = [dict(x) for x in con.execute(
+            """SELECT table_id, COUNT(*) AS stored_hands,
+                      COALESCE(SUM(CASE WHEN completed_at IS NOT NULL
+                                  AND COALESCE(partial_capture,0)=0 THEN 1 ELSE 0 END),0) AS complete_hands
+               FROM jj_hand_history
+               WHERE table_id IN ('jj-table-a','jj-table-b')
+               GROUP BY table_id ORDER BY table_id"""
+        ).fetchall()]
 
     people_by_size = {int(x["player_count"]): x for x in players if x["player_count"] is not None}
     actions_by_size = {int(x["player_count"]): x for x in actions if x["player_count"] is not None}
@@ -130,7 +143,7 @@ def audit_coverage(con: Any) -> dict[str, Any]:
         "identifiable_rows_returned": False,
         "source_tables_available": sorted(available),
         "source_tables_missing": sorted(set(REQUIRED_TABLES) - available),
-        "ring": {"table": "jj-table-a", "cohorts_by_dealt_in_players": cohorts},
+        "ring": {"table": "all_public_ring", "source_ring_tables": ["jj-table-a", "jj-table-b"], "per_table_coverage": source_table_counts, "cohorts_by_dealt_in_players": cohorts},
         "sitngo": sng,
         "not_verified_by_aggregate_counts": [
             "actual valid RFI opportunities by position",

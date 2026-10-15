@@ -106,14 +106,14 @@ def _batch(con: Any, last: tuple[str, str] | None, limit: int) -> list[dict]:
     if last is None:
         sql = """SELECT hand_id,player_count,big_blind,board_json,completed_at,partial_capture
                  FROM jj_hand_history
-                 WHERE table_id='jj-table-a' AND completed_at IS NOT NULL
+                 WHERE table_id IN ('jj-table-a','jj-table-b') AND completed_at IS NOT NULL
                    AND COALESCE(partial_capture,0)=0 AND player_count BETWEEN 2 AND 6
                  ORDER BY completed_at,hand_id LIMIT ?"""
         params = (limit,)
     else:
         sql = """SELECT hand_id,player_count,big_blind,board_json,completed_at,partial_capture
                  FROM jj_hand_history
-                 WHERE table_id='jj-table-a' AND completed_at IS NOT NULL
+                 WHERE table_id IN ('jj-table-a','jj-table-b') AND completed_at IS NOT NULL
                    AND COALESCE(partial_capture,0)=0 AND player_count BETWEEN 2 AND 6
                    AND (completed_at>? OR (completed_at=? AND hand_id>?))
                  ORDER BY completed_at,hand_id LIMIT ?"""
@@ -240,7 +240,8 @@ def audit_all_players(
         "mode": "offline_read_only",
         "population": "all recorded public Ring players, all account roles",
         "user_role_filter": "none",
-        "game": "Ring", "table": "jj-table-a",
+        "source_ring_tables": ["jj-table-a", "jj-table-b"],
+        "game": "Ring", "table": "all_public_ring",
         "coverage": {
             "scope": "all_historical_completed_full_capture"
             if max_hands is None else "bounded_partial_scan",

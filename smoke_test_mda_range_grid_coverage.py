@@ -190,11 +190,15 @@ def run():
         cohort = {c["table_size"]: c for c in summary["ring"]["cohorts_by_dealt_in_players"]}
         assert summary["all_player_roles_included"] and not summary["identifiable_rows_returned"]
         assert summary["source_tables_missing"] == []
-        assert cohort[6]["completed_hands"] == 121
-        assert cohort[6]["fully_captured_hands"] == 120
+        assert cohort[6]["completed_hands"] == 122
+        assert cohort[6]["fully_captured_hands"] == 121
         assert cohort[6]["distinct_players_in_fully_captured_hands"] == 12
         assert cohort[6]["hands_with_recorded_actions"] == 120
         assert cohort[6]["missing_hole_card_rows"] == 6
+        assert summary["ring"]["source_ring_tables"] == ["jj-table-a", "jj-table-b"]
+        by_table = {x["table_id"]: x for x in summary["ring"]["per_table_coverage"]}
+        assert int(by_table["jj-table-a"]["complete_hands"]) == 138
+        assert int(by_table["jj-table-b"]["complete_hands"]) == 1
         assert cohort[6]["preliminary_readiness"] == "possible_population_sample_requires_rfi_validation"
         assert cohort[2]["preliminary_readiness"] == "insufficient_or_incomplete"
         assert summary["sitngo"]["stored_snapshots"] == 1
