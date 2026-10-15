@@ -48,7 +48,7 @@ def _metric(bucket: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def _range_summary(
+def summarize_cohort_range_counts(
     cohort: tuple[int, str],
     per_class: dict[tuple[int, str, str], dict[str, Any]],
 ) -> dict[str, Any]:
@@ -228,7 +228,7 @@ def audit_all_players(
                 "metrics": {
                     name: _metric(metrics[(size, pos, name)]) for name in sorted(METRICS)
                 },
-                "rfi_range": _range_summary((size, pos), per_class)
+                "rfi_range": summarize_cohort_range_counts((size, pos), per_class)
                 if pos != "BB" else {"status": "not_applicable"},
             }
         by_size[str(size)] = {

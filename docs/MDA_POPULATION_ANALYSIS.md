@@ -203,3 +203,26 @@ The processing does not hold the entire raw hand history in memory. It fetches 2
 **Important distinction:** at this phase, all hands **are data inputs**, but only authorized administrators can execute the offline data processing tool. There is no live API, member dashboard, opponent HUD or public full card-history access. A future member-accessible feature should show only sufficiently aggregated, delayed population frequencies after a privacy/security review. Individual players may continue viewing their own already-authorized hand analyses.
 
 This implementation covers the Ring historical source; Sit&Go records are stored separately and still need a separate ingestion/replay adapter before they can be claimed as part of *all online poker formats*. Likewise, missing/partial hands cannot safely be treated as complete evidence; the scan reports rejected records. No verified live production counts are implied by adding this code.
+
+
+## Phase 1E: Sit&Go completed-hand RFI adapter (2026-10-15)
+
+Ring and Sit&Go currently store history differently. The Sit&Go code persists finished-hand snapshots in sitngo_hands.state_json (hand id, event id, created timestamp, full completed state), not in Ring's jj_hand_actions table. Existing Sit&Go hand["log"] contains **human-readable** messages such as "Name folds", "Name calls N bb", and "Name raises to N bb"; there is no persisted typed action sequence or pre-action pot/facing amount. Pretending those logs have the same reliability as Ring's structured action history would corrupt MDA.
+
+New trusted **offline, read-only** adapter: mda_sitngo_offline_audit.py.
+
+- Reads all historical completed Sit&Go snapshots by keyset cursor (created_at, hand_id) with a fixed batch bound (100) and a single read snapshot/transaction. The optional --max-hands N labels a partial sample.
+- Uses the completed hand's starting_stacks to determine **who was actually dealt in** (2–6), reconstructs preflop seats relative to the recorded button, and matches one-to-one unique participant names from the snapshot to the saved log. Every registered player's hand can be analyzed when data is complete, regardless of their account role.
+- Extracts **only defensible unopened RFI opportunities** (fold vs open) from unambiguous preflop actions before the next street. First calls, including non-raising all-ins, close the unopened opportunity; ambiguous logs, duplicate names, incomplete or mismatched states are rejected for this stage. Missing hole cards never become inferred observations. Participant coverage includes hands even when no one has RFI action available.
+- Aggregates privacy-suppressed 169-class RFI by *Sit&Go* format, table size and position, keeping these separate from Ring. Reuses the exactly same anonymous statistics and plus-hypothesis labeling as the Ring audit. Includes counterevidence and permits recomputation on new data, not frozen conclusions.
+- Reports number of scanned, accepted and rejected snapshots and rejection categories. Never includes names, exact private cards, user IDs, hand IDs, decks or raw snapshots in results.
+- No in-play HUD, new API, game/database mutation, tournament points/ranking impact or automatic background jobs.
+- Unit and end-to-end regression: smoke_test_mda_sitngo_ingest.py tests log parsing, duplicate names, missing cards, all-player aggregation/privacy suppression, cross-format separation, recomputation, and a finished hand actually played through the canonical tournament engine.
+
+Run only with already-authorized read access, on a trusted admin machine:
+
+    python smoke_test_mda_sitngo_ingest.py
+    python mda_sitngo_offline_audit.py --sqlite /path/to/jj.sqlite3
+    python mda_sitngo_offline_audit.py
+
+Caveats: Do not claim Sit&Go full street-by-street MDA. **3Bet, 4Bet, pot-relative sizing, flop cbet, ICM**, and postflop decision sequences need a future **structured and append-only Sit&Go action capture** (designed without slowing the action path). A text log is insufficiently precise for such claims. Privacy thresholds and statistical cluster-dependence warnings apply separately to tournament hands. The production Render workspace and database need confirmed scope before any actual-data read, so this stage creates only the parser and offline CLI, not verified live estimates.
