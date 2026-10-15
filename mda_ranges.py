@@ -148,7 +148,11 @@ def extract_rfi_evidence(
     except (KeyError, TypeError, ValueError):
         return ()
     ids = [str(p.get("user_id")) for p in players if p.get("user_id") is not None]
-    if (\n        table_size not in POSITIONS_BY_SIZE or len(ids) != table_size\n        or len(set(ids)) != table_size\n        or {str(p.get("position")) for p in players} != set(POSITIONS_BY_SIZE[table_size])\n    ):
+    if (
+        table_size not in POSITIONS_BY_SIZE or len(ids) != table_size
+        or len(set(ids)) != table_size
+        or {str(p.get("position")) for p in players} != set(POSITIONS_BY_SIZE[table_size])
+    ):
         return ()
     decisions = derive_decisions(hand, players, actions)
     if not decisions:
