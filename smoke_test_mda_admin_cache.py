@@ -159,46 +159,26 @@ def run():
     assert _cell(updated["Ring:6:BTN"], "K5o")["status"] == "unknown"
     assert _cell(updated["Ring:6:BTN"], "K6o")["status"] == "unknown"
 
+    # Legacy dashboard endpoint is irrevocably disabled, regardless of
+    # a previously-enabled environment flag or existing persisted cache.
     app = FastAPI()
     db = DB(_db())
     install(app, _server(), db)
     client = TestClient(app)
     endpoint = "/api/admin/mda/grid?game=Ring&table_size=6&position=BTN"
     assert client.get(endpoint).status_code == 401
-    assert client.get(endpoint, headers={"x-test-role":"member"}).status_code == 403
-    assert db.query_count == 0, "unauthorized request hit the database"
-    # Default-off staging: even an authenticated administrator receives no
-    # cached population estimate and must not cause a database read.
-    with patch.dict(os.environ, {"JJ_MDA_ADMIN_ENABLED": ""}):
-        blocked = client.get(endpoint, headers={"x-test-role":"admin"})
-        assert blocked.status_code == 200
-        assert blocked.json()["status"] == "not_ready"
-        assert blocked.json()["rollout"] == "disabled"
-        assert db.query_count == 0
-    with patch.dict(os.environ, {"JJ_MDA_ADMIN_ENABLED": "1"}):
-        no_data = client.get(endpoint, headers={"x-test-role":"admin"})
-        assert no_data.status_code == 200
-        assert no_data.json()["status"] == "not_ready"
-        assert no_data.headers["cache-control"] == "private, no-store"
-        assert db.query_count == 1
-        db.raw.execute(
-            "INSERT INTO jj_mda_population_cache VALUES(?,?,?)",
-            ("Ring:6:BTN", json.dumps(one), stamp)
-        )
-        got = client.get(endpoint, headers={"x-test-role":"admin"})
-        assert got.status_code == 200
-        assert got.json()["status"] == "ok"
-        assert _cell(got.json(), "K5o")["open_frequency"] == 40
-        assert got.json()["position"] == "BTN"
-        assert db.query_count == 2, "endpoint performed more than one DB read"
-        # Stale cache for another scope must not be used in this scope.
-        absent = client.get(
-            "/api/admin/mda/grid?game=Sit%26Go&table_size=2&position=BTN%2FSB",
-            headers={"x-test-role":"admin"},
-        )
-        assert absent.json()["status"] == "not_ready"
-        assert len(got.content) < 50000
-        # Check the SPA installs lightweight lazy-loading assets instead of tying
+    assert client.get(endpoint, headers={"x-test-role": "member"}).status_code == 403
+    assert db.query_count == 0
+    for setting in ("", "0", "1"):
+        with patch.dict(os.environ, {"JJ_MDA_ADMIN_ENABLED": setting}):
+            response = client.get(endpoint, headers={"x-test-role": "admin"})
+            assert response.status_code == 200
+            assert response.json()["status"] == "not_ready"
+            assert response.json()["rollout"] == "legacy_range_retired"
+            assert response.headers["cache-control"] == "private, no-store"
+            assert db.query_count == 0, "legacy range cache was queried"
+
+    # Check the SPA installs lightweight lazy-loading assets instead of tying
         # rendering to poker action/WebSocket traffic.
         root = Path(__file__).resolve().parent / "materialized_v1244" / "static"
         html = (root / "index.html").read_text(encoding="utf-8")
