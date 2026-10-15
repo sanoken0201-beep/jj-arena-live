@@ -145,6 +145,59 @@ def run():
     # Even 100 opportunities can be private if one player dominates.
     one_person = [ev(10, "K5o", True, hand_id=f"p{i}") for i in range(120)]
     assert summarize_range(one_person, position="BTN")["status"] == "insufficient_sample"
+
+    # End-to-end audit: sensitive hole cards exist only in this isolated test DB;
+    # public JSON must suppress the tiny pool and never expose them.
+    import json
+    import sqlite3
+    from mda_range_offline_audit import report_rfi_range
+    con = sqlite3.connect(":memory:")
+    con.row_factory = sqlite3.Row
+    try:
+        con.execute(
+            "CREATE TABLE jj_hand_history("
+            "hand_id TEXT,table_id TEXT,big_blind INTEGER,board_json TEXT,"
+            "player_count INTEGER,completed_at TEXT,partial_capture INTEGER)"
+        )
+        con.execute(
+            "CREATE TABLE jj_hand_players("
+            "hand_id TEXT,user_id INTEGER,position TEXT,"
+            "effective_stack_bb REAL,hole_cards_json TEXT)"
+        )
+        con.execute(
+            "CREATE TABLE jj_hand_actions("
+            "hand_id TEXT,seq INTEGER,user_id INTEGER,street TEXT,action TEXT,"
+            "pot_before INTEGER,amount_chips INTEGER,facing_chips INTEGER,timed_out INTEGER)"
+        )
+        con.execute(
+            "INSERT INTO jj_hand_history VALUES(?,?,?,?,?,?,?)",
+            ("secret-hand-A", "jj-table-a", 100, "[]", 3, "2026-10-15", 0),
+        )
+        con.executemany("INSERT INTO jj_hand_players VALUES(?,?,?,?,?)", [
+            ("secret-hand-A", 10, "BTN", 150.0, '["Kh","5d"]'),
+            ("secret-hand-A", 20, "SB", 150.0, '["As","Ac"]'),
+            ("secret-hand-A", 30, "BB", 150.0, '["2c","3c"]'),
+        ])
+        con.executemany("INSERT INTO jj_hand_actions VALUES(?,?,?,?,?,?,?,?,?)", [
+            ("secret-hand-A", 1, 10, "preflop", "raise", 150, 300, 100, 0),
+            ("secret-hand-A", 2, 20, "preflop", "fold", 450, 0, 250, 0),
+            ("secret-hand-A", 3, 30, "preflop", "fold", 450, 0, 200, 0),
+        ])
+        output = report_rfi_range(con, position="BTN", limit=5)
+        assert output["range"]["status"] == "insufficient_sample"
+        assert output["hypotheses"] == []
+        serial = json.dumps(output)
+        for secret in ("secret-hand-A", "Kh", "5d", "As", "Ac", '"actor_id"', '"user_id"', '"K5o"'):
+            assert secret not in serial, secret
+        # Incomplete and partially captured hands do not change range counts.
+        con.execute("INSERT INTO jj_hand_history VALUES (?,?,?,?,?,?,?)",
+                    ("unfinished", "jj-table-a", 100, "[]", 2, None, 0))
+        con.execute("INSERT INTO jj_hand_history VALUES (?,?,?,?,?,?,?)",
+                    ("partial", "jj-table-a", 100, "[]", 2, "2026-10-15", 1))
+        assert report_rfi_range(con, limit=5)["hands_examined"] == 1
+    finally:
+        con.close()
+
     print("smoke_test_mda_ranges: PASS")
 
 
