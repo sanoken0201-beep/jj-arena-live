@@ -29,7 +29,7 @@ def _db():
     return con
 
 
-def _seed(con, index, size, *, opened=True, status="ok", holding=None):
+def _seed(con, index, size, *, opened=True, status="ok", holding=None, table_id="jj-table-a"):
     seats = {
         2: ("BTN/SB", "BB"),
         3: ("BTN", "SB", "BB"),
@@ -38,7 +38,7 @@ def _seed(con, index, size, *, opened=True, status="ok", holding=None):
     identifier = f"ring:{size}:{index:05d}:{status}"
     con.execute(
         "INSERT INTO jj_hand_history VALUES(?,?,?,?,?,?,?)",
-        (identifier, "jj-table-a", size, 100, "[]",
+        (identifier, table_id, size, 100, "[]",
          None if status == "live" else "2026-10-15T10:00:00Z",
          int(status == "partial")),
     )
@@ -78,6 +78,10 @@ def run():
         _seed(con, 900, 3, status="partial")
         _seed(con, 901, 3, status="live")
         _seed(con, 902, 3, status="ok")
+        for i in range(60):
+            # Table B is a normal public ring table, NOT a separate population.
+            # Its real hands must enter the same 6-handed BTN denominator.
+            _seed(con, i + 3000, 6, opened=False, table_id="jj-table-b")
 
         # Run multiple keyset pages. Only full, completed hands from all users
         # count; no user role column is referenced by analysis queries.
@@ -85,23 +89,23 @@ def run():
         assert report["population"].startswith("all recorded")
         assert report["user_role_filter"] == "none"
         assert report["coverage"]["complete_scan"] is True
-        assert report["coverage"]["hands_examined"] == 241, report["coverage"]
-        assert report["coverage"]["hands_accepted"] == 241
+        assert report["coverage"]["hands_examined"] == 301, report["coverage"]
+        assert report["coverage"]["hands_accepted"] == 301
         assert report["coverage"]["unique_players"] == 12
-        assert report["coverage"]["participant_hand_rows_accepted"] == 963
-        assert report["coverage"]["action_rows_accepted"] == 963
+        assert report["coverage"]["participant_hand_rows_accepted"] == 1323
+        assert report["coverage"]["action_rows_accepted"] == 1323
         sizes = report["cohorts_by_players_dealt_in"]
         assert set(sizes) == {"2", "3", "6"}
         assert sizes["2"]["completed_hands_used"] == 120
-        assert sizes["6"]["completed_hands_used"] == 120
+        assert sizes["6"]["completed_hands_used"] == 180
         six_btn = sizes["6"]["positions"]["BTN"]
         two_btn = sizes["2"]["positions"]["BTN/SB"]
         assert six_btn["contributing_players"] == 12
         assert two_btn["contributing_players"] == 12
-        assert six_btn["metrics"]["rfi"]["opportunities"] == 120
-        assert six_btn["metrics"]["rfi"]["percentage"] == 100.0
+        assert six_btn["metrics"]["rfi"]["opportunities"] == 180
+        assert six_btn["metrics"]["rfi"]["percentage"] == 66.67
         assert two_btn["metrics"]["rfi"]["percentage"] == 100.0
-        assert six_btn["rfi_range"]["cells"]["K5o"]["open_frequency"] == 100
+        assert six_btn["rfi_range"]["cells"]["K5o"]["open_frequency"] == 66.67
         assert six_btn["rfi_range"]["cells"]["A2o"]["status"] == "unknown"
         assert two_btn["rfi_range"]["cells"]["A2o"]["open_frequency"] == 100
         assert two_btn["rfi_range"]["cells"]["K5o"]["status"] == "unknown"
@@ -120,8 +124,8 @@ def run():
             _seed(con, i, 6, opened=False)
         revised = audit_all_players(con, batch_size=19)
         rate = revised["cohorts_by_players_dealt_in"]["6"]["positions"]["BTN"]["rfi_range"]["cells"]["K5o"]
-        assert rate["opportunities"] == 240 and rate["opens"] == 120
-        assert rate["open_frequency"] == 50.0
+        assert rate["opportunities"] == 300 and rate["opens"] == 120
+        assert rate["open_frequency"] == 40.0
 
         # A bounded diagnostic run cannot falsely claim to have scanned all.
         small = audit_all_players(con, max_hands=50, batch_size=13)
