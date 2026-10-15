@@ -277,6 +277,8 @@ def main() -> None:
     with connect_read_only(args.sqlite) as con:
         if con.postgres:
             con.execute("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ")
+        else:
+            con.execute("BEGIN")  # Hold one consistent SQLite read snapshot.
         data = audit_all_players(con, max_hands=args.max_hands)
     print(json.dumps(data, ensure_ascii=False, indent=2, sort_keys=True))
 
