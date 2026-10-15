@@ -111,3 +111,34 @@ python mda_offline_audit.py --limit 200
 The CLI prints no raw identity, card or hand details. For all metrics, its API-safe summary suppresses exact counts if opportunities are fewer than 100 or distinct players fewer than 8. Running with \`--limit 200\` samples at most 200 **recent completed full-capture hands**, which is not necessarily representative and should not be taken as the true population rate. \`full_hands_missing_actions\` and \`recent_hands_rejected\` indicate further replay-validation needs. No query against real production data has been performed in this PR.
 
 **Scope limitation:** the foundation treats effective stack as the *hand-start value*, not the true street-by-street effective stack. Flop bet_pct_pot is populated for unopposed first bets only; raises require a separate sizing definition. The 95% Wilson interval ignores player-level clustering. Do not infer a theoretically profitable exploit or GTO deviation from these raw rates. The feature pipeline and all its actor identifiers are private server-side material; do not expose its dataclasses or current participant hand-history access to generic member routes.
+
+
+## Phase 1B: preflop empirical range vs. monotone-plus hypothesis (2026-10-15)
+
+Goal: if a BTN **RFI** with \`K5o\` is observed, generate a **separate, explicitly tentative** candidate \`K5o+\`. Here \`K5o+\` expands to \`K5o, K6o, K7o, K8o, K9o, KTo, KJo, KQo\`. \`AKo\` and suited \`K5s\` are not included. One observed \`K5o\` open does **not** establish that \`K6o\` is opened at all, or that any of those hands is always opened.
+
+New isolated files:
+- \`mda_ranges.py\` pure utilities: hole-card canonicalization; all 169 starting-hand classes (1,326 actual combinations); per-class RFI evidence from known completed hand cards + real RFI opportunities; distinguish classes that were **seen and opened**, **seen and not opened**, and **unobserved**; plus expression expansion; optional explicitly labelled monotone kicker hypotheses with contradiction detection.
+- \`mda_range_offline_audit.py\`: bounded (up to 500 completed full-capture hands) read-only audit of the **single current Ring table**. Sensitive player IDs and hole cards are read from trusted storage only into ephemeral in-memory private records. Public JSON outputs only anonymized class statistics with cohort and per-cell suppression. There are **no new API routes**, writes, browser changes, scheduled tasks or interaction with active tables.
+- \`smoke_test_mda_ranges.py\` deterministic tests for parsing, plus notation, incomplete data, limp vs genuine RFI, sample suppression, in-memory privacy and coherent count weighting.
+
+Privacy rules: at least 100 eligible RFI opportunities from at least 8 different players before any class grid is returned; individual class needs at least 12 opportunities from at least 4 different players. Below threshold, return \`unknown\` with no exact per-class count. Only eligible published seed classes can generate a published \`K5o+\` suggestion; no personal/rival hand range endpoint. The offline auditor must run only for an authorized administrator in a trusted setting. Do not log individual complete-hand hole cards, expose individual hand identities or make in-play overlays.
+
+Statistical rules: a class open rate is \`open_count / total_eligible_opportunities_with_that_exact_class\` (not count of opens divided by all observed opens). \`Beta(1,1)\` smoothed frequencies and 95% Wilson binomial intervals apply only to **observed class cells**. For an unobserved \`K6o\`, the estimate remains \`unknown\`, not an automatic 100% or a fake 50%. The \`K5o+\` label is a *range-shape hypothesis* derived by assuming same-high-card/kicker monotonicity. Its seed can be supported by multiple observations, but it is never a proven GTO strategy. Explicit counterevidence from high-sample stronger kickers is flagged; naturally mixed fold frequencies are not simply classified as contradiction.
+
+Important limitations:
+- This first implementation covers RFI, not 3bet, call-vs-open, 4bet, limp-isolation, SB-completing, position/stack-adjusted mixed strategies, tournament ICM, or individual player profiling.
+- \`A5s+\` is intentionally not automatically inferred, due to non-monotone wheel/blocker effects. Other suited/offsuit families can also violate a strength-ordered plus assumption; a future statistical model needs board-independent but context-specific range priors.
+- Opening size, stack depth, six-max player count and changing rake/rule settings are potential confounders. Do not pool mismatched formats and then label the result as a solver-matched range.
+- There is no preflop range heatmap in the live app yet. A future study-mode range grid should use distinct styling for **actual observations**, **heuristic continuation** and **unknown cells**, with no automatic coloring of extrapolated cells as observed.
+
+Local/tests (trusted environment with already-authorized DB access):
+
+\`\`\`bash
+python smoke_test_mda_ranges.py
+python mda_range_offline_audit.py --sqlite /path/to/local-jj.sqlite3 --position BTN --limit 500
+# With an existing authenticated DATABASE_URL available only to the trusted shell:
+python mda_range_offline_audit.py --position BTN --limit 500
+\`\`\`
+
+Never paste production DB URLs, PINs or raw card records into chat/GitHub. This design is not production-activated until CI, data quality, privacy and performance reviews pass.
