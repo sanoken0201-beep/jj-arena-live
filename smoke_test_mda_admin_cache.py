@@ -4,6 +4,8 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from pathlib import Path
 import json
+import os
+from unittest.mock import patch
 import sqlite3
 from types import SimpleNamespace
 
@@ -11,6 +13,7 @@ from fastapi import Depends, FastAPI, Header, HTTPException
 from fastapi.testclient import TestClient
 
 from mda_admin_api import install
+from mda_cache_contract import POSITIONS_BY_SIZE as CACHE_POSITIONS
 from mda_snapshot_cache import FORMAT, cache_key, snapshot_documents
 from mda_ranges import POSITIONS_BY_SIZE, expand_plus
 
@@ -18,6 +21,7 @@ from mda_ranges import POSITIONS_BY_SIZE, expand_plus
 def _reports():
     ring = {
         "format_version": "mda-all-players-v1", "game": "Ring",
+        "source_ring_tables": ["jj-table-a", "jj-table-b"],
         "coverage": {"complete_scan": True},
         "cohorts_by_players_dealt_in": {
             "6": {
@@ -42,6 +46,7 @@ def _reports():
     }
     sitngo = {
         "format_version": "mda-sitngo-rfi-v1", "game": "Sit&Go",
+        "source": "sitngo_hands",
         "coverage": {"complete_scan": True},
         "cohorts_by_players_dealt_in": {},
     }
@@ -88,6 +93,17 @@ class DB:
 
 def run():
     assert cache_key("Ring", 6, "BTN") == "Ring:6:BTN"
+    assert CACHE_POSITIONS == POSITIONS_BY_SIZE, "lightweight web contract drifted from offline analyzer"
+    # The live route must not import DB-scanning analyzers just to serve
+    # one cached row. Keep this check in a fresh interpreter.
+    import subprocess, sys
+    proc = subprocess.run(
+        [sys.executable, "-c",
+         "import sys, mda_admin_api; assert 'mda_all_players_offline_audit' not in sys.modules; assert 'mda_sitngo_offline_audit' not in sys.modules"],
+        cwd=str(Path(__file__).resolve().parent), capture_output=True, text=True,
+        timeout=15,
+    )
+    assert proc.returncode == 0, proc.stderr
     for args in (("Ring", 6, "BTN/SB"), ("Ring", 7, "BTN"), ("Unknown", 6, "BTN")):
         try:
             cache_key(*args)
@@ -114,6 +130,20 @@ def run():
         assert all(secret not in serialized for secret in (
             "actor_id", "user_id", "hand_id", "hole_cards_json", "secret",
         ))
+    # Publishing old Table-A-only or invented tournament sources must fail,
+    # even when their reports claim a complete scan.
+    for altered_ring, altered_sng in (
+        (dict(ring, source_ring_tables=["jj-table-a"]), sitngo),
+        (dict(ring, source_ring_tables=["jj-table-b"]), sitngo),
+        (ring, dict(sitngo, source="wrong_table")),
+    ):
+        try:
+            snapshot_documents(altered_ring, altered_sng, generated_at=stamp)
+        except ValueError:
+            pass
+        else:
+            raise AssertionError("unverified source coverage entered cache")
+
     partial = dict(ring, coverage={"complete_scan": False})
     try:
         snapshot_documents(partial, sitngo, generated_at=stamp)
@@ -137,44 +167,56 @@ def run():
     assert client.get(endpoint).status_code == 401
     assert client.get(endpoint, headers={"x-test-role":"member"}).status_code == 403
     assert db.query_count == 0, "unauthorized request hit the database"
-    no_data = client.get(endpoint, headers={"x-test-role":"admin"})
-    assert no_data.status_code == 200
-    assert no_data.json()["status"] == "not_ready"
-    assert no_data.headers["cache-control"] == "private, no-store"
-    assert db.query_count == 1
-    db.raw.execute(
-        "INSERT INTO jj_mda_population_cache VALUES(?,?,?)",
-        ("Ring:6:BTN", json.dumps(one), stamp)
-    )
-    got = client.get(endpoint, headers={"x-test-role":"admin"})
-    assert got.status_code == 200
-    assert got.json()["status"] == "ok"
-    assert _cell(got.json(), "K5o")["open_frequency"] == 40
-    assert got.json()["position"] == "BTN"
-    assert db.query_count == 2, "endpoint performed more than one DB read"
-    # Stale cache for another scope must not be used in this scope.
-    absent = client.get(
-        "/api/admin/mda/grid?game=Sit%26Go&table_size=2&position=BTN%2FSB",
-        headers={"x-test-role":"admin"},
-    )
-    assert absent.json()["status"] == "not_ready"
-    assert len(got.content) < 50000
-    # Check the SPA installs lightweight lazy-loading assets instead of tying
-    # rendering to poker action/WebSocket traffic.
-    root = Path(__file__).resolve().parent / "materialized_v1244" / "static"
-    html = (root / "index.html").read_text(encoding="utf-8")
-    js = (root / "mda-view.js").read_text(encoding="utf-8")
-    css = (root / "mda-view.css").read_text(encoding="utf-8")
-    app_js = (root / "app.js").read_text(encoding="utf-8")
-    assert 'data-view="mda"' in html
-    assert 'id="mdaView" class="view admin-only"' in html
-    assert 'mda-view.js?v=1' in html and 'mda-view.css?v=1' in html
-    assert "mda:['POPULATION MDA','MDA分析']" in app_js
-    assert "MutationObserver" in js and "active-view" in js
-    assert "textContent" in js and ".innerHTML" not in js
-    assert "setInterval(" not in js and "new WebSocket(" not in js
-    assert ".mda-matrix" in css and "overflow-x:auto" in css
-
+    # Default-off staging: even an authenticated administrator receives no
+    # cached population estimate and must not cause a database read.
+    with patch.dict(os.environ, {"JJ_MDA_ADMIN_ENABLED": ""}):
+        blocked = client.get(endpoint, headers={"x-test-role":"admin"})
+        assert blocked.status_code == 200
+        assert blocked.json()["status"] == "not_ready"
+        assert blocked.json()["rollout"] == "disabled"
+        assert db.query_count == 0
+    with patch.dict(os.environ, {"JJ_MDA_ADMIN_ENABLED": "1"}):
+        no_data = client.get(endpoint, headers={"x-test-role":"admin"})
+        assert no_data.status_code == 200
+        assert no_data.json()["status"] == "not_ready"
+        assert no_data.headers["cache-control"] == "private, no-store"
+        assert db.query_count == 1
+        db.raw.execute(
+            "INSERT INTO jj_mda_population_cache VALUES(?,?,?)",
+            ("Ring:6:BTN", json.dumps(one), stamp)
+        )
+        got = client.get(endpoint, headers={"x-test-role":"admin"})
+        assert got.status_code == 200
+        assert got.json()["status"] == "ok"
+        assert _cell(got.json(), "K5o")["open_frequency"] == 40
+        assert got.json()["position"] == "BTN"
+        assert db.query_count == 2, "endpoint performed more than one DB read"
+        # Stale cache for another scope must not be used in this scope.
+        absent = client.get(
+            "/api/admin/mda/grid?game=Sit%26Go&table_size=2&position=BTN%2FSB",
+            headers={"x-test-role":"admin"},
+        )
+        assert absent.json()["status"] == "not_ready"
+        assert len(got.content) < 50000
+        # Check the SPA installs lightweight lazy-loading assets instead of tying
+        # rendering to poker action/WebSocket traffic.
+        root = Path(__file__).resolve().parent / "materialized_v1244" / "static"
+        html = (root / "index.html").read_text(encoding="utf-8")
+        js = (root / "mda-view.js").read_text(encoding="utf-8")
+        css = (root / "mda-view.css").read_text(encoding="utf-8")
+        app_js = (root / "app.js").read_text(encoding="utf-8")
+        assert 'data-view="mda"' in html
+        assert 'id="mdaView" class="view admin-only"' in html
+        assert 'mda-view.js?v=1' in html and 'mda-view.css?v=1' in html
+        assert "mda:['POPULATION MDA','MDA分析']" in app_js
+        assert "MutationObserver" in js and "active-view" in js
+        assert "textContent" in js and ".innerHTML" not in js
+        assert "setInterval(" not in js and "new WebSocket(" not in js
+        assert ".mda-matrix" in css and "overflow-x:auto" in css
+    with patch.dict(os.environ, {"JJ_MDA_ADMIN_ENABLED": "0"}):
+        disabled_again = client.get(endpoint, headers={"x-test-role":"admin"})
+        assert disabled_again.json()["status"] == "not_ready"
+        assert db.query_count == 3  # one no-data read, one present and one absent
     db.raw.close()
     print("smoke_test_mda_admin_cache: PASS")
 

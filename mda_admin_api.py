@@ -7,11 +7,12 @@ trigger a full-history database scan from a user request.
 from __future__ import annotations
 
 import json
+import os
 from typing import Any
 
 from fastapi import Depends, HTTPException, Query, Response
 
-from mda_snapshot_cache import FORMAT, MAX_DOC_BYTES, cache_key
+from mda_cache_contract import FORMAT, MAX_DOC_BYTES, cache_key
 
 
 def _read_cached_grid(db: Any, key: str) -> dict | None:
@@ -61,6 +62,16 @@ def install(app, server, db):
             raise HTTPException(422, str(exc)) from exc
         response.headers["Cache-Control"] = "private, no-store"
         response.headers["X-Content-Type-Options"] = "nosniff"
+        # Deployment-safe rollout: the newly deployed UI cannot publish
+        # inferred population data until the administrator explicitly opts in.
+        # This check happens AFTER the admin role dependency and BEFORE any SQL.
+        if os.environ.get("JJ_MDA_ADMIN_ENABLED") != "1":
+            return {
+                "status": "not_ready", "game": game,
+                "rollout": "disabled",
+                "table_size": table_size, "position": position,
+                "message": "MDAの公開は運営の確認待ちです。",
+            }
         doc = _read_cached_grid(db, key)
         if doc is None:
             return {
