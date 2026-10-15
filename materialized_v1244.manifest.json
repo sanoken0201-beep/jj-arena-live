@@ -25,16 +25,16 @@
       "size": 68460
     },
     "static/app.js": {
-      "sha256": "69371a6fe8bf7de2842f99b332aa5a192e495e6a202d04fefcaa18ff0bff7a5d",
-      "size": 207823
+      "sha256": "e33ee4ed7a9e063c54668d164b35d8643e4fd43dbf6fcb08a62af91742c07961",
+      "size": 207900
     },
     "static/icon.svg": {
       "sha256": "73881d1c67715e44bbc161814df309affea8dc30096839f21a9235f0375a78f6",
       "size": 340
     },
     "static/index.html": {
-      "sha256": "d2045c146612b54550c4fe391972f9aa7a68d0f5353b76c931e96cbd6feb4ed2",
-      "size": 13564
+      "sha256": "fb0924116da971cbb54eee62aa5250b1373138cf278b71251fa2e51710e67195",
+      "size": 16035
     },
     "static/manifest.webmanifest": {
       "sha256": "67ab816106c3992d4343a051639b99e6c5a37fe97b51746e5fc3d775cbe1611b",
@@ -47,6 +47,14 @@
     "static/sw.js": {
       "sha256": "f5fa1cf3ad4110065c1ad0e3406c648bfbd4b981255a5b0e3ba40dcecfaf36ee",
       "size": 1012
+    },
+    "static/mda-view.js": {
+      "sha256": "4fe1c8fea96cfed2f5fa27de90a3dddba608aaed5c8d652d3717638f5cb3314e",
+      "size": 6482
+    },
+    "static/mda-view.css": {
+      "sha256": "77812f52092e1de1e8c6519c2fd0915f0ac9a9b5db3360318fb322ef5cd8b9f5",
+      "size": 3051
     }
   },
   "runtime_version": "1.24.4",
