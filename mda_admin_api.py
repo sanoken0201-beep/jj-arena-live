@@ -67,7 +67,8 @@ def install(app, server, db):
         # This check happens AFTER the admin role dependency and BEFORE any SQL.
         if os.environ.get("JJ_MDA_ADMIN_ENABLED") != "1":
             return {
-                "status": "disabled", "game": game,
+                "status": "not_ready", "game": game,
+                "rollout": "disabled",
                 "table_size": table_size, "position": position,
                 "message": "MDAの公開は運営の確認待ちです。",
             }
