@@ -77,7 +77,9 @@
           if (!Number.isFinite(f) || f < 0 || f > 100) {
             show('観測値に不正なデータがあります。'); clearGrid(); return;
           }
-          item.style.setProperty('--mda-heat', String(f / 100));
+          item.style.setProperty('--mda-heat', String(0.12 + f / 100 * 0.72));
+          item.style.setProperty('--mda-border', String(0.17 + f / 100 * 0.30));
+          if (f >= 65) item.classList.add('mda-observed-strong');
           line.textContent = f.toLocaleString('ja-JP',{maximumFractionDigits:1}) + '%';
         } else if (cell.status === 'hypothesis') {
           line.textContent = '推定';
