@@ -65,6 +65,10 @@ def run():
         assert unopened["zero_note"] == "observed_zero_is_not_proof_of_structural_zero"
         assert report["cohorts_by_players_dealt_in"]["3"]["metrics"]["rfi"]["overall"]["status"] == "insufficient_sample"
 
+        preview = prepare_review(report)
+        assert preview["format_version"] == "mda-population-v2-review"
+        assert preview["no_hand_class_inference"] is True
+        assert preview["cohorts_by_players_dealt_in"]["2"]["metrics"]["rfi"]["chosen"] == 0
         sensitive = json.dumps(report)
         for secret in ('"user_id"', '"actor_id"', '"hand_id"', "hole_cards_json", '"Ks"', '"5d"', "Member_"):
             assert secret not in sensitive, secret
