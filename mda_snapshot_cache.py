@@ -126,38 +126,11 @@ def _persist_postgres(docs: Mapping[str, Mapping[str, Any]], database_url: str) 
 
 
 def main() -> None:
-    p = argparse.ArgumentParser(description="Offline publish of suppressed all-player MDA grids")
-    p.add_argument("--sqlite", default=None, help="source-only local SQLite for dry run")
-    p.add_argument("--publish", action="store_true", help="explicitly write cache table to PostgreSQL")
-    p.add_argument("--permit-primary-scan", action="store_true",
-                   help="acknowledge full-history queries on production primary; run off-peak")
-    args = p.parse_args()
-    if args.publish and (args.sqlite or not args.permit_primary_scan):
-        p.error("--publish requires production internal DATABASE_URL and --permit-primary-scan")
-    if not args.sqlite and not args.permit_primary_scan:
-        p.error("production full-history scan requires --permit-primary-scan")
-    # External scheduler should run off-peak; no periodic timer is installed.
-    ring = _prepare_full_audit(args.sqlite, "Ring")
-    sitngo = _prepare_full_audit(args.sqlite, "Sit&Go")
-    docs = snapshot_documents(
-        ring, sitngo, generated_at=datetime.now(timezone.utc).isoformat()
+    """The retired plus-notation publisher cannot execute, even if invoked."""
+    raise SystemExit(
+        "Retired MDA v1 publisher: use the read-only "
+        "mda_online_population_v2.py analysis instead."
     )
-    summary = {
-        "format_version": FORMAT, "published": False,
-        "grids_created": len(docs),
-        "ring_hands_accepted": ring["coverage"]["hands_accepted"],
-        "sitngo_hands_accepted": sitngo["coverage"]["hands_accepted"],
-        "source": "all_player_full_history",
-        "private_data_returned": False,
-    }
-    if args.publish:
-        url = os.getenv("DATABASE_URL")
-        if not url:
-            raise RuntimeError("DATABASE_URL is not configured")
-        _persist_postgres(docs, url)
-        summary["published"] = True
-    print(json.dumps(summary, ensure_ascii=False, sort_keys=True, indent=2))
-
 
 if __name__ == "__main__":
     main()
