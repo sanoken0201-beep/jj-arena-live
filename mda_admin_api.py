@@ -12,7 +12,7 @@ from typing import Any
 
 from fastapi import Depends, HTTPException, Query, Response
 
-from mda_snapshot_cache import FORMAT, MAX_DOC_BYTES, cache_key
+from mda_cache_contract import FORMAT, MAX_DOC_BYTES, cache_key
 
 
 def _read_cached_grid(db: Any, key: str) -> dict | None:
