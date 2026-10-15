@@ -1,122 +1,164 @@
-"""Admin-only offline, read-only RFI range-class audit for JJ MDA.
+"""Private OFFLINE JJ MDA range auditor, segregated by players dealt in.
 
-Runs only on a trusted machine with authorized database access. There is no
-member API, live-table hook, browser integration, scheduled polling or write.
-Reads private completed-hand hole-card records in memory, and prints only
-privacy-thresholded 169-class aggregate data (never identity, raw cards, hand IDs).
+Read-only PostgreSQL/SQLite, batch queries, no app import, writes or live HUD.
+The sanitized output is for an authorized administrator. Never expose a class
+grid or revisions as a live per-opponent feed. All raw hole cards/IDs stay local.
 
-Usage: python mda_range_offline_audit.py --position BTN --limit 500
-       python mda_range_offline_audit.py --sqlite /path/db.sqlite3 --position BTN
+Examples:
+ python mda_range_offline_audit.py --table-size 6 --position BTN
+ python mda_range_offline_audit.py --sqlite jj.sqlite3 --table-size 2 --position BTN/SB
+ python mda_range_offline_audit.py --table-size 6 --position BTN --compare-json old.json
 """
 from __future__ import annotations
 
 import argparse
+from collections import defaultdict
 import json
+from pathlib import Path
 from typing import Any
 
 from mda_offline_audit import connect_read_only
 from mda_ranges import extract_rfi_evidence, infer_plus_hypotheses, summarize_range
+from mda_range_revisions import compare_range_reports
+
+POSITIONS_BY_SIZE = {
+    2: ("BTN/SB", "BB"),
+    3: ("BTN", "SB", "BB"),
+    4: ("BTN", "SB", "BB", "CO"),
+    5: ("BTN", "SB", "BB", "UTG", "CO"),
+    6: ("BTN", "SB", "BB", "UTG", "HJ", "CO"),
+}
+BATCH_SIZE = 200
+MAX_HANDS = 50000
 
 
-ALLOWED_POSITIONS = ("UTG", "HJ", "CO", "BTN", "SB", "BTN/SB", "BB")
+def report_rfi_range(
+    con: Any, *, table_size: int, position: str, limit: int = 5000
+) -> dict[str, Any]:
+    """Recompute from CURRENT completed history: no append-only certainty.
 
+    The limit is applied after filtering by table_size, so 2–6 handed
+    observations cannot silently displace one another.
+    """
+    if type(table_size) is not int or table_size not in POSITIONS_BY_SIZE:
+        raise ValueError("table_size must be a dealt-in count of 2..6")
+    if position not in POSITIONS_BY_SIZE[table_size] or position == "BB":
+        raise ValueError("RFI is unavailable for this table-size/position pairing")
+    if not 1 <= limit <= MAX_HANDS:
+        raise ValueError(f"Sample limit must be 1..{MAX_HANDS}")
 
-def report_rfi_range(con: Any, *, position: str = "BTN", limit: int = 500) -> dict[str, Any]:
-    if position not in ALLOWED_POSITIONS:
-        raise ValueError("Unsupported preflop position")
-    if not 1 <= limit <= 500:
-        raise ValueError("Sample limit must be 1..500")
-    # Completed, non-partial Ring analytics records from the current public
-    # table only. Sit&Go, partial deployments, and historical table B excluded.
     rows = con.execute(
-        """SELECT hand_id, big_blind, board_json, player_count, completed_at, partial_capture
+        """SELECT hand_id,big_blind,board_json,player_count,completed_at,partial_capture
            FROM jj_hand_history
-           WHERE table_id='jj-table-a'
+           WHERE table_id='jj-table-a' AND player_count=?
              AND completed_at IS NOT NULL AND COALESCE(partial_capture,0)=0
            ORDER BY completed_at DESC, hand_id DESC LIMIT ?""",
-        (limit,),
+        (table_size, limit),
     ).fetchall()
 
     private = []
     rejected = 0
-    for record in rows:
-        hand = dict(record)
-        try:
-            hand["board"] = json.loads(hand.pop("board_json") or "[]")
-        except (ValueError, TypeError):
-            rejected += 1
+    for offset in range(0, len(rows), BATCH_SIZE):
+        batch = [dict(row) for row in rows[offset : offset + BATCH_SIZE]]
+        ids = [hand["hand_id"] for hand in batch]
+        if not ids:
             continue
-        # Never select player names, credentials, reviews or hole cards from
-        # live / incomplete games. The only sensitive field is limited to this
-        # trusted offline analysis and is not returned in the JSON report.
-        players = [
-            dict(p) for p in con.execute(
-                """SELECT user_id,position,effective_stack_bb,hole_cards_json
-                   FROM jj_hand_players WHERE hand_id=?""",
-                (hand["hand_id"],),
-            ).fetchall()
-        ]
-        actions = [
-            dict(a) for a in con.execute(
-                """SELECT seq,user_id,street,action,pot_before,amount_chips,
-                          facing_chips,timed_out
-                   FROM jj_hand_actions WHERE hand_id=? ORDER BY seq""",
-                (hand["hand_id"],),
-            ).fetchall()
-        ]
-        if not players or not actions:
-            rejected += 1
-            continue
-        private.extend(extract_rfi_evidence(hand, players, actions))
+        placeholders = ",".join("?" for _ in ids)
+        players_by_hand: dict[str, list[dict]] = defaultdict(list)
+        for p in con.execute(
+            f"""SELECT hand_id,user_id,position,effective_stack_bb,hole_cards_json
+                FROM jj_hand_players WHERE hand_id IN ({placeholders})""",
+            tuple(ids),
+        ).fetchall():
+            item = dict(p)
+            players_by_hand[item.pop("hand_id")].append(item)
+        actions_by_hand: dict[str, list[dict]] = defaultdict(list)
+        for a in con.execute(
+            f"""SELECT hand_id,seq,user_id,street,action,pot_before,amount_chips,
+                       facing_chips,timed_out
+                FROM jj_hand_actions WHERE hand_id IN ({placeholders})
+                ORDER BY hand_id,seq""",
+            tuple(ids),
+        ).fetchall():
+            item = dict(a)
+            actions_by_hand[item.pop("hand_id")].append(item)
 
-    # Pool suppression *before* generating any public suggestion. If sparse,
-    # do not reveal the identity of an observed starting hand.
-    report = summarize_range(private, position=position)
+        for h in batch:
+            try:
+                h["board"] = json.loads(h.pop("board_json") or "[]")
+            except (TypeError, ValueError):
+                rejected += 1
+                continue
+            persons = players_by_hand.get(h["hand_id"], [])
+            acts = actions_by_hand.get(h["hand_id"], [])
+            if not persons or not acts or len(persons) != table_size:
+                rejected += 1
+                continue
+            private.extend(extract_rfi_evidence(h, persons, acts))
+
+    report = summarize_range(private, position=position, table_size=table_size)
     public_hypotheses = []
     if report["status"] == "ok":
-        for suggestion in infer_plus_hypotheses(private, position=position):
+        for suggestion in infer_plus_hypotheses(private, position=position, table_size=table_size):
             seed_cell = report["cells"].get(suggestion.seed, {})
             if seed_cell.get("status") != "observed":
                 continue
-            # Suggestions are derived solely from an independently publishable
-            # seed cell, and remain separate from observed frequencies.
             public_hypotheses.append({
                 "notation": suggestion.notation,
                 "status": suggestion.status,
                 "candidate_classes": suggestion.candidates,
-                "basis": "monotonic_kicker_assumption_not_observed",
+                "basis": "monotone_kicker_heuristic_not_observed",
                 "has_counterevidence": bool(suggestion.contradiction_classes),
             })
     return {
+        "format_version": "rfi-range-v2",
         "mode": "offline_admin_only",
         "game": "Ring",
         "table": "jj-table-a",
+        "table_size": table_size,
         "position": position,
+        "sample_policy": "latest_completed_full_hands_per_table_size",
+        "requested_hand_limit": limit,
         "hands_examined": len(rows),
         "hands_rejected_for_basic_completeness": rejected,
         "range": report,
         "hypotheses": public_hypotheses,
         "warnings": [
-            "Suggestions are heuristic, not proven inclusions in any player's strategy.",
-            "Observation rates are hand-class conditional, not weighted by deal frequency.",
-            "Unknown cells may not be reported as 0% or 100%.",
-            "Do not expose unredacted private RFI evidence, identities or hole cards.",
-            "Rare hand samples and repeat players can materially bias inference.",
+            "Never combine tables of different dealt-in player counts.",
+            "Latest-N per table-size sample is a rolling window, not necessarily all history.",
+            "All figures are recomputed: a previous estimated or highly supported range can be revised or withdrawn.",
+            "Heuristic plus-notation is not proof of action with unobserved stronger kickers.",
+            "Sparse cells remain unknown, not 0% or 100%. No in-play or opponent-specific use.",
+            "All exact historical decisions are evidence, not an immutable statistical strategy.",
         ],
     }
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="JJ MDA offline private-data range auditor")
-    parser.add_argument("--sqlite", default=None, help="local SQLite database (read-only)")
-    parser.add_argument("--position", choices=ALLOWED_POSITIONS, default="BTN")
-    parser.add_argument("--limit", type=int, default=500)
+    parser = argparse.ArgumentParser(description="JJ MDA admin-only offline 2–6-hand RFI range audit")
+    parser.add_argument("--sqlite", default=None, help="local SQLite database in read-only mode")
+    parser.add_argument("--table-size", required=True, type=int, choices=sorted(POSITIONS_BY_SIZE))
+    parser.add_argument("--position", required=True)
+    parser.add_argument("--limit", type=int, default=5000)
+    parser.add_argument(
+        "--compare-json", default=None,
+        help="optional previous sanitized audit JSON for revision comparison (no writes)",
+    )
     args = parser.parse_args()
-    if not 1 <= args.limit <= 500:
-        parser.error("--limit must be 1..500")
+    if args.position not in POSITIONS_BY_SIZE[args.table_size] or args.position == "BB":
+        parser.error("position must exist for the requested table size and be RFI-eligible")
+    if not 1 <= args.limit <= MAX_HANDS:
+        parser.error(f"--limit must be 1..{MAX_HANDS}")
+
     with connect_read_only(args.sqlite) as con:
-        result = report_rfi_range(con, position=args.position, limit=args.limit)
-    print(json.dumps(result, ensure_ascii=False, indent=2, sort_keys=True))
+        result = report_rfi_range(
+            con, table_size=args.table_size, position=args.position, limit=args.limit
+        )
+
+    if args.compare_json:
+        previous = json.loads(Path(args.compare_json).read_text(encoding="utf-8"))
+        result["revision"] = compare_range_reports(previous, result)
+    print(json.dumps(result, ensure_ascii=False, sort_keys=True, indent=2))
 
 
 if __name__ == "__main__":

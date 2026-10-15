@@ -23,6 +23,20 @@ DISTINCT_PLAYER_THRESHOLD = 8
 CELL_THRESHOLD = 12
 CELL_DISTINCT_THRESHOLD = 4
 
+# These labels mirror hand_analytics._position_map and are NOT seat capacity.
+POSITIONS_BY_SIZE = {
+    2: ("BTN/SB", "BB"),
+    3: ("BTN", "SB", "BB"),
+    4: ("BTN", "SB", "BB", "CO"),
+    5: ("BTN", "SB", "BB", "UTG", "CO"),
+    6: ("BTN", "SB", "BB", "UTG", "HJ", "CO"),
+}
+
+
+def _validate_cohort(position: str, table_size: int) -> None:
+    if type(table_size) is not int or position not in POSITIONS_BY_SIZE.get(table_size, ()):
+        raise ValueError("position must be valid for dealt-in table size (2..6)")
+
 
 def hand_class(cards: Sequence[str]) -> str | None:
     """Return e.g. K5o, K5s, 55, AKo; reject invalid/duplicate cards."""
@@ -101,6 +115,7 @@ class PrivateRfiEvidence:
     hand_id: str
     actor_id: int
     position: str
+    table_size: int
     holding: str
     opened: bool
 
@@ -125,6 +140,20 @@ def extract_rfi_evidence(
     A missing/ambiguous recording stays UNKNOWN: never impute hole cards.
     Only one first-action RFI decision per actor is counted per hand.
     """
+    # The cohort key is the number *actually dealt in when the hand began*,
+    # not table capacity. Reject mismatched/partial player snapshots rather than
+    # silently treating a 6-handed hand as 5-handed.
+    try:
+        table_size = int(hand["player_count"])
+    except (KeyError, TypeError, ValueError):
+        return ()
+    ids = [str(p.get("user_id")) for p in players if p.get("user_id") is not None]
+    if (
+        table_size not in POSITIONS_BY_SIZE or len(ids) != table_size
+        or len(set(ids)) != table_size
+        or {str(p.get("position")) for p in players} != set(POSITIONS_BY_SIZE[table_size])
+    ):
+        return ()
     decisions = derive_decisions(hand, players, actions)
     if not decisions:
         return ()
@@ -146,6 +175,7 @@ def extract_rfi_evidence(
             hand_id=o.hand_id,
             actor_id=o.actor_id,
             position=o.position,
+            table_size=table_size,
             holding=label,
             opened=o.chosen,
         ))
@@ -169,6 +199,7 @@ def infer_plus_hypotheses(
     evidence: Iterable[PrivateRfiEvidence],
     *,
     position: str,
+    table_size: int,
     min_seed_opens: int = 1,
     min_seed_opportunities: int = 1,
     min_conflict_opportunities: int = 8,
@@ -179,11 +210,10 @@ def infer_plus_hypotheses(
     Individual low-gap suited hands and differing positions are not pooled.
     High-frequency evidence from stronger kickers can challenge a frontier.
     """
-    if not position:
-        raise ValueError("position required for range inference")
+    _validate_cohort(position, table_size)
     stats: dict[str, list[int]] = defaultdict(lambda: [0, 0])
     for event in evidence:
-        if event.position == position and event.holding in HAND_CLASSES:
+        if event.position == position and event.table_size == table_size and event.holding in HAND_CLASSES:
             stats[event.holding][0] += 1
             stats[event.holding][1] += int(event.opened)
     groups: dict[tuple[str, str], list[str]] = defaultdict(list)
@@ -233,6 +263,7 @@ def summarize_range(
     evidence: Iterable[PrivateRfiEvidence],
     *,
     position: str,
+    table_size: int,
     minimum_opportunities: int = SAMPLE_THRESHOLD,
     minimum_distinct_players: int = DISTINCT_PLAYER_THRESHOLD,
     minimum_cell_opportunities: int = CELL_THRESHOLD,
@@ -243,14 +274,13 @@ def summarize_range(
     Sparse classes remain unknown, even if we have a monotonicity hypothesis.
     Smoothed probabilities are within observed classes only; no implicit 100%.
     """
-    if not position:
-        raise ValueError("position is required")
+    _validate_cohort(position, table_size)
     selected = [
-        e for e in evidence if e.position == position and e.holding in HAND_CLASSES
+        e for e in evidence if e.position == position and e.table_size == table_size and e.holding in HAND_CLASSES
     ]
     unique = len({e.actor_id for e in selected})
     if len(selected) < minimum_opportunities or unique < minimum_distinct_players:
-        return {"status": "insufficient_sample", "position": position}
+        return {"status": "insufficient_sample", "position": position, "table_size": table_size}
 
     groups: dict[str, list[PrivateRfiEvidence]] = defaultdict(list)
     for item in selected:
@@ -275,6 +305,7 @@ def summarize_range(
     return {
         "status": "ok",
         "position": position,
+        "table_size": table_size,
         "opportunities": len(selected),
         "unique_players": unique,
         "cells": cells,

@@ -142,3 +142,46 @@ python mda_range_offline_audit.py --position BTN --limit 500
 \`\`\`
 
 Never paste production DB URLs, PINs or raw card records into chat/GitHub. This design is not production-activated until CI, data quality, privacy and performance reviews pass.
+
+
+## Phase 1C: mandatory table occupancy and revisable estimates (2026-10-15)
+
+Every preflop RFI evidence item and aggregate **requires** a validated \`table_size\` equal to the number of players actually dealt in when the hand began. The actual source is \`jj_hand_history.player_count\` established at hand start; do NOT use the table's maximum seat capacity, live seat occupancy, or a subsequent hand's occupancy. Reject incomplete/mismatched player snapshots. **Never pool 2, 3, 4, 5 and 6 dealt-in hands into one inferred range**. A 6-handed BTN K5o open offers no evidence for a 3-handed BTN K5o strategy.
+
+The position mapping follows JJ's existing recorded \`hand_analytics._position_map\`:
+
+| Dealt-in players | Valid positions |
+| --- | --- |
+| 2 | BTN/SB, BB |
+| 3 | BTN, SB, BB |
+| 4 | BTN, SB, BB, CO |
+| 5 | BTN, SB, BB, UTG, CO |
+| 6 | BTN, SB, BB, UTG, HJ, CO |
+
+For RFI only, the BB is never a qualifying opener. On a heads-up table, the button posts the small blind and acts first preflop; \`BTN/SB\` is a distinct key. Do not map HU \`BTN/SB\` to a six-handed \`BTN\`.
+
+Updated offline auditing (\`mda_range_offline_audit.py\`) now **requires** both \`--table-size\` and \`--position\`, applies the player-count SQL filter *before* the hand limit, and reads players/actions in batches of up to 200 hand IDs (not two remote round trips for each hand). Defaults to latest 5,000 completed full-capture Ring hands for that table size, with an explicit upper bound of 50,000. This is a bounded, offline-only **rolling window**; if all-time results are required, separate batch cursoring and a cumulative projector are needed.
+
+### Updates, reclassification and withdrawal
+
+Running the read-only audit again recomputes the **entire selected current source window**, rather than retaining any prior inferred class as permanently true. Accordingly:
+- Observed hand decisions remain evidence only while the underlying completed hand record is valid and present.
+- Published open frequencies can rise or fall with new evidence, corrections and window movement. A previously observed cell can become \`unknown\` if it falls below privacy/quality thresholds.
+- Monotone-plus hypotheses, including a previously \`seed_replicated\` K5o+, can change, acquire counterevidence, or be withdrawn entirely; \`seed_replicated\` means the seed has repeated observations, **not that the whole plus range is confirmed**.
+- A snapshot revision is a recomputation/reconciliation of evidence, not an overwrite of individual historical actions.
+- \`mda_range_revisions.compare_range_reports(old, new)\` deterministically reports changed observed frequencies, newly observable and withdrawn cells, added/changed/withdrawn hypotheses, and loss of population sufficiency. It deliberately **refuses** comparisons across distinct table sizes, positions, table identifiers, format versions, sampling methods and \`--limit\` values.
+- The tool does not create background workers or write snapshot tables in the production database. The source history remains authoritative. The offline operator supplies the previous sanitized JSON snapshot to opt in to a revision comparison.
+
+Example workflow (trusted admin machine; do not publish old or new files outside private controls):
+
+\`\`\`bash
+python mda_range_offline_audit.py --table-size 6 --position BTN --limit 10000 > private-prev.json
+# Later after new completed hands are present:
+python mda_range_offline_audit.py --table-size 6 --position BTN --limit 10000 --compare-json private-prev.json > private-current.json
+python mda_range_offline_audit.py --table-size 2 --position BTN/SB --limit 10000
+python smoke_test_mda_range_revisions.py
+\`\`\`
+
+This means estimates **can be updated and prior conclusions retracted on every audit invocation**, but automatic background refresh, durable revision storage and visualization remain a later, explicitly reviewed stage. Never run these large privacy-sensitive queries in an active table websocket/request handler or expose fine-grained snapshot differences to members or opponents.
+
+All old examples omitting \`--table-size\` are superseded by these Phase 1C examples.
