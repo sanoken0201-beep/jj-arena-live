@@ -159,7 +159,7 @@ class PlusHypothesis:
     notation: str
     seed: str
     candidates: tuple[str, ...]
-    status: str   # tentative or evidence_supported; NEVER 'confirmed'
+    status: str   # tentative or seed_replicated; NEVER 'confirmed'
     seed_open_count: int
     seed_opportunities: int
     contradiction_classes: tuple[str, ...]
@@ -221,7 +221,7 @@ def infer_plus_hypotheses(
             notation=seed + "+",
             seed=seed,
             candidates=candidates,
-            status="evidence_supported" if support else "tentative",
+            status="seed_replicated" if support else "tentative",
             seed_open_count=opens,
             seed_opportunities=n,
             contradiction_classes=contradictions,
