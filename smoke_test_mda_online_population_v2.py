@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 from mda_online_population_v2 import audit_online_population, MIN_OPPORTUNITIES
+from mda_online_review_v2 import prepare_review
 from smoke_test_mda_all_players import _db, _seed
 
 
