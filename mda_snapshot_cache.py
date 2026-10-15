@@ -126,6 +126,12 @@ def _persist_postgres(docs: Mapping[str, Mapping[str, Any]], database_url: str) 
 
 
 def main() -> None:
+    # Methodology reset: never run the retired plus-notation/RFI-grid
+    # producer on real online-table data, even for dry-run publication.
+    raise SystemExit(
+        "Retired MDA v1 publisher. Use mda_online_population_v2.py "
+        "and validate observed opportunity frequencies before future publication."
+    )
     p = argparse.ArgumentParser(description="Offline publish of suppressed all-player MDA grids")
     p.add_argument("--sqlite", default=None, help="source-only local SQLite for dry run")
     p.add_argument("--publish", action="store_true", help="explicitly write cache table to PostgreSQL")
