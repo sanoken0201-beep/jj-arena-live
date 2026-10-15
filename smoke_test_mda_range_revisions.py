@@ -57,7 +57,7 @@ def _db():
     return con
 
 
-def _seed(con, hand_id, table_size, *, partial=0, completed=True):
+def _seed(con, hand_id, table_size, *, partial=0, completed=True, table_id="jj-table-a"):
     positions = {
         2: ("BTN/SB", "BB"),
         3: ("BTN", "SB", "BB"),
@@ -67,7 +67,7 @@ def _seed(con, hand_id, table_size, *, partial=0, completed=True):
     }[table_size]
     con.execute(
         "INSERT INTO jj_hand_history VALUES(?,?,?,?,?,?,?)",
-        (hand_id, "jj-table-a", 100, "[]", table_size, "2026-10-15" if completed else None, partial),
+        (hand_id, table_id, 100, "[]", table_size, "2026-10-15" if completed else None, partial),
     )
     con.executemany(
         "INSERT INTO jj_hand_players VALUES(?,?,?,?,?)",
@@ -119,12 +119,14 @@ def run():
         _seed(con, "two", 2)
         _seed(con, "three", 3)
         _seed(con, "six", 6)
+        _seed(con, "six-b", 6, table_id="jj-table-b")
         _seed(con, "unfinished", 2, completed=False)
         _seed(con, "partial", 6, partial=1)
         two = report_rfi_range(con, table_size=2, position="BTN/SB", limit=10)
         trio = report_rfi_range(con, table_size=3, position="BTN", limit=10)
         six_report = report_rfi_range(con, table_size=6, position="BTN", limit=10)
-        assert two["hands_examined"] == trio["hands_examined"] == six_report["hands_examined"] == 1
+        assert two["hands_examined"] == trio["hands_examined"] == 1
+        assert six_report["hands_examined"] == 2  # Table A and Table B included
         assert two["table_size"] == two["range"]["table_size"] == 2
         assert trio["table_size"] == trio["range"]["table_size"] == 3
         assert six_report["table_size"] == six_report["range"]["table_size"] == 6
