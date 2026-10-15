@@ -45,11 +45,13 @@ def run():
         assert six["completed_hands_used"] == 240
         rfi = six["metrics"]["rfi"]["overall"]
         assert rfi["status"] == "observed", rfi
-        assert rfi["opportunities"] == 240
+        assert rfi["opportunities"] == 1080
         assert rfi["chosen"] == 120
-        assert rfi["percentage"] == 50.0
+        assert rfi["percentage"] == 11.11
         assert rfi["action_counts"]["raise"] == 120
-        assert rfi["action_counts"]["fold"] == 120
+        # Entire six-handed population has 4/5 unopened-position decisions
+        # per hand; BTN has exactly one, hence 11.11% overall vs 50% BTN.
+        assert rfi["action_counts"]["fold"] == 960
         assert "position" in six["metrics"]["rfi"]["cuts"]
         sixbtn = six["metrics"]["rfi"]["cuts"]["position"]["BTN"]
         assert sixbtn["percentage"] == 50.0
