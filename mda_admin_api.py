@@ -55,7 +55,10 @@ def install(app, server, db):
         admin=Depends(server.admin_user),
     ):
         # Defense in depth even if client nav was hidden by frontend CSS.
-        key = cache_key(game, table_size, position)
+        try:
+            key = cache_key(game, table_size, position)
+        except ValueError as exc:
+            raise HTTPException(422, str(exc)) from exc
         response.headers["Cache-Control"] = "private, no-store"
         response.headers["X-Content-Type-Options"] = "nosniff"
         doc = _read_cached_grid(db, key)
