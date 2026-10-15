@@ -82,6 +82,11 @@ def run():
             # Table B is a normal public ring table, NOT a separate population.
             # Its real hands must enter the same 6-handed BTN denominator.
             _seed(con, i + 3000, 6, opened=False, table_id="jj-table-b")
+        # Do not ingest an unrelated/private tournament-like table merely
+        # because its table ID shares the jj-table prefix.
+        _seed(con, 4000, 6, opened=True, table_id="jj-table-c")
+        # Incomplete capture on Table B must not count as a population action.
+        _seed(con, 4001, 6, opened=True, status="partial", table_id="jj-table-b")
 
         # Run multiple keyset pages. Only full, completed hands from all users
         # count; no user role column is referenced by analysis queries.
