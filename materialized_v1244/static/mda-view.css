@@ -16,8 +16,9 @@
 #mdaView .mda-cell{min-height:42px;min-width:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;border:1px solid #e0e6e2;border-radius:7px;box-sizing:border-box;line-height:1.1;text-align:center;white-space:nowrap;transition:none}
 #mdaView .mda-cell strong{font-size:.77rem;font-weight:850;letter-spacing:-.015em}
 #mdaView .mda-cell span{font-size:.64rem;font-weight:700;font-variant-numeric:tabular-nums}
-#mdaView .mda-observed{background:rgba(21,126,88,calc(.12 + var(--mda-heat)*.72));border-color:rgba(19,106,77,calc(.17 + var(--mda-heat)*.3));color:#08291f}
+#mdaView .mda-observed{background:rgba(21,126,88,var(--mda-heat,.12));border-color:rgba(19,106,77,var(--mda-border,.17));color:#08291f}
 #mdaView .mda-observed span{color:#123c2f}
+#mdaView .mda-observed-strong,#mdaView .mda-observed-strong span{color:#fff}
 #mdaView .mda-hypothesis{background:#fff3d7;border:1px dashed #bd8e39;color:#654619}
 #mdaView .mda-unknown{background:#eef1f0;color:#65726e}
 #mdaView .mda-unknown strong{font-weight:600}
