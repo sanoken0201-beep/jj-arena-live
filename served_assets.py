@@ -73,8 +73,20 @@ from ring_buyin_browser import MARKER as RING_BUYIN_MARKER, transform_app_js as 
 ROOT = Path(__file__).resolve().parent
 MATERIALIZED_STATIC = ROOT / "materialized_v1244" / "static"
 BUILD_ROOT = ROOT / ".jj_build"
-ASSET_VERSION = 87
+ASSET_VERSION = 88
 BUILD_FORMAT = 1
+
+_MOBILE_PODIUM_ORDER_MARKER = "v88 mobile podium rank order 2026-10-17"
+_MOBILE_PODIUM_ORDER_CSS = r'''
+
+/* v88 mobile podium rank order 2026-10-17
+   Desktop podium stays 2nd–1st–3rd; mobile stacked cards are 1st–2nd–3rd. */
+@media (max-width:760px) {
+  #podium > .podium-card:first-child { order:1; }
+  #podium > .podium-card:nth-child(2) { order:2; }
+  #podium > .podium-card:nth-child(3) { order:3; }
+}
+'''
 
 _TODAYS_JJ_MARKER = "v2 today's-jj contrast hardening 2026-09-12"
 _TODAYS_JJ_CSS = r'''
@@ -463,6 +475,9 @@ def build_styles() -> str:
     css = transform_mobile_poker_readability_styles(css)
     if MOBILE_POKER_READABILITY_MARKER not in css:
         raise RuntimeError("mobile poker readability style transform marker missing")
+    # Retain desktop podium layout, but restore numeric ranking order on mobile.
+    if _MOBILE_PODIUM_ORDER_MARKER not in css:
+        css = css.rstrip() + _MOBILE_PODIUM_ORDER_CSS + "\n"
     return css
 
 
