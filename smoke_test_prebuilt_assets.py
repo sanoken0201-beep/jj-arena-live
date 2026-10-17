@@ -43,6 +43,11 @@ def main() -> None:
             }
             compiled_js = (root / "static" / "app.js").read_text(encoding="utf-8")
             compiled_index = (root / "index.html").read_text(encoding="utf-8")
+            compiled_css = (root / "static" / "styles.css").read_text(encoding="utf-8")
+            assert "v88 mobile podium rank order 2026-10-17" in compiled_css
+            assert "#podium > .podium-card:first-child { order:1; }" in compiled_css
+            assert "#podium > .podium-card:nth-child(2) { order:2; }" in compiled_css
+            assert "#podium > .podium-card:nth-child(3) { order:3; }" in compiled_css
             assert compiled_js.count("jj-quiz-source") == 2, "both quiz renderers must show advanced article source links"
             ranking_guard = (
                 "const jjRankingIdentity=String(me.id||me.ranking_name||me.name||'');"
@@ -70,8 +75,8 @@ def main() -> None:
             assert "v84 mobile poker seat-card clearance 2026-10-08" in compiled_js, (
                 "compiled browser asset must include mobile opponent-card and hand-log repairs"
             )
-            assert served_assets.ASSET_VERSION == 87, (
-                "browser asset version must advance with the desktop showdown visibility fix"
+            assert served_assets.ASSET_VERSION == 88, (
+                "browser asset version must advance with the mobile ranking order fix"
             )
             second = served_assets.build_all(root)
             served_assets.validate_built_assets(root)
