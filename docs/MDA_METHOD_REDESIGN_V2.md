@@ -64,3 +64,13 @@ Still required before production readiness:
 5. Treat Sit&Go as a separate population if implemented; never pool it with Ring.
 
 These changes are development-only and do not modify production data or enable publication.
+
+## V2 dashboard and offline snapshot adapter — 2026-10-19
+
+The admin view now shows five opportunity-conditioned metrics, with independent table-size and breakdown controls, counts, descriptive Wilson intervals and explicit insufficient-sample states. The retired grid endpoint remains disabled. Sit&Go is not offered in this Ring-only view.
+
+The new GET /api/admin/mda/population is authenticated as admin before any snapshot read. It reads only the operator-configured JJ_MDA_V2_SNAPSHOT_PATH; no request queries the database or starts aggregation. The file is capped at 2 MB, and every returned cell is reprojected through prepare_review (approved fields only, thresholds reapplied). Missing configuration/file returns not_ready; invalid, incomplete, future, stale or non-delayed data returns 503. Response caching is disabled.
+
+Offline preparation: mda_online_snapshot_v2.py --sqlite PATH exports JSON to stdout from a read-only transaction. Without --sqlite it uses the existing read-only connection configuration. Its query cutoff is 24 hours before export start, stored in coverage and checked by the API. Exports expire seven days after generation. An operator can stage a reviewed export on the server and configure its path; neither a production export nor environment change is performed by this implementation. Refresh is manual; no scheduler is installed. Use atomic file replacement when publishing an export.
+
+Caveats: this is a review dashboard, not production validation of the underlying decision extractor. In particular facing_chips is capped at the acting player's stack in the recorder, so it cannot by itself reconstruct raise eligibility. Short-all-in/reopening logic remains unresolved. Production deployment still requires the real-record audit, stack integration and release gates described above.

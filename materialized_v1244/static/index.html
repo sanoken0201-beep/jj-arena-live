@@ -10,7 +10,7 @@
   <link rel="manifest" href="/static/manifest.webmanifest" />
   <link rel="icon" href="/static/icon.svg" type="image/svg+xml" />
   <link rel="stylesheet" href="/static/styles.css?v=56" />
-  <link rel="stylesheet" href="/static/mda-view.css?v=1" />
+  <link rel="stylesheet" href="/static/mda-view.css?v=2" />
 </head>
 <body>
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
@@ -130,28 +130,17 @@
       </section>
 
       <section id="mdaView" class="view admin-only" aria-label="MDA Population">
-        <div class="section-head"><div><div class="eyebrow">PRIVATE POPULATION MDA</div><h3>人数別プリフロップレンジ</h3></div></div>
-        <p class="hint">JJで完了したすべてのプレイヤーのハンドから、統計的に観測できる範囲を表示します。個別プレイヤーのカードや推定は表示しません。データは定期更新用の保存済みスナップショットのみを読み取ります。</p>
+        <div class="section-head"><div><div class="eyebrow">POPULATION MDA</div><h3>オンライン卓の行動傾向</h3></div></div>
+        <p class="hint">Ring A・Bの完了ハンドから、全プレイヤーの判断機会に対する行動頻度を集計します。Sit&amp;Goは対象外です。</p>
         <div class="mda-controls card">
-          <label>ゲーム
-            <select id="mdaGame"><option value="Ring">Ring</option><option value="Sit&Go">Sit&amp;Go</option></select>
-          </label>
-          <label>参加人数
-            <select id="mdaSize"><option value="6">6人</option><option value="5">5人</option><option value="4">4人</option><option value="3">3人</option><option value="2">2人</option></select>
-          </label>
-          <label>ポジション <select id="mdaPosition"></select></label>
+          <label>参加人数<select id="mdaSize"><option value="6">6人</option><option value="5">5人</option><option value="4">4人</option><option value="3">3人</option><option value="2">2人</option></select></label>
+          <label>内訳<select id="mdaDimension"><option value="">全体</option><option value="position">ポジション別</option><option value="effective_stack">開始時実効スタック別</option><option value="pot_type">ポット種類別</option><option value="board_texture">ボード別</option></select></label>
           <button class="soft" id="mdaRefresh" type="button">表示を更新</button>
         </div>
         <div id="mdaMessage" class="notice" role="status" aria-live="polite">データを確認しています。</div>
-        <div class="mda-legend" aria-label="表示凡例">
-          <span><i class="mda-swatch mda-swatch-observed"></i>観測済み（頻度表示）</span>
-          <span><i class="mda-swatch mda-swatch-hypothesis"></i>推定候補（頻度不明）</span>
-          <span><i class="mda-swatch mda-swatch-unknown"></i>不明（サンプル不足）</span>
-        </div>
-        <div class="mda-scroll" tabindex="0" aria-label="169種類のスターティングハンド表：横スクロール可能">
-          <div id="mdaMatrix" class="mda-matrix" role="grid" aria-label="13×13スターティングハンド"></div>
-        </div>
-        <p class="hint">観測済みでも、そのハンドが常にオープンされるという意味ではありません。数値は該当する実際の判断機会でのオープン頻度です。推定はオープン確認済みを意味せず、データ更新で取り消される場合があります。</p>
+        <div id="mdaMetrics" class="mda-metrics"></div>
+        <p class="hint">100機会・8人に満たない集計は「サンプル不足」と表示します。0%はその行動が存在しない証明ではありません。区間は同一プレイヤーの反復を補正していない参考値です。各内訳は独立した集計で、複数条件の同時絞り込みではありません。</p>
+        <p class="hint">検証中：ショートオールイン時のレイズ権を含む一部の判断機会は、追加検証が必要です。数値はGTOの推奨頻度ではありません。</p>
       </section>
 
       <section id="discussionView" class="view"><div class="section-head"><div><div class="eyebrow">OPEN TABLE</div><h3>戦略議論</h3></div><button id="newThreadBtn" class="primary">＋ 新規議論</button></div><div id="threads" class="threads"></div></section>
@@ -160,6 +149,6 @@
 
   <dialog id="modal"><button id="modalClose" class="modal-close">×</button><div id="modalBody"></div></dialog>
   <script src="/static/app.js?v=56"></script>
-  <script defer src="/static/mda-view.js?v=1"></script>
+  <script defer src="/static/mda-view.js?v=2"></script>
 </body>
 </html>

@@ -186,12 +186,12 @@ def run():
     app_js = (root / "app.js").read_text(encoding="utf-8")
     assert 'data-view="mda"' in html
     assert 'id="mdaView" class="view admin-only"' in html
-    assert 'mda-view.js?v=1' in html and 'mda-view.css?v=1' in html
+    assert 'mda-view.js?v=2' in html and 'mda-view.css?v=2' in html
     assert "mda:['POPULATION MDA','MDA分析']" in app_js
     assert "MutationObserver" in js and "active-view" in js
     assert "textContent" in js and ".innerHTML" not in js
     assert "setInterval(" not in js and "new WebSocket(" not in js
-    assert ".mda-matrix" in css and "overflow-x:auto" in css
+    assert ".mda-metrics" in css and ".mda-matrix" not in css
     db.raw.close()
     print("smoke_test_mda_admin_cache: PASS")
 

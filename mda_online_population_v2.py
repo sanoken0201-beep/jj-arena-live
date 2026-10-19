@@ -39,19 +39,23 @@ def _bucket(stack: float) -> str | None:
     return "100bb_plus"
 
 
-def _query_hands(con: Any, cursor: tuple[str, str] | None, limit: int) -> list[dict]:
+def _query_hands(con: Any, cursor: tuple[str, str] | None, limit: int, completed_before: str | None = None) -> list[dict]:
     base = """SELECT hand_id, player_count, big_blind, board_json, completed_at, partial_capture
               FROM jj_hand_history
               WHERE table_id IN ('jj-table-a','jj-table-b')
                 AND completed_at IS NOT NULL AND COALESCE(partial_capture,0)=0
                 AND player_count BETWEEN 2 AND 6"""
+    prefix = ()
+    if completed_before is not None:
+        base += " AND completed_at<=?"
+        prefix = (completed_before,)
     if cursor is not None:
         base += """ AND (completed_at>? OR (completed_at=? AND hand_id>?))"""
         values = (cursor[0], cursor[0], cursor[1], limit)
     else:
         values = (limit,)
     base += " ORDER BY completed_at,hand_id LIMIT ?"
-    return [dict(h) for h in con.execute(base, values).fetchall()]
+    return [dict(h) for h in con.execute(base, prefix + values).fetchall()]
 
 
 def _empty() -> dict:
@@ -97,7 +101,7 @@ def _publish_bucket(cell: dict, *, threshold: int = MIN_OPPORTUNITIES) -> dict:
 
 
 def audit_online_population(
-    con: Any, *, max_hands: int | None = None, batch_size: int = BATCH
+    con: Any, *, max_hands: int | None = None, batch_size: int = BATCH, completed_before: str | None = None
 ) -> dict:
     """Online Ring MDA: weighted counts of *eligible actual opportunities*.
 
@@ -119,7 +123,7 @@ def audit_online_population(
         limit = min(batch_size, max_hands-scanned) if max_hands is not None else batch_size
         if limit <= 0:
             break
-        batch = _query_hands(con, cursor, limit)
+        batch = _query_hands(con, cursor, limit, completed_before)
         if not batch:
             break
         scanned += len(batch)
@@ -219,7 +223,8 @@ def audit_online_population(
         "all_player_roles_included": True,
         "interpretation": "observed_population_action_frequencies_not_hand_range_membership",
         "coverage": {
-            "scope": "complete_history" if max_hands is None else "bounded_partial_scan",
+            "scope": ("complete_before_cutoff" if completed_before else "complete_history") if max_hands is None else "bounded_partial_scan",
+            "completed_before": completed_before,
             "complete_scan": max_hands is None,
             "hands_examined": scanned, "hands_accepted": good,
             "hands_rejected": sum(reject.values()), "rejection_reasons": dict(sorted(reject.items())),
