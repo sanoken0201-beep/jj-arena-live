@@ -48,6 +48,7 @@ def main() -> None:
             "smoke_test_mda_range_grid_coverage.py",
             "smoke_test_mda_admin_cache.py",
             "smoke_test_mda_online_population_v2.py",
+            "smoke_test_mda_population_api_v2.py",
             "smoke_test_runtime_observability.py",
             "smoke_test_rake_integrity_runtime_audit.py",
             "smoke_test_point_ledger_precision.py",

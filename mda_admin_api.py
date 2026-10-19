@@ -66,3 +66,20 @@ def install(app, server, db):
             "rollout": "legacy_range_retired",
             "message": "旧169ハンド推定は廃止しました。オンライン卓の行動頻度MDAへ移行中です。",
         }
+
+
+    @app.get("/api/admin/mda/population")
+    def mda_population(response: Response, admin=Depends(server.admin_user)):
+        from mda_population_snapshot_api import read_snapshot
+        response.headers["Cache-Control"] = "private, no-store"
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        path = os.environ.get("JJ_MDA_V2_SNAPSHOT_PATH")
+        if not path:
+            return {"status": "not_ready", "message": "行動頻度の集計データは準備中です。"}
+        try:
+            snapshot = read_snapshot(path)
+        except FileNotFoundError:
+            return {"status": "not_ready", "message": "集計ファイルはまだありません。"}
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, OverflowError):
+            raise HTTPException(503, "MDA集計データの更新・確認が必要です。")
+        return {"status": "ok", **snapshot}
