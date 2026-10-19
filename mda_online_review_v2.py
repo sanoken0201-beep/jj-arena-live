@@ -9,9 +9,32 @@ import json
 
 from mda_online_population_v2 import METRIC_ORDER, SOURCES, audit_online_population
 from mda_offline_audit import connect_read_only
+from mda_foundation import wilson_interval
+from mda_ranges import POSITIONS_BY_SIZE
 
 FORMAT = "mda-population-v2-review"
 MAX_BYTES = 500_000
+
+
+def _review_cell(cell: dict) -> dict:
+    """Revalidate each slice independently; serialize only approved fields."""
+    if not isinstance(cell, dict):
+        raise ValueError("invalid population cell")
+    if cell.get("status") == "insufficient_sample":
+        return {"status": "insufficient_sample"}
+    if cell.get("status") != "observed":
+        raise ValueError("invalid population status")
+    n, yes, players = (cell.get(k) for k in ("opportunities", "chosen", "unique_players"))
+    if (any(type(v) is not int for v in (n, yes, players))
+            or n < 100 or not 8 <= players <= n or not 0 <= yes <= n):
+        raise ValueError("privacy/denominator mismatch")
+    return {
+        "status": "observed", "opportunities": n, "chosen": yes,
+        "percentage": round(yes * 100 / n, 2),
+        "wilson_95_percent": wilson_interval(yes, n),
+        "interval_note": "binomial_descriptive_not_adjusted_for_repeated_players",
+        "interpretation": "frequency_of_actual_opportunities_not_range_membership",
+    }
 
 
 def prepare_review(report: dict) -> dict:
@@ -34,21 +57,27 @@ def prepare_review(report: dict) -> dict:
         values = {}
         for metric in METRIC_ORDER:
             raw = group["metrics"][metric]
-            observed = raw["overall"]
-            # Preserve publication thresholds. Missing/sparse cells remain
-            # suppressed, never encoded as zero-frequency decisions.
-            if observed["status"] != "observed":
-                values[metric] = {"status": "insufficient_sample"}
-            else:
-                n, yes = observed["opportunities"], observed["chosen"]
-                if n < 100 or observed["unique_players"] < 8 or not 0 <= yes <= n:
-                    raise ValueError("privacy/denominator mismatch")
-                values[metric] = {
-                    "status": "observed", "opportunities": n,
-                    "chosen": yes, "percentage": round(yes * 100 / n, 2),
-                    "wilson_95_percent": observed["wilson_95_percent"],
-                    "interpretation": "frequency_of_actual_opportunities_not_range_membership",
-                }
+            values[metric] = _review_cell(raw["overall"])
+            cuts = {}
+            allowed = {
+                "position": set(POSITIONS_BY_SIZE[int(size)]),
+                "pot_type": {"unraised", "srp", "3bet", "4bet_plus"},
+                "effective_stack": {"under_20bb", "20_to_39bb", "40_to_99bb", "100bb_plus"},
+                "board_texture": {
+                    f"{pair}:{suits}max"
+                    for pair in ("unpaired", "paired", "double_paired", "trips_plus")
+                    for suits in range(1, 6)
+                },
+            }
+            for dimension, cells in raw.get("cuts", {}).items():
+                if dimension not in allowed or not isinstance(cells, dict):
+                    raise ValueError("invalid breakdown dimension")
+                cuts[dimension] = {}
+                for label, cell in cells.items():
+                    if label not in allowed[dimension]:
+                        raise ValueError("invalid breakdown label")
+                    cuts[dimension][label] = _review_cell(cell)
+            values[metric]["cuts"] = cuts
         output[size] = {"completed_hands_used": int(group["completed_hands_used"]), "metrics": values}
     result = {
         "format_version": FORMAT, "game": "Ring",

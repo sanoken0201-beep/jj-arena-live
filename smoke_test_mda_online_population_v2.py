@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+from copy import deepcopy
 from mda_online_population_v2 import audit_online_population, MIN_OPPORTUNITIES
 from mda_online_review_v2 import prepare_review
 from smoke_test_mda_all_players import _db, _seed
@@ -71,6 +72,30 @@ def run():
         assert preview["format_version"] == "mda-population-v2-review"
         assert preview["no_hand_class_inference"] is True
         assert preview["cohorts_by_players_dealt_in"]["2"]["metrics"]["rfi"]["chosen"] == 0
+        reviewed_rfi = preview["cohorts_by_players_dealt_in"]["6"]["metrics"]["rfi"]
+        assert reviewed_rfi["cuts"]["position"]["BTN"]["percentage"] == 50
+        # A corrupted interval is recomputed; sparse cells cannot leak fields.
+        changed = deepcopy(report)
+        changed["cohorts_by_players_dealt_in"]["2"]["metrics"]["rfi"]["overall"]["wilson_95_percent"] = [0, 0]
+        repaired = prepare_review(changed)
+        assert repaired["cohorts_by_players_dealt_in"]["2"]["metrics"]["rfi"]["wilson_95_percent"][1] > 0
+        changed = deepcopy(report)
+        cell = changed["cohorts_by_players_dealt_in"]["6"]["metrics"]["rfi"]["cuts"]["position"]["BTN"]
+        cell["unique_players"] = 7
+        try:
+            prepare_review(changed)
+        except ValueError:
+            pass
+        else:
+            raise AssertionError("undersized slice was published")
+        changed = deepcopy(report)
+        changed["cohorts_by_players_dealt_in"]["6"]["metrics"]["rfi"]["cuts"]["user_id"] = {}
+        try:
+            prepare_review(changed)
+        except ValueError:
+            pass
+        else:
+            raise AssertionError("identity dimension was accepted")
         sensitive = json.dumps(report)
         for secret in ('"user_id"', '"actor_id"', '"hand_id"', "hole_cards_json", '"Ks"', '"5d"', "Member_"):
             assert secret not in sensitive, secret
@@ -79,6 +104,12 @@ def run():
         assert part["coverage"]["complete_scan"] is False
         assert part["coverage"]["hands_examined"] == 40
         assert part["coverage"]["scope"] == "bounded_partial_scan"
+        try:
+            prepare_review(part)
+        except ValueError:
+            pass
+        else:
+            raise AssertionError("partial report accepted")
     finally:
         raw.close()
     print("smoke_test_mda_online_population_v2: PASS")
