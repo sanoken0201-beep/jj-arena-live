@@ -6,11 +6,13 @@ Existing users keep the core's original login, rate-limiting and PIN behavior.
 """
 from __future__ import annotations
 
+import threading
 import unicodedata
 
 from fastapi import HTTPException
 
 _LOCK_KEY = 2026101901
+_NAME_LOCK = threading.RLock()  # Single-worker app: coordinates all application name writers.
 
 
 def identity_key(value: str) -> str:
@@ -121,22 +123,23 @@ def install(app, server, db) -> None:
             # Rate-limit validation BEFORE creating an account. The original
             # endpoint continues to account for incorrect PIN attempts.
             server._check_login_rate(request, login_id)
-            with db.connect() as con:
-                _serialize(con, db)
-                present = con.execute("SELECT id FROM users WHERE email=?", (login_id,)).fetchone()
-                if not present:
-                    if conflict(con, name):
-                        raise HTTPException(
-                            409,
-                            "似た名前のアカウントが既に存在します。別の名前を使用するか運営に確認してください",
+            with _NAME_LOCK:
+                with db.connect() as con:
+                    _serialize(con, db)
+                    present = con.execute("SELECT id FROM users WHERE email=?", (login_id,)).fetchone()
+                    if not present:
+                        if conflict(con, name):
+                            raise HTTPException(
+                                409,
+                                "似た名前のアカウントが既に存在します。別の名前を使用するか運営に確認してください",
+                            )
+                        db.insert_returning_id(
+                            con,
+                            "INSERT INTO users(name,email,password_hash,role,arena_chips,xp,approved,disabled,ranking_name,created_at) "
+                            "VALUES (?,?,?,?,?,?,?,?,?,?)",
+                            (name, login_id, db.hash_password(secret), "member", 0, 0, 1, 0, name, db.utcnow()),
                         )
-                    db.insert_returning_id(
-                        con,
-                        "INSERT INTO users(name,email,password_hash,role,arena_chips,xp,approved,disabled,ranking_name,created_at) "
-                        "VALUES (?,?,?,?,?,?,?,?,?,?)",
-                        (name, login_id, db.hash_password(secret), "member", 0, 0, 1, 0, name, db.utcnow()),
-                    )
-                    created = True
+                        created = True
         result = original_pin(payload=payload, response=response, request=request)
         if created:
             result = {**result, "created": True}
@@ -161,10 +164,20 @@ def install(app, server, db) -> None:
             # Lock across the original write: the wrapper and PIN registrations
             # serialize their name checks even when the endpoint opens a second
             # DB transaction for its canonical history migration.
-            with db.connect() as con:
-                _serialize(con, db)
-                if conflict(con, candidate, exclude_user_id=uid):
-                    raise HTTPException(409, "似た名前が他のアカウントで使用されています。別のランキング名を指定してください")
+            with _NAME_LOCK:
+                if getattr(db, "IS_POSTGRES", False):
+                    # Hold a PostgreSQL advisory lock while the existing
+                    # canonical endpoint completes its separate transaction.
+                    with db.connect() as con:
+                        _serialize(con, db)
+                        if conflict(con, candidate, exclude_user_id=uid):
+                            raise HTTPException(409, "似た名前が他のアカウントで使用されています。別のランキング名を指定してください")
+                        return original_admin(uid=uid, p=p, user=user)
+                # The canonical endpoint opens a new SQLite write connection:
+                # holding BEGIN IMMEDIATE here would deadlock that write.
+                with db.connect() as con:
+                    if conflict(con, candidate, exclude_user_id=uid):
+                        raise HTTPException(409, "似た名前が他のアカウントで使用されています。別のランキング名を指定してください")
                 return original_admin(uid=uid, p=p, user=user)
         return original_admin(uid=uid, p=p, user=user)
 
