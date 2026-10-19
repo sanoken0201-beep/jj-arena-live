@@ -171,13 +171,13 @@ def install(app, server, db) -> None:
                     with db.connect() as con:
                         _serialize(con, db)
                         if conflict(con, candidate, exclude_user_id=uid):
-                            raise HTTPException(409, "似た名前が他のアカウントで使用されています。別のランキング名を指定してください")
+                            raise HTTPException(409, f"ランキング名「{candidate}」は他のアカウント名と紛らわしいため使用できません")
                         return original_admin(uid=uid, p=p, user=user)
                 # The canonical endpoint opens a new SQLite write connection:
                 # holding BEGIN IMMEDIATE here would deadlock that write.
                 with db.connect() as con:
                     if conflict(con, candidate, exclude_user_id=uid):
-                        raise HTTPException(409, "似た名前が他のアカウントで使用されています。別のランキング名を指定してください")
+                        raise HTTPException(409, f"ランキング名「{candidate}」は他のアカウント名と紛らわしいため使用できません")
                 return original_admin(uid=uid, p=p, user=user)
         return original_admin(uid=uid, p=p, user=user)
 
