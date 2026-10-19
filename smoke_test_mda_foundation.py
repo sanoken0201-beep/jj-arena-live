@@ -107,6 +107,39 @@ def run():
         (30, True),
     ]
 
+    # An opener's 4bet belongs in fold-to-3bet's denominator as a non-fold.
+    for response in ("raise", "allin_raise"):
+        reply = three[:3] + [_a(4, 10, "preflop", response, amount=2700, facing=600)]
+        responses = [o for o in _events(_hand("opener-4bet"), reply)
+                     if o.metric == "fold_to_three_bet"]
+        assert [(o.actor_id, o.chosen, o.response) for o in responses] == [
+            (10, False, response)]
+
+    # Check-raises against a cbet count as non-folds.
+    for response in ("raise", "allin_raise", "call", "allin_call", "fold"):
+        reply = flop_actions[:5] + [
+            _a(6, 30, "flop", response, pot=750, amount=450, facing=150)]
+        responses = [o for o in _events(_hand("cbet-response", board=board), reply)
+                     if o.metric == "fold_to_flop_cbet"]
+        assert [(o.actor_id, o.chosen) for o in responses] == [(30, response == "fold")]
+
+    # In a multiway pot only the raiser, not the player facing that raise,
+    # enters the direct fold-to-cbet denominator.
+    multiway = [
+        _a(1, 10, "preflop", "raise", amount=300),
+        _a(2, 20, "preflop", "call", amount=250),
+        _a(3, 30, "preflop", "call", amount=200),
+        _a(4, 20, "flop", "check", pot=900),
+        _a(5, 30, "flop", "check", pot=900),
+        _a(6, 10, "flop", "raise", pot=900, amount=300),
+        _a(7, 20, "flop", "raise", pot=1200, amount=900, facing=300),
+        _a(8, 30, "flop", "fold", pot=2100, facing=900),
+        _a(9, 10, "flop", "fold", pot=2100, facing=600),
+    ]
+    responses = [o for o in _events(_hand("multiway", board=board), multiway)
+                 if o.metric == "fold_to_flop_cbet"]
+    assert [(o.actor_id, o.chosen) for o in responses] == [(20, False)]
+
     # Raise versus donk is not a continuation bet; the raise has no first-bet %.
     donk = flop_actions[:3] + [
         _a(4, 30, "flop", "raise", pot=600, amount=150),

@@ -48,3 +48,19 @@ No merge, Render environment modification, scheduled job, direct production quer
 If a future phase introduces class-level frequencies, it must distinguish P(open | **dealt** class, eligible opportunity) from P(class | **observed open**) and from the underlying unknown strategy. Zero observed opens and unavailable dealt cards are not equivalent. No class may be declared excluded based solely on nonobservation.
 
 References for methodology: GTO Wizard Aggregate Reports (aggregation conditioned on contexts); Poker MDA mass data analysis descriptions (population frequencies by spot); PokerTracker opportunity-based HUD counting.
+
+## Completion progress — 2026-10-19
+
+- Correct direct response denominators: the opener's own 4bet is a non-fold against a 3bet; a raise against a flop cbet is a non-fold against that cbet. A later actor facing the new raise is excluded from the original direct-response statistic.
+- The read-only review now retains independent position, pot type, effective starting stack and board-texture slices within each table-size cohort. Each observed slice is revalidated against the 100-opportunity / 8-player threshold, with a whitelist of dimensions and labels.
+- Review percentages and Wilson bounds are recomputed from validated integer counts rather than trusting serialized statistics. Unknown statuses, private dimensions and partial scans are rejected.
+- Regression coverage includes opener 4bets, check-raises, all-in responses, multiway intervening raises, slice privacy and zero-observation uncertainty.
+
+Still required before production readiness:
+1. Audit genuine production record coverage and representative action sequences read-only. Synthetic fixtures do not establish production correctness.
+2. Resolve raise eligibility for short all-ins / action reopening from authoritative stack and wager state; current action records alone do not establish all eligible 3bet opportunities.
+3. Replace the retired grid UI and connect a delayed, validated v2 snapshot API; no production publishing is added here.
+4. Validate the full stacked change against current main and run its release gates before merge.
+5. Treat Sit&Go as a separate population if implemented; never pool it with Ring.
+
+These changes are development-only and do not modify production data or enable publication.

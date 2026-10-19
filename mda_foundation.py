@@ -222,10 +222,11 @@ def derive_opportunities(decisions: Sequence[Decision]) -> tuple[Opportunity, ..
                 break
         if three_bet_index is not None:
             for d in pre[three_bet_index + 1:]:
-                if d.aggressive:  # A different 4bet before opener responds invalidates direct response.
-                    break
                 if d.actor_id == opener.actor_id:
+                    # A 4bet by the opener is a non-fold response to the 3bet.
                     out.append(_op("fold_to_three_bet", d, d.action == FOLD))
+                    break
+                if d.aggressive:  # Another player's 4bet changes the faced wager.
                     break
 
     if opener_index is not None:
@@ -240,12 +241,16 @@ def derive_opportunities(decisions: Sequence[Decision]) -> tuple[Opportunity, ..
                 if first.aggressive:
                     seen: set[int] = set()
                     for d in flop[pfa_first_index + 1:]:
-                        if d.aggressive:
-                            break  # After a raise, the original cbet is no longer directly faced.
-                        if d.actor_id == pfa or d.actor_id in seen:
+                        if d.actor_id == pfa:
+                            break
+                        if d.actor_id in seen:
                             continue
                         seen.add(d.actor_id)
+                        # The raiser faced the original cbet too; count that
+                        # non-fold before ending eligibility for later actors.
                         out.append(_op("fold_to_flop_cbet", d, d.action == FOLD))
+                        if d.aggressive:
+                            break
     return tuple(out)
 
 
