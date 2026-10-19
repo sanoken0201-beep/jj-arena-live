@@ -1,0 +1,178 @@
+"""Block confusable new member accounts and active ranking aliases.
+
+The canonical PIN endpoint doubles as registration.  Install an explicit
+transactional registration guard instead of modifying the immutable core.
+Existing users keep the core's original login, rate-limiting and PIN behavior.
+"""
+from __future__ import annotations
+
+import unicodedata
+
+from fastapi import HTTPException
+
+_LOCK_KEY = 2026101901
+
+
+def identity_key(value: str) -> str:
+    """NFKC/casefold, hiragana -> katakana, remove visual separators."""
+    text = unicodedata.normalize("NFKC", str(value or "")).casefold()
+    chars = []
+    for ch in text:
+        code = ord(ch)
+        if 0x3041 <= code <= 0x3096:
+            ch = chr(code + 0x60)
+        if ch.isspace() or ch in ("・", "･", "-", "_", "\u200b", "\u200c", "\u200d"):
+            continue
+        chars.append(ch)
+    return "".join(chars)
+
+
+def one_edit_or_swap(left: str, right: str) -> bool:
+    """One insertion, deletion, replacement or adjacent transposition."""
+    if left == right:
+        return True
+    if abs(len(left) - len(right)) > 1:
+        return False
+    if len(left) == len(right):
+        differing = [i for i, (a, b) in enumerate(zip(left, right)) if a != b]
+        return (len(differing) == 1 or (
+            len(differing) == 2
+            and differing[1] == differing[0] + 1
+            and left[differing[0]] == right[differing[1]]
+            and left[differing[1]] == right[differing[0]]
+        ))
+    shorter, longer = sorted((left, right), key=len)
+    i = j = errors = 0
+    while i < len(shorter) and j < len(longer):
+        if shorter[i] == longer[j]:
+            i += 1
+            j += 1
+        else:
+            errors += 1
+            j += 1
+            if errors > 1:
+                return False
+    return True
+
+
+def confusable(left: str, right: str) -> bool:
+    a, b = identity_key(left), identity_key(right)
+    if not a or not b:
+        return False
+    if a == b:
+        return True
+    # Short Japanese nicknames are too collision-prone for edit-distance
+    # filtering. Still block exact normalized and separator-only variants.
+    return min(len(a), len(b)) >= 3 and one_edit_or_swap(a, b)
+
+
+def conflict(con, candidate: str, *, exclude_user_id: int | None = None) -> bool:
+    # Disabled users retain ownership of their names; deleted generations do not.
+    query = "SELECT id,name,ranking_name FROM users WHERE deleted_at IS NULL"
+    args = []
+    if exclude_user_id is not None:
+        query += " AND id<>?"
+        args.append(exclude_user_id)
+    for row in con.execute(query, args).fetchall():
+        if confusable(candidate, row["name"]) or confusable(candidate, row["ranking_name"]):
+            return True
+    return False
+
+
+def _serialize(con, db) -> None:
+    # Registration and admin name edits must acquire this same lock BEFORE
+    # reading possible competitors. SQLite CI and production PostgreSQL agree.
+    if getattr(db, "IS_POSTGRES", False):
+        con.execute("SELECT pg_advisory_xact_lock(?)", (_LOCK_KEY,))
+    else:
+        con.execute("BEGIN IMMEDIATE")
+
+
+def _route(app, path: str, method: str):
+    return next((
+        r for r in app.router.routes
+        if getattr(r, "path", None) == path
+        and method in (getattr(r, "methods", None) or set())
+    ), None)
+
+
+def install(app, server, db) -> None:
+    if getattr(app.state, "jj_account_name_safety_installed", False):
+        return
+    pin = _route(app, "/api/auth/pin", "POST")
+    admin = _route(app, "/api/admin/console/users/{uid}", "PATCH")
+    if not pin or not admin or not getattr(pin, "dependant", None) or not getattr(admin, "dependant", None):
+        raise RuntimeError("account name safety requires active PIN and canonical admin routes")
+
+    original_pin = pin.dependant.call
+    original_admin = admin.dependant.call
+
+    def safe_pin(payload, response, request):
+        name = server.normalize_login_name(payload.name)
+        secret = server.validate_pin(payload.pin)
+        login_id = server.internal_login_id(name)
+        created = False
+
+        # No new-account policy is applied to existing logins: they must still
+        # be able to sign in or receive the normal incorrect-PIN response.
+        with db.connect() as con:
+            present = con.execute("SELECT id FROM users WHERE email=?", (login_id,)).fetchone()
+        if not present:
+            # Rate-limit validation BEFORE creating an account. The original
+            # endpoint continues to account for incorrect PIN attempts.
+            server._check_login_rate(request, login_id)
+            with db.connect() as con:
+                _serialize(con, db)
+                present = con.execute("SELECT id FROM users WHERE email=?", (login_id,)).fetchone()
+                if not present:
+                    if conflict(con, name):
+                        raise HTTPException(
+                            409,
+                            "似た名前のアカウントが既に存在します。別の名前を使用するか運営に確認してください",
+                        )
+                    db.insert_returning_id(
+                        con,
+                        "INSERT INTO users(name,email,password_hash,role,arena_chips,xp,approved,disabled,ranking_name,created_at) "
+                        "VALUES (?,?,?,?,?,?,?,?,?,?)",
+                        (name, login_id, db.hash_password(secret), "member", 0, 0, 1, 0, name, db.utcnow()),
+                    )
+                    created = True
+        result = original_pin(payload=payload, response=response, request=request)
+        if created:
+            result = {**result, "created": True}
+        return result
+
+    def safe_admin_update(uid, p, user):
+        # Preserve harmless repairs for historical duplicate mappings. Enforce
+        # the rule only when changing an active alias or re-enabling a member.
+        with db.connect() as con:
+            row = con.execute(
+                "SELECT ranking_name,name,disabled,deleted_at FROM users WHERE id=?",
+                (uid,),
+            ).fetchone()
+        if not row or row["deleted_at"]:
+            return original_admin(uid=uid, p=p, user=user)
+        old = str(row["ranking_name"] or row["name"])
+        proposed = getattr(p, "ranking_name", None)
+        candidate = str(proposed).strip() if proposed is not None else old
+        current_disabled = bool(row["disabled"])
+        new_disabled = current_disabled if getattr(p, "disabled", None) is None else bool(p.disabled)
+        if (not new_disabled and (candidate != old or (current_disabled and p.disabled is False))):
+            # Lock across the original write: the wrapper and PIN registrations
+            # serialize their name checks even when the endpoint opens a second
+            # DB transaction for its canonical history migration.
+            with db.connect() as con:
+                _serialize(con, db)
+                if conflict(con, candidate, exclude_user_id=uid):
+                    raise HTTPException(409, "似た名前が他のアカウントで使用されています。別のランキング名を指定してください")
+                return original_admin(uid=uid, p=p, user=user)
+        return original_admin(uid=uid, p=p, user=user)
+
+    pin.dependant.call = safe_pin
+    pin.endpoint = safe_pin
+    admin.dependant.call = safe_admin_update
+    admin.endpoint = safe_admin_update
+    app.state.jj_account_name_safety_installed = True
+
+
+__all__ = ["confusable", "identity_key", "install"]
