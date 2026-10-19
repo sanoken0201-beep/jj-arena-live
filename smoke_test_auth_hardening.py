@@ -122,8 +122,9 @@ def run() -> None:
         assert admin.json()["user"]["role"] == "admin"
 
         # Admin aliases cannot bypass the same confusable-name policy.
+        second_id = int(second.json()["user"]["id"])
         blocked_alias = client.patch(
-            f"/api/admin/console/users/{member_id}",
+            f"/api/admin/console/users/{second_id}",
             json={"ranking_name": "セキュリティテスド"},
         )
         assert blocked_alias.status_code == 409, blocked_alias.text
