@@ -12,7 +12,7 @@ SELECT l.id, 'orphan_user' AS anomaly FROM point_ledger l
 LEFT JOIN users u ON u.id=l.user_id WHERE u.id IS NULL;
 SELECT id,kind,amount FROM point_ledger
 WHERE amount::text IN ('NaN','Infinity','-Infinity')
- OR (kind='quiz_reward' AND amount<>10)
+ OR (kind='quiz_reward' AND amount NOT IN (5,10))
  OR (kind='credit' AND amount<=0) OR (kind='collection' AND amount>=0)
  OR (kind='sitngo_entry' AND amount>=0)
  OR (kind IN ('sitngo_refund','sitngo_prize') AND amount<=0)
@@ -74,8 +74,8 @@ SELECT reversal_of,count(*) FROM point_ledger WHERE reversal_of IS NOT NULL
 GROUP BY reversal_of HAVING count(*)>1;
 SELECT q.id,'quiz_ledger_mismatch' AS anomaly FROM quiz_daily_answers q
 LEFT JOIN point_ledger l ON l.id='dq3-'||q.id
-WHERE (q.answer IS NOT NULL AND (q.reward_awarded<>10 OR l.id IS NULL
- OR l.kind<>'quiz_reward' OR l.amount<>10 OR l.user_id<>q.user_id))
+WHERE (q.answer IS NOT NULL AND (q.reward_awarded NOT IN (5,10) OR l.id IS NULL
+ OR l.kind<>'quiz_reward' OR l.amount<>q.reward_awarded OR l.user_id<>q.user_id))
  OR (q.answer IS NULL AND (q.reward_awarded<>0 OR l.id IS NOT NULL));
 SELECT l.id,'orphan_daily_quiz_ledger' AS anomaly FROM point_ledger l
 LEFT JOIN quiz_daily_answers q ON l.id='dq3-'||q.id

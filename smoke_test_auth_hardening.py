@@ -32,6 +32,31 @@ def run() -> None:
         assert member_login.json()["created"] is True
         member_id = int(member_login.json()["user"]["id"])
 
+        from account_name_safety import confusable, identity_key
+        assert identity_key(" せきゅりてぃ・てすと ") == "セキュリティテスト"
+        assert confusable("タロウ", "タロー")
+        assert confusable("ナカ・ムラ", "ナカムラ")
+        assert confusable("カズキ", "カズギ")
+        assert not confusable("リオ", "リク")  # short legitimate names
+
+        # Exact canonical login still works; it must not create a new account.
+        repeat = client.post(
+            "/api/auth/pin",
+            json={"name": "せきゅりてぃ てすと", "pin": "123456"},
+        )
+        assert repeat.status_code == 200, repeat.text
+        assert repeat.json()["created"] is False
+        assert int(repeat.json()["user"]["id"]) == member_id
+
+        for similar in ("セキュリティテスド", "セキュリティテストー"):
+            denied = client.post(
+                "/api/auth/pin", json={"name": similar, "pin": "666666"},
+            )
+            assert denied.status_code == 409, denied.text
+            with production.db.connect() as con:
+                row = con.execute("SELECT id FROM users WHERE name=?", (similar,)).fetchone()
+            assert row is None
+
         set_cookie = member_login.headers.get("set-cookie", "")
         lower_cookie = set_cookie.lower()
         assert "__host-jj_session=" in lower_cookie, set_cookie
@@ -95,6 +120,20 @@ def run() -> None:
         )
         assert admin.status_code == 200, admin.text
         assert admin.json()["user"]["role"] == "admin"
+
+        # Admin aliases cannot bypass the same confusable-name policy.
+        second_id = int(second.json()["user"]["id"])
+        blocked_alias = client.patch(
+            f"/api/admin/console/users/{second_id}",
+            json={"ranking_name": "セキュリティテスド"},
+        )
+        assert blocked_alias.status_code == 409, blocked_alias.text
+        # Current user's own name is not considered a conflicting identity.
+        safe_alias = client.patch(
+            f"/api/admin/console/users/{member_id}",
+            json={"ranking_name": "セキュリティテスト"},
+        )
+        assert safe_alias.status_code == 200, safe_alias.text
 
         retired = client.post(
             f"/api/admin/console/users/{member_id}/verify-pin",

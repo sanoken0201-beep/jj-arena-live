@@ -41,10 +41,13 @@ def main() -> None:
             assert conflict.status_code == 409, conflict.text
             assert MAPPING in conflict.text
 
-            # A disabled mapping can be prepared without affecting the live
-            # ranking; the conflict is enforced when it would become active.
+            # Disabled accounts still own their identity: no new alias may
+            # impersonate them. Pre-existing historical duplicates remain
+            # administratively recoverable but cannot be re-enabled.
             _patch(client, first_id, {"disabled": True})
-            _patch(client, second_id, {"ranking_name": MAPPING})
+            _patch(client, second_id, {"ranking_name": MAPPING}, status=409)
+            with production.db.connect() as con:
+                con.execute("UPDATE users SET ranking_name=? WHERE id=?", (MAPPING, second_id))
             reenable = client.patch(
                 f"/api/admin/console/users/{first_id}",
                 json={"disabled": False},

@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import json
 import os
+from pathlib import Path
 import sys
 import uuid
 from concurrent.futures import ThreadPoolExecutor
@@ -22,6 +23,12 @@ from smoke_test_learning_integration import isolated_production_app, login, json
 
 
 def bank_checks():
+    # Keep the operator's read-only SQL audit in sync with both current
+    # reward amounts and historical 10pt-only daily sets.
+    audit_sql = (Path(__file__).resolve().parent / "ops" / "point_integrity_audit.sql").read_text(encoding="utf-8")
+    assert "kind='quiz_reward' AND amount NOT IN (5,10)" in audit_sql
+    assert "q.reward_awarded NOT IN (5,10)" in audit_sql
+    assert "l.amount<>q.reward_awarded" in audit_sql
     assert len(dq.POOLS) == 10
     assert all(len(pool) == 30 for pool in dq.POOLS.values())
     assert len({q['key'] for pool in dq.POOLS.values() for q in pool}) == 300
@@ -204,7 +211,7 @@ def run(postgres=False):
         name_suffix = ''.join('アイウエオカキクケコサシスセソタ'[int(c,16)] for c in suffix)
         with TestClient(app, base_url="https://testserver") as a, TestClient(app, base_url="https://testserver") as b, TestClient(app, base_url="https://testserver") as anon:
             uid = login(a, 'クイズア'+name_suffix, '123456')['id']
-            other = login(b, 'クイズイ'+name_suffix, '234567')['id']
+            other = login(b, 'ベツクイズイ'+name_suffix, '234567')['id']
             json_response(anon.get('/api/quiz/question'), 401)
             json_response(a.get('/api/admin/console/quiz-stats'), 403)
             json_response(anon.get('/api/admin/console/quiz-stats'), 401)
