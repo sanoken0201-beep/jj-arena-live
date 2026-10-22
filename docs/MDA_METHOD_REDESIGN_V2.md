@@ -1,0 +1,94 @@
+# MDA v2 — online-table empirical population statistics
+
+## Methodological reset (2026-10-16)
+
+The previous MDA design used a small number of observed starting-hand decisions as seeds and interpolated plus-ranges such as K5o+ for **unobserved** kickers. That does NOT follow from the data and must not be called an inferred range. All prior draft PRs #200–#208 are unmerged, and the legacy 169-class grid is RETIRED as a primary MDA report. A poker hand class not observed in play is not evidence of a zero opening strategy, and even a zero observed rate with actual opportunities still has a nonzero statistical upper bound.
+
+**New objective:** study population tendencies in the same spirit as conventional mass data analysis, using only actual completed **JJ Arena online Ring tables** and their server-recorded structured hand histories. A simple statistic is actions chosen / eligible opportunities in a precisely defined situation, NOT how many different hand classes appear in the sample.
+
+Examples (illustrative, not JJ live data):
+- 3-bet: 12 raises / 100 genuine first-3-bet opportunities => observed 12%. The other hands in which no raise was faced do NOT enter this denominator.
+- K5o never seen: unknown availability and unknown inclusion. No plus-extension to K6o..KQo is permitted.
+- 0 bets / 120 valid betting opportunities: descriptive point estimate 0%, but the true frequency is not proven to be 0%. Never call it an excluded strategy/hand. Wilson uncertainty must be displayed alongside the sample.
+
+## Authoritative source
+
+The hand pipeline is already installed in hand_analytics.py; it records complete online Ring hands to:
+- jj_hand_history: IDs, official online table IDs, timestamps, participation, blinds and board.
+- jj_hand_players: dealt-in members and seats/positions; the server also stores private hole cards, but **v2 never SELECTs these columns**.
+- jj_hand_actions: actions, recorded pot before bet, facing amount, action sequence, street and timeout status.
+
+V2 queries only fully captured completed hands with source table_id in (jj-table-a, jj-table-b). It rejects wrong/partial/unfinished histories and noncanonical player/position/action records. Both members and administrators are included; no user role predicate is applied. Hands from unrelated/custom tables are excluded. The format is Ring only; Sit&Go is a different tournament population and is NOT pooled into v2, even though the application hosts online Sit&Go games.
+
+## What is aggregated
+
+From mda_foundation.py, the first supported decision types are:
+- RFI: chance to voluntarily open before another player enters, recorded by position.
+- 3-bet: facing a previous open with a real response chance.
+- Fold to 3-bet: opener directly facing the first 3-bet.
+- Flop c-bet: preflop aggressor acting without a preceding flop bet.
+- Fold to flop c-bet: direct chance to respond to a flop c-bet.
+
+Every metric retains its own eligible denominator, outcome counts and Wilson-style descriptive interval; action timeouts are excluded from *voluntary strategic decisions*. Stratifications are independent: actual 2–6 player table size, position, pot type, effective starting stack bucket and (postflop) board texture. Do not blindly multiply all dimensions into sparsely populated micro-cohorts. The current extractor does not yet establish a complete taxonomy of multiway/pot-size subtleties, so the metric definitions must continue to be audited against realistic sequences before broad claims.
+
+Suppression: 100 metric opportunities AND 8 distinct contributing players per public reportable cell, otherwise only "insufficient_sample" appears. Suppression does not mean zero. Wilson bounds currently do not adjust for repeated decisions by the same individuals. The sample can be unrepresentative of other games/stakes/time periods. No solver or GTO benchmark is assumed; solver comparison would require matched rake, effective stacks, format and exact decision node.
+
+## Code and migration
+
+- mda_online_population_v2.py: read-only, cursor-paginated scanner. No private cards, player names or IDs in serialized output; no live hand or WebSocket integration. CLI supports --sqlite and a clearly partial --max-hands diagnostic.
+- mda_online_review_v2.py: prepares a privacy-suppressed **read-only aggregate review** from a verified complete online-source scan. This does not publish a dashboard or modify PostgreSQL.
+- smoke_test_mda_online_population_v2.py: simultaneous Table A/B records, no decisions mislabeled excluded, a 0/N case with nonzero Wilson upper bound, 2/3/6 player independence, absence of hole-card SQL reads and partial sample rejection.
+- mda_admin_api.py: the OLD admin 169-class grid endpoint remains authenticated but always returns not_ready; it never queries any legacy inferred range cache, regardless of past flags.
+- mda_snapshot_cache.py: the old plus-inference snapshot CLI terminates before querying or writing any DB. The old 169 range and test utilities remain only for historical compatibility/tests; they must not be republished or reused as v2 empirical conclusions.
+
+### Production operations
+
+No merge, Render environment modification, scheduled job, direct production query, cache publication or frontend-data release occurs with this methodology reset. Before future deployment and live analysis: review the source and decision-denominator definitions, obtain actual Table A/B anonymous coverage and analyze a small sample offline on the internal network, then choose cost/refresh windows. A redesigned dashboard should present opportunity-conditioned actions, sample counts, reliability and contexts, NOT filled-in 169 opening grids. Privacy and delayed/suppressed results remain required.
+
+If a future phase introduces class-level frequencies, it must distinguish P(open | **dealt** class, eligible opportunity) from P(class | **observed open**) and from the underlying unknown strategy. Zero observed opens and unavailable dealt cards are not equivalent. No class may be declared excluded based solely on nonobservation.
+
+References for methodology: GTO Wizard Aggregate Reports (aggregation conditioned on contexts); Poker MDA mass data analysis descriptions (population frequencies by spot); PokerTracker opportunity-based HUD counting.
+
+## Completion progress — 2026-10-19
+
+- Correct direct response denominators: the opener's own 4bet is a non-fold against a 3bet; a raise against a flop cbet is a non-fold against that cbet. A later actor facing the new raise is excluded from the original direct-response statistic.
+- The read-only review now retains independent position, pot type, effective starting stack and board-texture slices within each table-size cohort. Each observed slice is revalidated against the 100-opportunity / 8-player threshold, with a whitelist of dimensions and labels.
+- Review percentages and Wilson bounds are recomputed from validated integer counts rather than trusting serialized statistics. Unknown statuses, private dimensions and partial scans are rejected.
+- Regression coverage includes opener 4bets, check-raises, all-in responses, multiway intervening raises, slice privacy and zero-observation uncertainty.
+
+Still required before production readiness:
+1. Audit genuine production record coverage and representative action sequences read-only. Synthetic fixtures do not establish production correctness.
+2. Resolve raise eligibility for short all-ins / action reopening from authoritative stack and wager state; current action records alone do not establish all eligible 3bet opportunities.
+3. Replace the retired grid UI and connect a delayed, validated v2 snapshot API; no production publishing is added here.
+4. Validate the full stacked change against current main and run its release gates before merge.
+5. Treat Sit&Go as a separate population if implemented; never pool it with Ring.
+
+These changes are development-only and do not modify production data or enable publication.
+
+## V2 dashboard and offline snapshot adapter — 2026-10-19
+
+The admin view now shows five opportunity-conditioned metrics, with independent table-size and breakdown controls, counts, descriptive Wilson intervals and explicit insufficient-sample states. The retired grid endpoint remains disabled. Sit&Go is not offered in this Ring-only view.
+
+The new GET /api/admin/mda/population is authenticated as admin before any snapshot read. It reads only the operator-configured JJ_MDA_V2_SNAPSHOT_PATH; no request queries the database or starts aggregation. The file is capped at 2 MB, and every returned cell is reprojected through prepare_review (approved fields only, thresholds reapplied). Missing configuration/file returns not_ready; invalid, incomplete, future, stale or non-delayed data returns 503. Response caching is disabled.
+
+Offline preparation: mda_online_snapshot_v2.py --sqlite PATH exports JSON to stdout from a read-only transaction. Without --sqlite it uses the existing read-only connection configuration. Its query cutoff is 24 hours before export start, stored in coverage and checked by the API. Exports expire seven days after generation. An operator can stage a reviewed export on the server and configure its path; neither a production export nor environment change is performed by this implementation. Refresh is manual; no scheduler is installed. Use atomic file replacement when publishing an export.
+
+Caveats: this is a review dashboard, not production validation of the underlying decision extractor. In particular facing_chips is capped at the acting player's stack in the recorder, so it cannot by itself reconstruct raise eligibility. Short-all-in/reopening logic remains unresolved. Production deployment still requires the real-record audit, stack integration and release gates described above.
+
+## Runtime eligibility recording — 2026-10-19
+
+Aggression opportunity denominators now require a recorded pre-action capability from the same runtime legal_actions function used by the game. Both full raises and legal short all-in increases qualify. All-in calls and closed raise rights do not. A lookup failure records unknown; it does not stop gameplay or infer legality from the action eventually chosen.
+
+The recorder writes a nullable capability to jj_hand_action_eligibility keyed by (hand_id, seq), within the action-record transaction. The additive table has a cascading foreign key to the action log. No existing rows are backfilled or guessed. This schema code has only run in isolated test databases in this task.
+
+The v2 scanner handles a missing table or missing row as unknown. For RFI, 3bet and flop cbet, unknown and unavailable opportunities are excluded from BOTH numerator and denominator. Coverage reports their counts. Fold-response metrics continue to use direct response opportunities. The review/API requires eligibility_policy=recorded_runtime_capability_v1, rejecting older exports; deployment must regenerate its snapshot. On a history without capability records, aggression metrics will show insufficient_sample rather than misleading estimates.
+
+This resolves capability tracking relative to the application's current game rules. It does not independently certify the poker engine's rule implementation. Production data coverage, PostgreSQL integration, main-branch stack integration and browser layout validation remain outstanding.
+
+Validation: new runtime-legality/unknown-history smoke test; real hand recorder integration confirms one capability row per action; delayed API rejects old policy; population/foundation/legacy API tests pass. Refreshed the materialized manifest for the dashboard assets, fixing the integration failure introduced by the preceding UI changes. Runtime snapshot integrity and test ownership checks also pass.
+
+## Integrated release candidate — 2026-10-22
+
+Merged current main (0d968323) into the MDA development branch without conflicts, preserving the account-name and point-integrity work. Ran the real production_release_gate.py (not only its mocked contract test) against isolated SQLite databases: all 58 tests in seven groups passed. No production environment or data was changed.
+
+Production read-only coverage audit is pending workspace selection: the Render connector has no selected workspace and explicitly requires user confirmation of the listed workspace before queries. PostgreSQL integration, real-data coverage and browser visual validation remain release limitations. Earlier #200–#212 drafts are represented by this integrated candidate rather than needing sequential merges.
