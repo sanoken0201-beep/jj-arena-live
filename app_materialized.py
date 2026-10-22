@@ -23,6 +23,7 @@ import admin_role_delegation
 import admin_bootstrap_guard
 import season_management
 import hand_analytics
+import mda_admin_api
 import hand_analytics_hardening
 import hand_history_visibility
 import learning_content
@@ -188,4 +189,7 @@ operations_learning.install(app, runtime_server, db, hand_analytics, daily_quiz,
 operations_learning_hardening.apply(operations_learning, db, hand_analytics)
 resilience.install(app, runtime_server, db, admin_console)
 ux_telemetry.install(app, runtime_server, db)
+# Only a single index-cache read when authorized admins open the MDA view.
+# Full-history population scans run exclusively from offline MDA jobs.
+mda_admin_api.install(app, runtime_server, db)
 _prioritize_extension_routes(app, _CORE_ROUTE_IDS)

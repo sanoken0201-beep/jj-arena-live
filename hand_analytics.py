@@ -11,6 +11,7 @@ from typing import Any
 from fastapi import Depends, HTTPException, Query
 from fastapi.responses import PlainTextResponse
 from pydantic import BaseModel, Field
+from mda_action_eligibility import can_increase_wager
 
 _DB = None
 _SERVER = None
@@ -170,6 +171,14 @@ def _ensure_schema() -> None:
             );
             CREATE INDEX IF NOT EXISTS idx_jj_hand_actions_user
               ON jj_hand_actions(user_id,hand_id);
+
+            CREATE TABLE IF NOT EXISTS jj_hand_action_eligibility(
+              hand_id TEXT NOT NULL,
+              seq INTEGER NOT NULL,
+              can_increase_wager INTEGER,
+              PRIMARY KEY(hand_id,seq),
+              FOREIGN KEY(hand_id,seq) REFERENCES jj_hand_actions(hand_id,seq) ON DELETE CASCADE
+            );
 
             CREATE TABLE IF NOT EXISTS jj_hand_snapshots(
               hand_id TEXT NOT NULL REFERENCES jj_hand_history(hand_id) ON DELETE CASCADE,
@@ -672,6 +681,12 @@ def _record_action(context: dict[str, Any]) -> None:
                 ),
             )
 
+            con.execute(
+                """INSERT INTO jj_hand_action_eligibility(hand_id,seq,can_increase_wager)
+                   VALUES (?,?,?)""",
+                (hand_id, seq, context.get("can_increase_wager")),
+            )
+
 
 def _wrap_runtime() -> None:
     global _ORIGINAL_SAVE_TABLE, _ORIGINAL_APPLY_ACTION
@@ -718,8 +733,16 @@ def _wrap_runtime() -> None:
                 target = _as_int(amount)
                 paid = max(0, target - round_bet)
                 aggressive = 1
+            # Query the same runtime used by the table before mutating state.
+            # Recording must not block gameplay if capability lookup fails.
+            try:
+                capability = can_increase_wager(
+                    _SERVER.legal_actions(state, user_id), current_bet)
+            except Exception:
+                capability = None
             decision_seconds, timed_out = _decision_time(hand.get("action_deadline"))
             context = {
+                "can_increase_wager": capability,
                 "state_before": json.loads(json.dumps(state)),
                 "hand_id": str(hand.get("id")),
                 "user_id": _as_int(user_id),
