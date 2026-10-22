@@ -34,10 +34,14 @@ def run() -> None:
 
         from account_name_safety import confusable, identity_key
         assert identity_key(" せきゅりてぃ・てすと ") == "セキュリティテスト"
-        assert confusable("タロウ", "タロー")
         assert confusable("ナカ・ムラ", "ナカムラ")
-        assert confusable("カズキ", "カズギ")
-        assert not confusable("リオ", "リク")  # short legitimate names
+        assert confusable("けんじ", "ケンジ")
+        assert confusable("ＫＥＮＪＩ", "kenji")
+        # Neighboring spelling and phonetic similarity do not prove one identity.
+        assert not confusable("タロウ", "タロー")
+        assert not confusable("カズキ", "カズギ")
+        assert not confusable("ケンジ", "ケンタ")
+        assert not confusable("リオ", "リク")
 
         # Exact canonical login still works; it must not create a new account.
         repeat = client.post(
@@ -48,14 +52,20 @@ def run() -> None:
         assert repeat.json()["created"] is False
         assert int(repeat.json()["user"]["id"]) == member_id
 
-        for similar in ("セキュリティテスド", "セキュリティテストー"):
-            denied = client.post(
-                "/api/auth/pin", json={"name": similar, "pin": "666666"},
+        # Legitimate one-edit names must not be rejected as impersonation.
+        for distinct in ("セキュリティテスド", "セキュリティテストー"):
+            allowed = client.post(
+                "/api/auth/pin", json={"name": distinct, "pin": "666666"},
             )
-            assert denied.status_code == 409, denied.text
-            with production.db.connect() as con:
-                row = con.execute("SELECT id FROM users WHERE name=?", (similar,)).fetchone()
-            assert row is None
+            assert allowed.status_code == 200, allowed.text
+            assert allowed.json()["created"] is True
+
+        # The motivating example: two different people with similar names.
+        kenji = client.post("/api/auth/pin", json={"name": "ケンジ", "pin": "123456"})
+        kenta = client.post("/api/auth/pin", json={"name": "ケンタ", "pin": "234567"})
+        assert kenji.status_code == 200 and kenji.json()["created"] is True, kenji.text
+        assert kenta.status_code == 200 and kenta.json()["created"] is True, kenta.text
+        assert kenji.json()["user"]["id"] != kenta.json()["user"]["id"]
 
         set_cookie = member_login.headers.get("set-cookie", "")
         lower_cookie = set_cookie.lower()
@@ -121,13 +131,18 @@ def run() -> None:
         assert admin.status_code == 200, admin.text
         assert admin.json()["user"]["role"] == "admin"
 
-        # Admin aliases cannot bypass the same confusable-name policy.
+        # Ranking aliases must reject canonical duplicates, not mere proximity.
         second_id = int(second.json()["user"]["id"])
         blocked_alias = client.patch(
             f"/api/admin/console/users/{second_id}",
-            json={"ranking_name": "セキュリティテスド"},
+            json={"ranking_name": "セキュリティ・テスト"},
         )
         assert blocked_alias.status_code == 409, blocked_alias.text
+        permitted_alias = client.patch(
+            f"/api/admin/console/users/{second_id}",
+            json={"ranking_name": "セキュリティテストア"},
+        )
+        assert permitted_alias.status_code == 200, permitted_alias.text
         # Current user's own name is not considered a conflicting identity.
         safe_alias = client.patch(
             f"/api/admin/console/users/{member_id}",

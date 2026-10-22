@@ -1,4 +1,4 @@
-"""Block confusable new member accounts and active ranking aliases.
+"""Block canonical-equivalent account names and ranking aliases.
 
 The canonical PIN endpoint doubles as registration.  Install an explicit
 transactional registration guard instead of modifying the immutable core.
@@ -29,43 +29,14 @@ def identity_key(value: str) -> str:
     return "".join(chars)
 
 
-def one_edit_or_swap(left: str, right: str) -> bool:
-    """One insertion, deletion, replacement or adjacent transposition."""
-    if left == right:
-        return True
-    if abs(len(left) - len(right)) > 1:
-        return False
-    if len(left) == len(right):
-        differing = [i for i, (a, b) in enumerate(zip(left, right)) if a != b]
-        return (len(differing) == 1 or (
-            len(differing) == 2
-            and differing[1] == differing[0] + 1
-            and left[differing[0]] == right[differing[1]]
-            and left[differing[1]] == right[differing[0]]
-        ))
-    shorter, longer = sorted((left, right), key=len)
-    i = j = errors = 0
-    while i < len(shorter) and j < len(longer):
-        if shorter[i] == longer[j]:
-            i += 1
-            j += 1
-        else:
-            errors += 1
-            j += 1
-            if errors > 1:
-                return False
-    return True
-
-
 def confusable(left: str, right: str) -> bool:
+    """Reject only canonical-equivalent names, never edit-distance neighbors.
+
+    A one-character difference may denote a distinct person (e.g. ケンジ and
+    ケンタ). Similarity alone is not proof of impersonation.
+    """
     a, b = identity_key(left), identity_key(right)
-    if not a or not b:
-        return False
-    if a == b:
-        return True
-    # Short Japanese nicknames are too collision-prone for edit-distance
-    # filtering. Still block exact normalized and separator-only variants.
-    return min(len(a), len(b)) >= 3 and one_edit_or_swap(a, b)
+    return bool(a and b and a == b)
 
 
 def conflict(con, candidate: str, *, exclude_user_id: int | None = None) -> bool:
@@ -131,7 +102,7 @@ def install(app, server, db) -> None:
                         if conflict(con, name):
                             raise HTTPException(
                                 409,
-                                "似た名前のアカウントが既に存在します。別の名前を使用するか運営に確認してください",
+                                "表記を正規化すると同一になるアカウント名が既に存在します。別の名前を使用するか運営に確認してください",
                             )
                         db.insert_returning_id(
                             con,
@@ -171,13 +142,13 @@ def install(app, server, db) -> None:
                     with db.connect() as con:
                         _serialize(con, db)
                         if conflict(con, candidate, exclude_user_id=uid):
-                            raise HTTPException(409, f"ランキング名「{candidate}」は他のアカウント名と紛らわしいため使用できません")
+                            raise HTTPException(409, f"ランキング名「{candidate}」は他のアカウント名と正規化後に一致するため使用できません")
                         return original_admin(uid=uid, p=p, user=user)
                 # The canonical endpoint opens a new SQLite write connection:
                 # holding BEGIN IMMEDIATE here would deadlock that write.
                 with db.connect() as con:
                     if conflict(con, candidate, exclude_user_id=uid):
-                        raise HTTPException(409, f"ランキング名「{candidate}」は他のアカウント名と紛らわしいため使用できません")
+                        raise HTTPException(409, f"ランキング名「{candidate}」は他のアカウント名と正規化後に一致するため使用できません")
                 return original_admin(uid=uid, p=p, user=user)
         return original_admin(uid=uid, p=p, user=user)
 
