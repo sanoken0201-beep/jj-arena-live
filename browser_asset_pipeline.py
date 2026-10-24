@@ -17,7 +17,9 @@ from poker_connection_fix import apply_to_build as apply_oop_check_freshness
 from poker_control_safety import apply_to_build as apply_poker_control_safety
 from ux_telemetry_followup import apply_to_build as apply_ux_telemetry_followup
 
-PIPELINE_VERSION = 4
+from quiz_request_diagnostics import apply_to_build as apply_quiz_request_diagnostics
+
+PIPELINE_VERSION = 5
 POST_BUILD_STAGES = (
     ("oop_check_freshness", apply_oop_check_freshness),
     ("poker_control_safety", apply_poker_control_safety),
@@ -27,6 +29,7 @@ POST_BUILD_STAGES = (
     ("runtime_browser_consolidation", apply_runtime_browser_consolidation),
     # Final append-only instrumentation: no UI/gameplay mutation and no polling.
     ("ux_telemetry_followup", apply_ux_telemetry_followup),
+    ("quiz_request_diagnostics", apply_quiz_request_diagnostics),
 )
 
 

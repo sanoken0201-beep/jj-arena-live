@@ -58,6 +58,7 @@ TEST_SUITES: dict[str, tuple[str, ...]] = {
         "smoke_test_quiz_admin_ai.py",
     ),
     "browser_contract": (
+        "smoke_test_quiz_request_diagnostics.py",
         "smoke_test_prebuilt_assets.py",
         "smoke_test_pwa_update.py",
         "smoke_test_responsive_parity.py",
@@ -72,6 +73,7 @@ TEST_SUITES: dict[str, tuple[str, ...]] = {
         "smoke_test_runtime_performance.py",
         "smoke_test_read_efficiency.py",
         "smoke_test_runtime_observability.py",
+        "smoke_test_connection_diagnostics.py",
         "smoke_test_rake_integrity_runtime_audit.py",
         "smoke_test_resilience_retention.py",
         "smoke_test_materialized_import_scope.py",
@@ -119,6 +121,7 @@ RETIRED_TEST_FILES = frozenset(
 # must never be selected by the Render production release gate.
 BROWSER_ONLY_TESTS = frozenset(
     {
+        "smoke_test_quiz_request_diagnostics.py",
         "smoke_test_poker_simple.py",
         "smoke_test_oop_check_browser.py",
         "smoke_test_poker_control_audit.py",
@@ -166,6 +169,7 @@ PRODUCTION_RELEASE_SELECTION: tuple[tuple[str, tuple[str, ...]], ...] = (
         "smoke_test_runtime_performance.py",
         "smoke_test_read_efficiency.py",
         "smoke_test_runtime_observability.py",
+        "smoke_test_connection_diagnostics.py",
         "smoke_test_rake_integrity_runtime_audit.py",
         "smoke_test_resilience_retention.py",
         "smoke_test_materialized_import_scope.py",

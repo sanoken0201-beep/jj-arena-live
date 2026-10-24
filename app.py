@@ -36,6 +36,7 @@ import ring_action_safety
 import ring_inactivity_eviction
 import ring_admin_config
 import read_efficiency
+from connection_diagnostics import ConnectionDiagnostics
 
 # Configure the root-level Sit&Go extension before browser transforms bind the
 # Sit&Go UI functions and before the service installs its FastAPI routes. The
@@ -330,6 +331,8 @@ ring_admin_config.prioritize_routes(app)
 season_rollover.install(app, db, runtime_server, _materialized.admin_console)
 _materialized._prioritize_extension_routes(app, _materialized._CORE_ROUTE_IDS)
 
+
+app.add_middleware(ConnectionDiagnostics)
 
 __all__ = [
     "app",

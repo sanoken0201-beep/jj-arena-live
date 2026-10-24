@@ -119,7 +119,7 @@ def main() -> None:
             assert runtime_browser_marker in js
             assert telemetry_followup_marker in js
             manifest = served_assets.validate_built_assets(root)
-            assert manifest.get("pipeline_version") == 4
+            assert manifest.get("pipeline_version") == 5
             assert manifest.get("pipeline_stages") == [
                 "oop_check_freshness",
                 "poker_control_safety",
