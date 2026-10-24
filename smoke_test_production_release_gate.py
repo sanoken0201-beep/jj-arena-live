@@ -41,6 +41,7 @@ def main() -> None:
             "smoke_test_runtime_performance.py",
             "smoke_test_read_efficiency.py",
             "smoke_test_runtime_observability.py",
+            "smoke_test_connection_diagnostics.py",
             "smoke_test_rake_integrity_runtime_audit.py",
             "smoke_test_point_ledger_precision.py",
             "smoke_test_season_management.py",
@@ -127,6 +128,7 @@ def main() -> None:
                 "structure_consolidation",
                 "runtime_browser_consolidation",
                 "ux_telemetry_followup",
+                "quiz_request_diagnostics",
             ]
             assert manifest.get("browser_output_contract") == "canonical-prebuilt-v1"
         print("JJ_PRODUCTION_RELEASE_GATE_CONTRACT_OK")
