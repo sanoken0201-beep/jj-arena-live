@@ -47,9 +47,9 @@ def main() -> None:
 
     build_assets()
     manifest = validate_built_assets(BUILD_ROOT)
-    assert manifest.get("pipeline_version") == PIPELINE_VERSION == 9
+    assert manifest.get("pipeline_version") == PIPELINE_VERSION == 10
     expected = [name for name, _ in POST_BUILD_STAGES]
-    assert manifest.get("pipeline_stages") == expected
+    assert manifest.get("pipeline_stages") == expected + ["content_addressed_browser_cache"]
     assert expected[-5:] == ["runtime_browser_consolidation", "ux_telemetry_followup", "quiz_request_diagnostics", "ranking_read_optimization", "hand_result_trends"]
     assert manifest.get("browser_output_contract") == "canonical-prebuilt-v1"
 
