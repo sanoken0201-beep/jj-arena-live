@@ -37,9 +37,15 @@ try{
  assert(window.__jjRequests.filter(x=>x==='GET /api/home/core').length===1,'one home core');
  assert(window.__jjRequests.includes('GET /api/home/overview?include_points=false'),'overview reuses points');
  report.homeCore=1;
- window.__jjRequests=[];
+ window.__rankDelay=600;window.__jjRequests=[];
  $('.nav[data-view="ranking"]').click();
+ await sleep(20);
+ assert(points()==='10','home standings must paint before ranking API response');
+ assert($('#jjRankRefreshStatus')?.textContent.includes('最新情報'),'provisional standings must be labeled');
+ report.instantHomeStandings=true;
  await wait(()=>$('#jjV1243RankingSummary')?.textContent.includes('TOP 5'),'ranking summary');
+ assert(!$('#jjRankRefreshStatus'),'provisional label must clear on authoritative response');
+ window.__rankDelay=0;
  report.openRequests=counts();assert(counts().length===3,'open = seasons + two distinct rankings '+counts());
  const before=window.__jjRequests.length;
  for(const value of ['ユ','ユー','not found','']){$('#rankSearch').value=value;$('#rankSearch').dispatchEvent(new Event('input'))}
@@ -70,8 +76,8 @@ try{
  assert(!counts().some(x=>x.includes('/seasons')),'season reuse');report.fastSwitchRequests=counts();
  window.__rankDelay=0;$('[data-rank-mode="archive"]').click();await wait(()=>points()==='7','archive');
  $('[data-rank-mode="month"]').click();await wait(()=>points()==='3','monthly');
- const last=$('#rankBody').innerHTML;
  window.__rankDelay=150;$('[data-rank-mode="overall"]').click();await sleep(10);
+ const last=$('#rankBody').innerHTML; // optimistic first paint may change it synchronously
  $('.nav[data-view="home"]').click();await sleep(200);
  assert($('#rankBody').innerHTML===last,'no paint after navigation');
  window.__rankDelay=0;window.__points=35;$('.nav[data-view="ranking"]').click();
