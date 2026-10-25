@@ -985,14 +985,22 @@ def _sessions(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
 def _summary_payload(user_id: int, range_name: str, table_id: str | None) -> dict[str, Any]:
     rows = _completed_player_rows(user_id, range_name, table_id)
     overall = _aggregate(rows)
-    positions = _group_dimension(rows, lambda r: r.get("position") or "—")
+    # HU and 3+ player positions describe different preflop games. In
+    # particular, HU BB must never be mixed into the multiway BB sample.
+    # Use the stored count from hand start so historical hands are split too.
+    hu_rows = [r for r in rows if _as_int(r.get("player_count")) == 2]
+    multiway_rows = [r for r in rows if _as_int(r.get("player_count")) >= 3]
+    positions = _group_dimension(multiway_rows, lambda r: r.get("position") or "—")
+    hu_positions = _group_dimension(hu_rows, lambda r: r.get("position") or "—")
     stacks = _group_dimension(rows, _stack_band)
     tables = _group_dimension(rows, lambda r: r.get("table_name") or r.get("table_id") or "—")
     return {
         "range": range_name,
         "table": table_id,
         "overall": overall,
-        "positions": positions,
+        "positions": positions,  # 3+ player hands only
+        "hu_positions": hu_positions,  # exactly two players
+        "hu_overall": _aggregate(hu_rows),
         "stack_bands": stacks,
         "tables": tables,
         "trend": _trend(rows),
