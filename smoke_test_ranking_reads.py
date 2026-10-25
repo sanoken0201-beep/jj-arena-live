@@ -10,7 +10,7 @@ from served_assets import build_all, validate_built_assets
 from browser_asset_pipeline import finalize_build
 
 STUB = STUB.replace('let loggedIn = false;', 'let loggedIn = true;')
-STUB = STUB.replace('window.__jjMissingRequests = [];', '''window.__rankDelay=0;window.__points=10;window.__seasonName='Winter';window.__jjMissingRequests = [];''')
+STUB = STUB.replace('window.__jjMissingRequests = [];', '''window.__rankDelay=0;window.__monthDelay=0;window.__points=10;window.__seasonName='Winter';window.__jjMissingRequests = [];''')
 STUB = STUB.replace('`${method} ${path}`', '`${method} ${path}${url.search}`')
 STUB = STUB.replace("if(path === '/api/rankings') return jsonResponse(rankings);", '''if(path === '/api/seasons')return jsonResponse([
       {season_id:'fall',name:window.__seasonName,status:'active',start_date:'2026-09-01',end_exclusive:'2027-04-01'},
@@ -18,7 +18,7 @@ STUB = STUB.replace("if(path === '/api/rankings') return jsonResponse(rankings);
     if(path === '/api/home/core') return jsonResponse({rankings,schedules:[],announcements:[],tables});
     if(path === '/api/rankings') {
       const points=url.searchParams.get('season')==='summer'?7:url.searchParams.has('month')?3:window.__points;
-      const delay=window.__rankDelay;
+      const delay=window.__rankDelay+(url.searchParams.has('month')?window.__monthDelay:0);
       await new Promise(r=>setTimeout(r,delay));
       return jsonResponse(rankings.map(r=>({...r,points})));
     }''')
@@ -37,9 +37,15 @@ try{
  assert(window.__jjRequests.filter(x=>x==='GET /api/home/core').length===1,'one home core');
  assert(window.__jjRequests.includes('GET /api/home/overview?include_points=false'),'overview reuses points');
  report.homeCore=1;
- window.__jjRequests=[];
+ window.__rankDelay=600;window.__jjRequests=[];
  $('.nav[data-view="ranking"]').click();
+ await sleep(20);
+ assert(points()==='10','home standings must paint before ranking API response');
+ assert($('#jjRankRefreshStatus')?.textContent.includes('最新情報'),'provisional standings must be labeled');
+ report.instantHomeStandings=true;
  await wait(()=>$('#jjV1243RankingSummary')?.textContent.includes('TOP 5'),'ranking summary');
+ assert(!$('#jjRankRefreshStatus'),'provisional label must clear on authoritative response');
+ window.__rankDelay=0;
  report.openRequests=counts();assert(counts().length===3,'open = seasons + two distinct rankings '+counts());
  const before=window.__jjRequests.length;
  for(const value of ['ユ','ユー','not found','']){$('#rankSearch').value=value;$('#rankSearch').dispatchEvent(new Event('input'))}
@@ -51,6 +57,15 @@ try{
  assert($('#jjV1243RankingSummary').textContent.includes('24'),'summary refresh');
  assert($('#podium').textContent.includes('Renamed'),'metadata refresh');
  assert(counts().length===3,'refresh dedup');report.refreshRequests=counts();
+ // A slow monthly summary must not block the detailed ranking table.
+ window.__monthDelay=700;window.__points=26;
+ $('[data-jj-v1243-retry="ranking"]').click();
+ await wait(()=>points()==='26','ranking first paint before monthly summary');
+ assert($('.jj-v1243-rank-me b')?.textContent.trim()!=='26 pt','monthly request still pending');
+ await wait(()=>$('.jj-v1243-rank-me b')?.textContent.trim()==='26 pt','summary follows table');
+ report.progressiveTable=true;window.__monthDelay=0;window.__points=24;
+ $('[data-jj-v1243-retry="ranking"]').click();
+ await wait(()=>points()==='24','restore fixture points');
  window.__rankDelay=180;window.__jjRequests=[];
  $('[data-rank-mode="month"]').click();await sleep(10);
  $('[data-rank-mode="archive"]').click();await sleep(10);
@@ -61,8 +76,8 @@ try{
  assert(!counts().some(x=>x.includes('/seasons')),'season reuse');report.fastSwitchRequests=counts();
  window.__rankDelay=0;$('[data-rank-mode="archive"]').click();await wait(()=>points()==='7','archive');
  $('[data-rank-mode="month"]').click();await wait(()=>points()==='3','monthly');
- const last=$('#rankBody').innerHTML;
  window.__rankDelay=150;$('[data-rank-mode="overall"]').click();await sleep(10);
+ const last=$('#rankBody').innerHTML; // optimistic first paint may change it synchronously
  $('.nav[data-view="home"]').click();await sleep(200);
  assert($('#rankBody').innerHTML===last,'no paint after navigation');
  window.__rankDelay=0;window.__points=35;$('.nav[data-view="ranking"]').click();

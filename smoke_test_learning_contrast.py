@@ -128,9 +128,10 @@ def _assert_materialized_production_hotfix() -> None:
     for color in ("#ffffff", "#d7e2dc", "#c4d0ca", "#a8ebcb", "#ffe08a"):
         assert _contrast(color, bg) >= 4.5, (color, _contrast(color, bg))
 
-    assert f"const CACHE='jj-arena-live-v{ASSET_VERSION}';" in worker.text
-    assert f"'/static/styles.css?v={ASSET_VERSION}'" in worker.text
-    assert f"'/static/app.js?v={ASSET_VERSION}'" in worker.text
+    assert f"const CACHE='jj-arena-live-v{ASSET_VERSION}-" in worker.text
+    assert f"'/static/styles.css?v={ASSET_VERSION}" in worker.text
+    assert f"'/static/app.js?v={ASSET_VERSION}" in worker.text
+    assert '&build=' in worker.text
     assert styles.headers.get("cache-control") == "public, max-age=31536000, immutable"
     assert app_js.headers.get("cache-control") == "public, max-age=31536000, immutable"
     assert "no-store" in worker.headers.get("cache-control", "")

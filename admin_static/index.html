@@ -11,6 +11,7 @@
 <link rel="stylesheet" href="/admin-static/admin_ui_foundation.css?v=127">
 <link rel="stylesheet" href="/admin-static/ops_dashboard.css?v=127">
 <link rel="stylesheet" href="/admin-static/ux_telemetry.css?v=127">
+<link rel="stylesheet" href="/admin-static/admin_point_economy.css?v=1">
 </head>
 <body>
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
@@ -21,6 +22,7 @@
         <button class="nav active" data-view="dashboard"><span>⌂</span>概要</button>
         <button class="nav" data-view="users"><span>♙</span>アカウント</button>
         <button class="nav" data-view="points"><span>↕</span>ポイント</button>
+        <button class="nav" data-view="economy"><span>▥</span>ポイント分析</button>
         <button class="nav" data-view="sitngo"><span>♠</span>Sit&amp;Go</button>
         <button class="nav" data-view="seasons"><span>◷</span>シーズン</button>
         <button class="nav" data-view="settings"><span>⚙</span>制度設定</button>
@@ -31,7 +33,7 @@
 
     <main class="main">
       <header class="topbar"><div><div class="eyebrow">OPERATIONS</div><h1 id="pageTitle">管理概要</h1></div><div class="admin-chip"><small>ADMIN</small><strong id="adminName">—</strong></div></header>
-      <nav class="mobile-nav" aria-label="管理メニュー"><button class="active" data-view="dashboard">概要</button><button data-view="users">アカウント</button><button data-view="points">ポイント</button><button data-view="sitngo">Sit&amp;Go</button><button data-view="seasons">シーズン</button><button data-view="settings">設定</button><button data-view="audit">監査</button></nav>
+      <nav class="mobile-nav" aria-label="管理メニュー"><button class="active" data-view="dashboard">概要</button><button data-view="users">アカウント</button><button data-view="points">ポイント</button><button data-view="economy">ポイント分析</button><button data-view="sitngo">Sit&amp;Go</button><button data-view="seasons">シーズン</button><button data-view="settings">設定</button><button data-view="audit">監査</button></nav>
 
       <section id="dashboardView" class="view active">
         <div class="hero"><div><div class="eyebrow">CONTROL CENTER</div><h2>運営の数字と異常を、<br>一画面で確認。</h2><p>登録アカウント、公式ポイントの付与・回収、制度設定、操作履歴を一元管理します。</p></div><div class="hero-status"><span>SEASON</span><strong id="seasonLabel">読込中</strong><small>公式ポイント管理</small></div></div>
@@ -61,6 +63,22 @@
           </article>
           <article class="panel ledger-panel"><div class="panel-head"><div><div class="eyebrow">LEDGER</div><h3>ポイント台帳</h3></div><button id="refreshLedger" class="text-btn">更新</button></div><div id="ledgerList" class="ledger-list"></div></article>
         </div>
+      </section>
+
+      <section id="economyView" class="view">
+        <div class="section-head"><div><div class="eyebrow">POINT ECONOMY · ADMIN ONLY</div><h2>ポイント履歴・インフレ分析</h2><p>公式ランキングに算入されるポイントを「入力」「オンライン卓」「今日の問題」に分け、日別の増減と累積量を確認します。</p></div><button id="economyRefresh" class="soft" type="button">更新</button></div>
+        <div class="economy-filters panel">
+          <label>対象シーズン<select id="economySeason"><option value="fall">現在のシーズン</option></select></label>
+          <label>履歴の種類<select id="economySource"><option value="all">すべて</option><option value="club">入力</option><option value="online">オンライン卓</option><option value="quiz">今日の問題</option><option value="other">その他・補正</option></select></label>
+          <p id="economyStatus" role="status" aria-live="polite">分析画面を開くと読み込みます。</p>
+        </div>
+        <div id="economyNumbers" class="economy-numbers" aria-label="ポイントの集計結果"></div>
+        <article class="panel economy-chart-panel"><div class="panel-head"><div><div class="eyebrow">TOTAL POINTS</div><h3>累積ポイント総量の推移</h3></div><span class="economy-chart-note">日付は日本時間</span></div><div id="economyChart"></div><div class="economy-legend"><span><i class="economy-line-total"></i>全体の累積</span><span><i class="economy-line-quiz"></i>今日の問題の累積</span></div></article>
+        <div class="economy-grid">
+          <article class="panel"><h3>日別の増減</h3><div class="economy-table-wrap"><table class="economy-table"><thead><tr><th>日付</th><th>入力</th><th>オンライン</th><th>今日の問題</th><th>その他</th><th>純増減</th><th>累積</th></tr></thead><tbody id="economyDaily"></tbody></table></div></article>
+          <article class="panel"><h3>ポイント取引履歴</h3><div id="economyHistory" class="economy-history"></div><div class="economy-pages"><button id="economyPrevious" class="soft" type="button" disabled>新しい履歴</button><span id="economyPageLabel"></span><button id="economyNext" class="soft" type="button" disabled>古い履歴</button></div></article>
+        </div>
+        <p id="economyFootnote" class="economy-footnote"></p>
       </section>
 
       <section id="sitngoView" class="view">
@@ -108,7 +126,8 @@
 
   <dialog id="userDialog"><button class="dialog-close" id="closeUserDialog" aria-label="閉じる">×</button><div id="userDialogBody"></div></dialog>
   <script src="/admin-static/admin_point_requests.js?v=1"></script>
-  <script src="/admin-static/admin.js?v=130-season-ops"></script>
+  <script src="/admin-static/admin.js?v=131-point-economy"></script>
+  <script src="/admin-static/admin_point_economy.js?v=1"></script>
   <script src="/admin-static/admin_delete.js?v=127"></script>
   <script src="/admin-static/admin_sitngo.js?sng=12hands-20260921-2"></script>
 <script src="/admin-static/admin_pin_verify.js?v=127"></script>

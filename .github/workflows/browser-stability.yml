@@ -39,8 +39,10 @@ jobs:
           for pass in 1 2; do
             echo "Chromium stability pass ${pass}/2"
             python smoke_test_ranking_reads.py
+            python smoke_test_hand_result_trends.py
             python smoke_test_v1244_layout.py
             python smoke_test_v1243_non_poker_layout.py
+            python smoke_test_illuminated_hero_layout.py
             python smoke_test_v124_layout.py
             python smoke_test_player_ux_browser.py
             python smoke_test_player_ux_phase3_layout.py

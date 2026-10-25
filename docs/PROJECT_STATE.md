@@ -107,11 +107,13 @@ official point totals from club input (`entries`), non-voided Ring results
 and all remaining ledger adjustments/Sit&Go settlements separately. Deleted
 account generations and excluded `運営調整` entries follow canonical ranking
 inclusion. Recent transactions support a per-source paginated history. The
-administrator can open the lazy-loaded panel below the ranking table; ordinary
-ranking/home requests are unchanged. This shows the currently valid ranking
+administrator uses the separate "ポイント分析" tab at `/admin#economy`. This tab
+loads its data on demand; no inflation panel or history appears in the member
+ranking or home screen. The "ポイント付与・回収" tab and form are unchanged.
+This shows the currently valid ranking
 stock *retrospectively*; account deletions and voided hands are excluded for all
 past dates, so it is not a historical reconstruction of deleted balances.
-The point-source panel and API never modify or reclassify stored transactions.
+The point-source analysis and API never modify or reclassify stored transactions.
 
 ## 5. Browser asset ownership
 

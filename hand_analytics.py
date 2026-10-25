@@ -775,7 +775,7 @@ def _completed_player_rows(user_id: int, range_name: str = "all", table_id: str 
                        h.player_count,h.result_type,h.showdown,h.hand_no,h.big_blind
                 FROM jj_hand_players p JOIN jj_hand_history h ON h.hand_id=p.hand_id
                 WHERE {' AND '.join(where)}
-                ORDER BY h.completed_at ASC""",
+                ORDER BY h.completed_at ASC,h.hand_id ASC""",
             params,
         ).fetchall()
     return [dict(r) for r in rows]
@@ -795,6 +795,8 @@ def _rate(rows: list[dict[str, Any]], numerator: str, denominator: str | None = 
 def _aggregate(rows: list[dict[str, Any]]) -> dict[str, Any]:
     hands = len(rows)
     net_bb = round(sum(_as_float(r.get("net_bb")) for r in rows), 2)
+    sd_bb = round(sum(_as_float(r.get("net_bb")) for r in rows if _as_int(r.get("went_showdown"))), 2)
+    nsd_bb = round(net_bb - sd_bb, 2)
     agg_actions = sum(_as_int(r.get("aggressive_actions")) for r in rows)
     calls = sum(_as_int(r.get("call_actions")) for r in rows)
     checks = sum(_as_int(r.get("check_actions")) for r in rows)
@@ -805,6 +807,8 @@ def _aggregate(rows: list[dict[str, Any]]) -> dict[str, Any]:
     return {
         "hands": hands,
         "net_bb": net_bb,
+        "sd_bb": sd_bb,
+        "nsd_bb": nsd_bb,
         "bb_per_100": round(net_bb * 100 / hands, 2) if hands else None,
         "hands_won": won,
         "hand_win_rate": round(won * 100 / hands, 1) if hands else None,
@@ -920,14 +924,25 @@ def _leak_signals(rows: list[dict[str, Any]], overall: dict[str, Any], positions
 
 def _trend(rows: list[dict[str, Any]], max_points: int = 300) -> list[dict[str, Any]]:
     total = 0.0
+    showdown_total = 0.0
     points = []
-    for row in rows:
-        total += _as_float(row.get("net_bb"))
+    for hand_number, row in enumerate(rows, 1):
+        net_bb = _as_float(row.get("net_bb"))
+        total += net_bb
+        is_showdown = bool(_as_int(row.get("went_showdown")))
+        if is_showdown:
+            showdown_total += net_bb
+        cumulative_bb = round(total, 2)
+        cumulative_sd_bb = round(showdown_total, 2)
         points.append({
             "hand_id": row["hand_id"],
             "at": row.get("completed_at"),
-            "net_bb": round(_as_float(row.get("net_bb")), 2),
-            "cumulative_bb": round(total, 2),
+            "hand_number": hand_number,
+            "net_bb": round(net_bb, 2),
+            "showdown": is_showdown,
+            "cumulative_bb": cumulative_bb,
+            "cumulative_sd_bb": cumulative_sd_bb,
+            "cumulative_nsd_bb": round(cumulative_bb - cumulative_sd_bb, 2),
         })
     if len(points) <= max_points:
         return points
@@ -970,14 +985,22 @@ def _sessions(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
 def _summary_payload(user_id: int, range_name: str, table_id: str | None) -> dict[str, Any]:
     rows = _completed_player_rows(user_id, range_name, table_id)
     overall = _aggregate(rows)
-    positions = _group_dimension(rows, lambda r: r.get("position") or "—")
+    # HU and 3+ player positions describe different preflop games. In
+    # particular, HU BB must never be mixed into the multiway BB sample.
+    # Use the stored count from hand start so historical hands are split too.
+    hu_rows = [r for r in rows if _as_int(r.get("player_count")) == 2]
+    multiway_rows = [r for r in rows if _as_int(r.get("player_count")) >= 3]
+    positions = _group_dimension(multiway_rows, lambda r: r.get("position") or "—")
+    hu_positions = _group_dimension(hu_rows, lambda r: r.get("position") or "—")
     stacks = _group_dimension(rows, _stack_band)
     tables = _group_dimension(rows, lambda r: r.get("table_name") or r.get("table_id") or "—")
     return {
         "range": range_name,
         "table": table_id,
         "overall": overall,
-        "positions": positions,
+        "positions": positions,  # 3+ player hands only
+        "hu_positions": hu_positions,  # exactly two players
+        "hu_overall": _aggregate(hu_rows),
         "stack_bands": stacks,
         "tables": tables,
         "trend": _trend(rows),
@@ -992,6 +1015,8 @@ def _summary_payload(user_id: int, range_name: str, table_id: str | None) -> dic
             "wtsd": "フロップを見たハンドのうちショーダウンまで到達した割合",
             "wsd": "ショーダウン到達ハンドのうち勝った割合",
             "bb_per_100": "実収支を100ハンド換算した値。EVではありません",
+            "sd_bb": "自分がショーダウンまで到達したハンドの実収支合計（レーキ反映後）",
+            "nsd_bb": "自分がショーダウンに到達しなかったハンドの実収支合計（相手同士のSDがあってもNSD）",
         },
     }
 

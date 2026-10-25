@@ -59,6 +59,8 @@ TEST_SUITES: dict[str, tuple[str, ...]] = {
         "smoke_test_quiz_admin_ai.py",
     ),
     "browser_contract": (
+        "smoke_test_hand_result_trends.py",
+        "smoke_test_illuminated_classic_theme.py",
         "smoke_test_quiz_request_diagnostics.py",
         "smoke_test_ranking_reads.py",
         "smoke_test_prebuilt_assets.py",
@@ -123,6 +125,7 @@ RETIRED_TEST_FILES = frozenset(
 # must never be selected by the Render production release gate.
 BROWSER_ONLY_TESTS = frozenset(
     {
+        "smoke_test_hand_result_trends.py",
         "smoke_test_quiz_request_diagnostics.py",
         "smoke_test_ranking_reads.py",
         "smoke_test_poker_simple.py",
@@ -138,6 +141,7 @@ BROWSER_ONLY_TESTS = frozenset(
 # GitHub-only even though they are categorized above.
 PRODUCTION_RELEASE_SELECTION: tuple[tuple[str, tuple[str, ...]], ...] = (
     ("browser_contract", (
+        "smoke_test_illuminated_classic_theme.py",
         "smoke_test_prebuilt_assets.py",
         "smoke_test_pwa_update.py",
         "audit_ui_labels.py",

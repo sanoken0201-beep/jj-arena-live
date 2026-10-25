@@ -69,11 +69,14 @@ from mobile_poker_readability import MARKER as MOBILE_POKER_READABILITY_MARKER, 
 from read_efficiency import transform_app_js as transform_read_efficiency_app_js
 from season_browser_integration import transform_app_js as transform_season_app_js
 from ring_buyin_browser import MARKER as RING_BUYIN_MARKER, transform_app_js as transform_ring_buyin_app_js
+from position_hu_browser import transform_app_js as transform_position_hu_app_js, transform_styles as transform_position_hu_styles
+from illuminated_classic_theme import transform_index as transform_illuminated_classic_index
+from illuminated_classic_theme import transform_styles as transform_illuminated_classic_styles
 
 ROOT = Path(__file__).resolve().parent
 MATERIALIZED_STATIC = ROOT / "materialized_v1244" / "static"
 BUILD_ROOT = ROOT / ".jj_build"
-ASSET_VERSION = 91
+ASSET_VERSION = 97  # Ensure the fixed illustrated hero typography refreshes cached clients.
 BUILD_FORMAT = 1
 
 _MOBILE_PODIUM_ORDER_MARKER = "v88 mobile podium rank order 2026-10-17"
@@ -290,7 +293,7 @@ def build_index() -> str:
         '<article class="card panel"><div class="eyebrow">POINT ENTRY</div><h3>公式ポイント入力</h3>',
         1,
     )
-    return html
+    return transform_illuminated_classic_index(html)
 
 
 def build_app_js() -> str:
@@ -447,6 +450,7 @@ def build_app_js() -> str:
     if RING_BUYIN_MARKER not in js:
         raise RuntimeError("Ring buy-in browser transform marker missing")
     js = transform_season_app_js(js)
+    js = transform_position_hu_app_js(js)
     return js
 
 
@@ -478,7 +482,8 @@ def build_styles() -> str:
     # Retain desktop podium layout, but restore numeric ranking order on mobile.
     if _MOBILE_PODIUM_ORDER_MARKER not in css:
         css = css.rstrip() + _MOBILE_PODIUM_ORDER_CSS + "\n"
-    return css
+    css = transform_position_hu_styles(css)
+    return transform_illuminated_classic_styles(css)
 
 
 def build_service_worker() -> str:
