@@ -122,6 +122,11 @@ jobs:
       - name: Verify aggregate read fallback request counts
         run: node smoke_test_read_bundle.js
 
+      - name: Verify administrator point economy on PostgreSQL 18
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/jj_arena_ci
+        run: python smoke_test_point_economy.py --postgres
+
       - name: Verify redundant-read removal on PostgreSQL
         env:
           DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/jj_arena_ci
