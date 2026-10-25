@@ -285,6 +285,52 @@ def run() -> None:
         assert "vpip" in summary["overall"] and "positions" in summary and "stack_bands" in summary
         assert summary["overall"]["bb_per_100"] is not None
 
+        # HU and 3+ player positions must be separate, including historical
+        # completed hands whose player_count was already stored at hand start.
+        before = hand_analytics._summary_payload(u1, "all", None)
+        _seed_stat_hand(
+            db, "split-hu-btn",
+            [(u1, "アリス", "BTN/SB"), (u2, "ボブ", "BB")], [],
+        )
+        _seed_stat_hand(
+            db, "split-hu-bb",
+            [(u2, "ボブ", "BTN/SB"), (u1, "アリス", "BB")], [],
+        )
+        _seed_stat_hand(
+            db, "split-three-bb",
+            [(u2, "ボブ", "BTN"), (u3, "キャロル", "SB"), (u1, "アリス", "BB")], [],
+        )
+        with db.connect() as con:
+            for hand_id, net_bb in (
+                ("split-hu-btn", 12.0), ("split-hu-bb", -3.0), ("split-three-bb", 9.0),
+            ):
+                con.execute(
+                    "UPDATE jj_hand_players SET net_bb=? WHERE hand_id=? AND user_id=?",
+                    (net_bb, hand_id, u1),
+                )
+        after = hand_analytics._summary_payload(u1, "all", None)
+
+        def pos_value(data, section, key, field):
+            return next((r[field] for r in data[section] if r["key"] == key), 0)
+
+        assert after["overall"]["hands"] == before["overall"]["hands"] + 3
+        assert after["hu_overall"]["hands"] == before["hu_overall"]["hands"] + 2
+        assert round(after["overall"]["net_bb"] - before["overall"]["net_bb"], 2) == 18
+        assert round(
+            pos_value(after, "positions", "BB", "net_bb")
+            - pos_value(before, "positions", "BB", "net_bb"), 2
+        ) == 9
+        assert round(
+            pos_value(after, "hu_positions", "BB", "net_bb")
+            - pos_value(before, "hu_positions", "BB", "net_bb"), 2
+        ) == -3
+        assert round(
+            pos_value(after, "hu_positions", "BTN/SB", "net_bb")
+            - pos_value(before, "hu_positions", "BTN/SB", "net_bb"), 2
+        ) == 12
+        assert "BTN/SB" not in {r["key"] for r in after["positions"]}
+        assert sum(r["hands"] for r in after["positions"]) + after["hu_overall"]["hands"] == after["overall"]["hands"]
+
         for path, method in [
             ("/api/analysis/summary", "GET"), ("/api/analysis/hands", "GET"),
             ("/api/analysis/hands/{hand_id}", "GET"), ("/api/analysis/hands/{hand_id}/review", "PUT"),
