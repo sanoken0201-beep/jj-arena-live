@@ -1,0 +1,36 @@
+/* Scoped admin-console point economy styles. No changes to the gameplay/ranking UI. */
+.economy-filters{display:flex;flex-wrap:wrap;align-items:flex-end;gap:14px;margin-bottom:16px}
+.economy-filters label{display:grid;gap:7px;flex:1 1 200px;max-width:320px;color:var(--muted);font-size:.73rem;font-weight:800}
+.economy-filters select{min-height:42px;padding:9px 11px;border:1px solid var(--line);background:#fff;border-radius:10px;color:var(--ink)}
+.economy-filters p{flex:1 1 100%;margin:0;color:var(--muted);font-size:.7rem}
+.economy-numbers{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-bottom:16px}
+.economy-kpi{background:#fff;border:1px solid var(--line);border-radius:16px;padding:17px;box-shadow:var(--shadow);min-width:0}
+.economy-kpi span{display:block;font-size:.7rem;color:var(--muted);font-weight:750}
+.economy-kpi strong{display:block;margin:10px 0 2px;font-size:clamp(1.1rem,2vw,1.6rem);color:var(--green);font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+.economy-kpi small{display:block;color:var(--muted);font-size:.66rem;line-height:1.5}
+.economy-chart-panel{margin-bottom:16px}.economy-chart-panel .panel-head{margin-bottom:10px}
+.economy-chart-note{font-size:.7rem;color:var(--muted)}
+#economyChart svg{display:block;width:100%;height:auto;min-height:130px}
+.economy-legend{display:flex;flex-wrap:wrap;gap:17px;font-size:.7rem;color:var(--muted)}
+.economy-legend span{display:flex;align-items:center;gap:7px}.economy-legend i{width:17px;height:3px;display:inline-block}
+.economy-line-total{background:#126d4a}.economy-line-quiz{background:#d67c59}
+.economy-grid{display:grid;grid-template-columns:minmax(0,1.18fr) minmax(0,1fr);gap:16px}
+.economy-grid .panel{min-width:0}.economy-grid h3{margin:0 0 14px;font-size:1rem}
+.economy-table-wrap{overflow:auto;max-height:440px;border:1px solid var(--line);border-radius:11px}
+.economy-table{width:100%;border-collapse:collapse;white-space:nowrap}
+.economy-table th,.economy-table td{font-size:.72rem;text-align:right;padding:11px 9px;border-bottom:1px solid #edf2ee;font-variant-numeric:tabular-nums}
+.economy-table th{position:sticky;top:0;background:#f5f9f6;color:var(--muted);z-index:1}
+.economy-table th:first-child,.economy-table td:first-child{text-align:left}
+.economy-history{max-height:440px;overflow-y:auto;border:1px solid var(--line);border-radius:11px;padding:0 12px}
+.economy-event{padding:13px 0;border-bottom:1px solid #edf2ee}.economy-event:last-child{border-bottom:0}
+.economy-event-top{display:flex;gap:8px;justify-content:space-between;align-items:flex-start;font-size:.77rem}
+.economy-event-top>span{min-width:0;overflow-wrap:anywhere}.economy-event-top strong{white-space:nowrap;font-variant-numeric:tabular-nums}
+.economy-source{display:inline-block;margin-right:7px;background:#ebf5ee;color:var(--green);font-size:.65rem;font-weight:800;border-radius:6px;padding:4px 7px}
+.economy-plus{color:var(--green)}.economy-minus{color:var(--red)}
+.economy-event-detail{color:var(--muted);font-size:.68rem;margin-top:7px;overflow-wrap:anywhere;line-height:1.5}
+.economy-pages{display:flex;gap:10px;align-items:center;justify-content:space-between;margin-top:13px}
+.economy-pages button{min-height:36px;padding:5px 9px;font-size:.69rem}.economy-pages button:disabled{opacity:.45;cursor:default}
+.economy-pages span{font-size:.68rem;color:var(--muted)}
+.economy-footnote{font-size:.7rem;color:var(--muted);line-height:1.7;margin:18px 0 0}
+@media(max-width:1050px){.economy-grid{grid-template-columns:1fr}.economy-numbers{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:550px){.economy-filters label{max-width:none;flex-basis:100%}.economy-filters{padding:14px}.economy-numbers{gap:8px}.economy-kpi{padding:12px}.economy-kpi strong{font-size:1.12rem}}

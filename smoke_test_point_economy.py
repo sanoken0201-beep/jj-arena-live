@@ -2,6 +2,7 @@
 import os
 import tempfile
 import uuid
+from pathlib import Path
 
 os.environ.pop("DATABASE_URL", None)
 os.environ["JJ_DB_PATH"] = tempfile.mkdtemp(prefix="jj-point-economy-") + "/db.sqlite"
@@ -102,10 +103,24 @@ def main():
     assert client.get(endpoint, params={"source": "admin"}).status_code == 422
     assert client.get(endpoint, params={"limit": 999}).status_code == 422
 
-    assert "JJ_POINT_ECONOMY_V1" in app._patched_app_js()
-    assert "jjPointEconomy" in app._patched_index()
-    assert ".jj-economy-grid" in app._patched_styles()
-    print("JJ_POINT_ECONOMY_OK attributed_totals jst deletions voids pagination auth asset")
+    assert "JJ_POINT_ECONOMY_V1" not in app._patched_app_js()
+    assert "jjPointEconomy" not in app._patched_index()
+    assert ".jj-economy-grid" not in app._patched_styles()
+    root = Path(__file__).resolve().parent / "admin_static"
+    html = (root / "index.html").read_text(encoding="utf-8")
+    js = (root / "admin_point_economy.js").read_text(encoding="utf-8")
+    css = (root / "admin_point_economy.css").read_text(encoding="utf-8")
+    admin_js = (root / "admin.js").read_text(encoding="utf-8")
+    assert 'data-view="economy"' in html and 'id="economyView"' in html
+    assert '/admin-static/admin_point_economy.js?v=1' in html
+    assert '/admin-static/admin_point_economy.css?v=1' in html
+    assert "window.jjLoadPointEconomy" in js and "jjLoadPointEconomy?.()" in admin_js
+    assert "/admin/point-economy?" in js and ".economy-numbers" in css
+    assert 'id="pointForm"' in html, "The official point input form must be preserved"
+    assert client.get('/admin').status_code == 200
+    assert client.get('/admin-static/admin_point_economy.js').status_code == 200
+    assert client.get('/admin-static/admin_point_economy.css').status_code == 200
+    print("JJ_POINT_ECONOMY_OK attributed_totals jst deletions voids pagination auth admin-only-ui")
 
 
 if __name__ == "__main__":
