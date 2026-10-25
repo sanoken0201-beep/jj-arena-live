@@ -160,11 +160,11 @@ def _rankings(db,server,month=None,season="fall"):
         deletion_aware="deleted_at" in _cols(db,con,"users")
         generations=_account_generations(con) if deletion_aware else {}
         club_rows=con.execute(f"SELECT name,points,date,created_at FROM entries {cw}",cp).fetchall()
-        try:
-            online_join=" LEFT JOIN users ou ON ou.id=r.user_id" if deletion_aware else ""
-            online_guard=" AND (r.user_id IS NULL OR ou.deleted_at IS NULL)" if deletion_aware else ""
-            online=con.execute(f"SELECT r.ranking_name name,SUM(r.points) points,COUNT(*) games,MAX(r.points) best,SUM(CASE WHEN r.points>0 THEN 1 ELSE 0 END) wins FROM online_hand_results r JOIN online_hands h ON h.hand_id=r.hand_id{online_join} {ow}{online_guard} GROUP BY r.ranking_name",op).fetchall()
-        except Exception:online=[]
+        # Never show partial rankings as valid: a failed online query must
+        # surface as an error, not silently erase online points for everyone.
+        online_join=" LEFT JOIN users ou ON ou.id=r.user_id" if deletion_aware else ""
+        online_guard=" AND (r.user_id IS NULL OR ou.deleted_at IS NULL)" if deletion_aware else ""
+        online=con.execute(f"SELECT r.ranking_name name,SUM(r.points) points,COUNT(*) games,MAX(r.points) best,SUM(CASE WHEN r.points>0 THEN 1 ELSE 0 END) wins FROM online_hand_results r JOIN online_hands h ON h.hand_id=r.hand_id{online_join} {ow}{online_guard} GROUP BY r.ranking_name",op).fetchall()
         ledger_guard=" AND u.deleted_at IS NULL" if deletion_aware else ""
         adj=con.execute(f"SELECT COALESCE(NULLIF(u.ranking_name,''),u.name) name,SUM(l.amount) points,COUNT(*) transactions FROM point_ledger l JOIN users u ON u.id=l.user_id {lw}{ledger_guard} GROUP BY COALESCE(NULLIF(u.ranking_name,''),u.name)",lp).fetchall()
     club={}

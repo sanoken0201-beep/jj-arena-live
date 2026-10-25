@@ -112,12 +112,12 @@ def calculate(db, *, season="fall", source="all", offset=0, limit=50):
               WHERE COALESCE(h.voided,0)=0 AND h.played_at>=? AND h.played_at<?
               {deleted_online}"""
         grouped_online = con.execute(
-            f"""SELECT {date_online} day,SUM(r.points) points
+            f"""SELECT {date_online} AS day_key,SUM(r.points) AS points
                 {base_online} GROUP BY {date_online}""",
             (utc_start, utc_end),
         ).fetchall()
         for row in grouped_online:
-            add(str(row["day"]), "online", row["points"])
+            add(str(row["day_key"]), "online", row["points"])
         if want_all or source == "online":
             result_rows = con.execute(
                 f"""SELECT r.id,r.ranking_name,r.points,r.table_id,r.hand_id,
@@ -140,12 +140,12 @@ def calculate(db, *, season="fall", source="all", offset=0, limit=50):
         base_ledger = f"""FROM point_ledger l JOIN users u ON u.id=l.user_id
             WHERE l.effective_at>=? AND l.effective_at<? {deleted_ledger}"""
         grouped_ledger = con.execute(
-            f"""SELECT {date_ledger} day,{kind_sql} source,SUM(l.amount) points
+            f"""SELECT {date_ledger} AS day_key,{kind_sql} AS source_kind,SUM(l.amount) AS points
                 {base_ledger} GROUP BY {date_ledger},{kind_sql}""",
             (utc_start, utc_end),
         ).fetchall()
         for row in grouped_ledger:
-            add(str(row["day"]), str(row["source"]), row["points"])
+            add(str(row["day_key"]), str(row["source_kind"]), row["points"])
         if want_all or source in {"quiz", "other"}:
             kind_filter = ("AND l.kind='quiz_reward'" if source == "quiz" else
                            "AND l.kind<>'quiz_reward'" if source == "other" else "")

@@ -1,11 +1,38 @@
 """Point-history attribution, inflation totals and authorization regression."""
+import atexit
 import os
+import sys
 import tempfile
 import uuid
+from contextlib import contextmanager
 from pathlib import Path
+from urllib.parse import urlsplit, urlunsplit
 
-os.environ.pop("DATABASE_URL", None)
-os.environ["JJ_DB_PATH"] = tempfile.mkdtemp(prefix="jj-point-economy-") + "/db.sqlite"
+if "--postgres" in sys.argv:
+    # Use an isolated disposable database; never write fixtures to production
+    # or another integration job's shared jj_arena_ci database.
+    import psycopg
+    from psycopg import sql
+
+    original_url = os.environ.get("DATABASE_URL", "")
+    parsed_url = urlsplit(original_url)
+    assert (parsed_url.scheme in {"postgres", "postgresql"}
+            and parsed_url.hostname in {"127.0.0.1", "localhost"}
+            and parsed_url.port == 5432
+            and parsed_url.path == "/jj_arena_ci"), "Only disposable local PostgreSQL 18 CI is allowed"
+    test_db_name = "jj_economy_ci_" + uuid.uuid4().hex[:12]
+    with psycopg.connect(original_url, autocommit=True) as raw:
+        raw.execute(sql.SQL("CREATE DATABASE {}").format(sql.Identifier(test_db_name)))
+
+    def cleanup_test_db():
+        with psycopg.connect(original_url, autocommit=True) as raw:
+            raw.execute(sql.SQL("DROP DATABASE {} WITH (FORCE)").format(sql.Identifier(test_db_name)))
+
+    atexit.register(cleanup_test_db)
+    os.environ["DATABASE_URL"] = urlunsplit(parsed_url._replace(path="/" + test_db_name))
+else:
+    os.environ.pop("DATABASE_URL", None)
+    os.environ["JJ_DB_PATH"] = tempfile.mkdtemp(prefix="jj-point-economy-") + "/db.sqlite"
 os.environ["JJ_ENABLE_DEMO_MEMBER"] = "0"
 
 from fastapi.testclient import TestClient
@@ -93,6 +120,32 @@ def main():
     assert not any(r["id"] in {"econ-deleted-entry", "econ-prior-generation", "econ-operator", "econ-deleted-hand-result", "econ-voided-result", "econ-gone"} for r in result["history"])
     assert sum(float(r["points"]) for r in admin_console._rankings(db, app.runtime_server)) == result["totals"]["total"]
 
+    # A broken online aggregation must never produce a plausible-looking but
+    # incorrect ranking with everyone else's online points set to zero.
+    original_connect = db.connect
+
+    @contextmanager
+    def online_query_failure():
+        with original_connect() as con:
+            class FailingConnection:
+                def execute(self, query, params=()):
+                    if "FROM online_hand_results r JOIN online_hands h" in query:
+                        raise RuntimeError("synthetic online ranking query failure")
+                    return con.execute(query, params)
+
+            yield FailingConnection()
+
+    try:
+        db.connect = online_query_failure
+        try:
+            admin_console._rankings(db, app.runtime_server)
+        except RuntimeError as error:
+            assert str(error) == "synthetic online ranking query failure"
+        else:
+            raise AssertionError("Ranking hid an online aggregation failure")
+    finally:
+        db.connect = original_connect
+
     # Filtered pagination never changes the full economy totals.
     first = client.get(endpoint, params={"source": "club", "limit": 1}).json()
     second = client.get(endpoint, params={"source": "club", "limit": 1, "offset": first["next_offset"]}).json()
@@ -120,7 +173,8 @@ def main():
     assert client.get('/admin').status_code == 200
     assert client.get('/admin-static/admin_point_economy.js').status_code == 200
     assert client.get('/admin-static/admin_point_economy.css').status_code == 200
-    print("JJ_POINT_ECONOMY_OK attributed_totals jst deletions voids pagination auth admin-only-ui")
+    backend = "POSTGRES" if "--postgres" in sys.argv else "SQLITE"
+    print(f"JJ_POINT_ECONOMY_{backend}_OK attributed_totals jst deletions voids pagination auth admin-only-ui fail-closed-rankings")
 
 
 if __name__ == "__main__":
