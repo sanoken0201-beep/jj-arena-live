@@ -1,4 +1,4 @@
-"""Audited, PIN-confirmed administrator handover for the canonical admin console."""
+"""Audited, PIN-confirmed additive administrator grants for the admin console."""
 from __future__ import annotations
 
 import threading
@@ -18,7 +18,7 @@ _PG_LOCK_KEY = 2026101001
 
 
 class RoleChangeIn(BaseModel):
-    role: Literal["admin", "member"]
+    role: Literal["admin"]
     current_pin: str = Field(pattern=r"^[0-9]{6}$", min_length=6, max_length=6)
 
 
@@ -56,9 +56,8 @@ def install(app, server, db, admin_console) -> None:
         actor_id = int(actor["id"])
         _check_pin_limit(actor_id)
 
-        # All role changes use one serialized, committed transaction. This
-        # makes the last-admin check safe even for concurrent administrator
-        # requests and ensures audit/session revocation cannot be lost.
+        # Grants use one serialized, committed transaction. Existing administrators,
+        # their sessions, account records and point history are never changed.
         with db.connect() as con:
             if getattr(db, "IS_POSTGRES", False):
                 con.execute("SELECT pg_advisory_xact_lock(?)", (_PG_LOCK_KEY,))
@@ -93,25 +92,18 @@ def install(app, server, db, admin_console) -> None:
             if existing == payload.role:
                 return {"ok": True, "changed": False, "user_id": uid, "role": existing}
 
-            if uid == actor_id:
-                raise HTTPException(409, "自分自身の管理者権限は解除できません")
-            if payload.role == "admin" and not int(target["club_verified"] or 0):
+            if existing != "member":
+                raise HTTPException(409, "一般会員のみ管理者に追加できます")
+            if not int(target["club_verified"] or 0):
                 raise HTTPException(409, "先にJJメンバーの本人確認を完了してください")
 
-            if existing == "admin" and payload.role == "member":
-                active = con.execute(
-                    "SELECT COUNT(*) AS n FROM users WHERE role='admin' "
-                    "AND COALESCE(disabled,0)=0 AND deleted_at IS NULL"
-                ).fetchone()
-                if int(active["n"]) <= 1:
-                    raise HTTPException(409, "最後の管理者は解除できません")
-
             con.execute(
-                "UPDATE users SET role=? WHERE id=? AND role=?",
-                (payload.role, uid, existing),
+                "UPDATE users SET role='admin' WHERE id=? AND role='member'",
+                (uid,),
             )
-            # Invalidate every session belonging to the changed account,
-            # including a member session that predated elevation.
+            # Only the newly promoted account must sign in again. An existing
+            # member session must not silently gain administrator privileges.
+            # The acting and all other administrators retain their sessions.
             con.execute("DELETE FROM sessions WHERE user_id=?", (uid,))
             admin_console._audit(
                 db,
@@ -121,6 +113,7 @@ def install(app, server, db, admin_console) -> None:
                 con=con,
                 before_role=existing,
                 after_role=payload.role,
-                changed={"role": f"{existing} → {payload.role}"},
+                changed={"role": f"{existing} → admin"},
+                succession="additive",
             )
         return {"ok": True, "changed": True, "user_id": uid, "role": payload.role}

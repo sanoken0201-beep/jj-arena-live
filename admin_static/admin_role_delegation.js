@@ -1,11 +1,7 @@
-/* PIN-confirmed administrator delegation in the canonical account dialog. */
+/* Additive, PIN-confirmed administrator grants in the canonical account dialog. */
 (() => {
   const body = document.getElementById('userDialogBody');
   if (!body) return;
-  let myId = null;
-  fetch('/api/me', {credentials:'include', cache:'no-store'})
-    .then(r => r.ok ? r.json() : null).then(me => { if(me) myId = Number(me.id); })
-    .catch(() => {});
 
   function showMessage(message) {
     const toast = document.getElementById('toast');
@@ -18,37 +14,33 @@
   function augment() {
     const content = body.querySelector('.dialog-inner');
     const form = body.querySelector('#userEditForm');
-    if (!content || !form || body.querySelector('#roleDelegationForm')) return;
+    if (!content || !form || content.querySelector('[data-admin-grant]')) return;
     const uid = Number(form.dataset.userId);
     const role = body.querySelector('.dialog-meta')?.textContent?.trim().split(' ')[0]?.toLowerCase();
-    if (!Number.isSafeInteger(uid) || uid <= 0 || !['admin','member'].includes(role)) return;
+    if (!Number.isSafeInteger(uid) || uid <= 0 || !['admin', 'member'].includes(role)) return;
 
     const container = document.createElement('div');
     container.className = 'form-stack';
-    if (myId !== null && myId === uid) {
-      container.innerHTML = '<p class="field-note">自分自身の管理者権限は変更できません。権限の解除は後任の管理者から実施してください。</p>';
+    container.dataset.adminGrant = '1';
+    if (role === 'admin') {
+      container.innerHTML = '<h4>管理者権限</h4>'
+        + '<p class="field-note">このアカウントは管理者です。管理者の引継ぎは追加方式のため、既存管理者の権限やアカウント、ポイント・履歴は失効しません。</p>';
     } else {
-      container.innerHTML = '<h4>管理者権限の引き継ぎ</h4>'
+      container.innerHTML = '<h4>管理者を追加（権限の引継ぎ）</h4>'
+        + '<p class="field-note">引継ぎは管理者の追加です。現在の管理者の権限・ログイン、双方のポイント・ランキング・対戦履歴はそのまま残ります。</p>'
         + '<form id="roleDelegationForm" class="form-stack">'
-        + '<label>変更後の権限<select name="role" required>'
-        + '<option value="member">一般会員</option><option value="admin">管理者</option>'
-        + '</select></label>'
         + '<label>操作中の管理者の6桁PIN<input name="current_pin" type="password" autocomplete="off" inputmode="numeric" pattern="[0-9]{6}" minlength="6" maxlength="6" required></label>'
-        + '<p class="field-note">管理者への任命にはJJメンバー本人確認が必要です。変更後、対象者の全セッションを失効します。</p>'
-        + '<button class="primary" type="submit">権限を変更する</button></form>';
-      const newRole = container.querySelector('[name="role"]');
-      newRole.value = role;
+        + '<p class="field-note">追加先はJJメンバー本人確認済みの有効アカウントに限ります。追加先のみ、安全のため全端末で再ログインが必要になります。</p>'
+        + '<button class="primary" type="submit">この会員を管理者に追加</button></form>';
       container.querySelector('form').addEventListener('submit', async event => {
         event.preventDefault();
         const panel = event.currentTarget;
         if (panel.dataset.pending) return;
-        const roleToSet = newRole.value;
-        if (roleToSet === role) return showMessage('現在と同じ権限です');
         const pin = panel.elements.current_pin.value;
         if (!/^[0-9]{6}$/.test(pin)) return showMessage('6桁のPINを入力してください');
         const name = body.querySelector('.dialog-inner h3')?.textContent?.trim() || '対象者';
-        if (!window.confirm(name + 'の権限を' + (roleToSet==='admin'?'管理者に変更':'一般会員に変更') + 'し、対象者を全端末からログアウトさせます。続行しますか？')) return;
-        panel.dataset.pending='1';
+        if (!window.confirm(name + 'を管理者に追加します。既存管理者の権限とデータは保持され、追加先のみ再ログインが必要です。続行しますか？')) return;
+        panel.dataset.pending = '1';
         const button = panel.querySelector('button[type="submit"]');
         button.disabled = true;
         try {
@@ -56,13 +48,13 @@
             method: 'POST',
             credentials: 'include',
             headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({role:roleToSet,current_pin:pin})
+            body: JSON.stringify({role: 'admin', current_pin: pin})
           });
           const result = await response.json().catch(() => ({}));
           if (!response.ok) throw new Error(typeof result.detail === 'string' ? result.detail : 'HTTP ' + response.status);
           window.location.reload();
         } catch (error) {
-          panel.elements.current_pin.value='';
+          panel.elements.current_pin.value = '';
           showMessage(error.message);
         } finally {
           delete panel.dataset.pending;
@@ -72,11 +64,11 @@
     }
     const divider = document.createElement('hr');
     divider.className = 'divider';
-    divider.style.cssText='margin:16px 0;border:0;border-top:1px solid currentColor;opacity:.18';
+    divider.style.cssText = 'margin:16px 0;border:0;border-top:1px solid currentColor;opacity:.18';
     content.append(divider, container);
   }
 
   const observer = new MutationObserver(augment);
-  observer.observe(body,{childList:true});
+  observer.observe(body, {childList: true});
   augment();
 })();
