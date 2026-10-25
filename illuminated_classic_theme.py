@@ -7,7 +7,7 @@ online poker stage, administrative console, and point-form layout stay intact.
 from __future__ import annotations
 
 
-ILLUMINATED_CLASSIC_MARKER = "jj illuminated classic visual theme v2"
+ILLUMINATED_CLASSIC_MARKER = "jj illuminated classic visual theme v3"
 ILLUMINATED_DECK_MARKER = 'class="jj-illuminated-deck"'
 
 
@@ -28,7 +28,7 @@ def transform_index(html: str) -> str:
 
 ILLUMINATED_CLASSIC_CSS = r"""
 
-/* jj illuminated classic visual theme v2
+/* jj illuminated classic visual theme v3
    A distinctive editorial, playing-card interface. CSS-only, no asset cost.
    Poker action surfaces and form positioning are deliberately untouched. */
 #appView {background:#F5F0E5;}
@@ -64,8 +64,9 @@ ILLUMINATED_CLASSIC_CSS = r"""
 #homeView .jj-illuminated-deck span:nth-child(3) {color:#BA7540;}
 #homeView .jj-illuminated-deck span:nth-child(4) {color:#207D71;}
 #homeView .hero .eyebrow {display:inline-block;color:#FFE4AA;letter-spacing:.23em;border-bottom:1px solid rgba(255,236,186,.7);padding-bottom:9px;}
-#homeView .hero h3 {font-family:Georgia,"Yu Mincho","Hiragino Mincho ProN",serif;font-weight:770;line-height:1.22;letter-spacing:.02em;text-shadow:0 1px 1px rgba(17,29,52,.18);}
-#homeView .hero>div:first-child {max-width:65%;}
+#homeView .hero h3 {font-family:Georgia,"Yu Mincho","Hiragino Mincho ProN",serif;font-size:clamp(2.1rem,3.2vw,3.5rem);font-weight:770;line-height:1.22;letter-spacing:.02em;white-space:nowrap;text-shadow:0 1px 1px rgba(17,29,52,.18);}
+/* The heading already has an intentional <br>; keep Japanese words intact. */
+#homeView .hero>div:first-child {flex:1 1 auto;min-width:0;max-width:none;}
 #homeView .hero p {color:#F2F2FF;line-height:1.8;}
 #homeView .hero .primary {color:#233354;background:#FCE6B7;box-shadow:0 4px 0 rgba(0,0,0,.13);border-radius:6px;}
 #homeView .hero .soft {color:#FFFFFF;border-color:#F1DAA7;background:rgba(255,255,255,.08);border-radius:6px;}
@@ -143,7 +144,7 @@ ILLUMINATED_CLASSIC_CSS = r"""
 @media(max-width:1240px) {
   #homeView .jj-illuminated-deck {width:118px;height:100px;right:20px;top:21px;padding:4px;}
   #homeView .jj-illuminated-deck span {font-size:2rem;}
-  #homeView .hero>div:first-child {max-width:75%;}
+  #homeView .hero>div:first-child {max-width:none;}
 }
 
 @media(max-width:760px) {
@@ -154,7 +155,7 @@ ILLUMINATED_CLASSIC_CSS = r"""
   #homeView .jj-illuminated-deck {display:none;}
   #homeView .hero::before {right:0;bottom:0;font-size:7rem;color:rgba(255,224,167,.13);}
   #homeView .hero::after {content:"♥ ♦ ♣";right:11px;top:12px;font:normal 1rem/1 Georgia,serif;letter-spacing:.3em;color:#F6DAA6;pointer-events:none;opacity:.85;}
-  #homeView .hero h3 {font-size:1.8rem!important;line-height:1.24!important;letter-spacing:.01em;}
+  #homeView .hero h3 {font-size:clamp(1.5rem,6.7vw,1.8rem)!important;line-height:1.24!important;letter-spacing:.01em;}
   #homeView .home-columns>.panel::before {margin:-16px -16px 15px;}
   #homeView .mobile-quick-point {padding:16px!important;}
   #rankingView .toolbar {background:#FFF9ED!important;backdrop-filter:none!important;}
