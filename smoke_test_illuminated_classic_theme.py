@@ -24,7 +24,7 @@ def _contrast(foreground: str, background: str) -> float:
 
 
 def main() -> None:
-    assert ASSET_VERSION >= 96, "the redesign must invalidate the previous PWA cache"
+    assert ASSET_VERSION >= 97, "the headline fix must invalidate the previous PWA cache"
     theme = ILLUMINATED_CLASSIC_CSS
     assert len(theme.encode("utf-8")) <= 16500, "CSS must stay smaller than an image asset"
     assert all(suit in theme for suit in ("♠", "♥", "♦", "♣"))
@@ -42,6 +42,9 @@ def main() -> None:
 
     assert theme.count("::before") >= 3 and theme.count("::after") >= 4
     assert "#homeView .hero {border:" in theme, "hero must change visually beyond colors"
+    assert "white-space:nowrap" in theme.split("#homeView .hero h3 {", 1)[1].split("}", 1)[0], "explicit two-line heading must not wrap mid-word"
+    assert "flex:1 1 auto;min-width:0;max-width:none" in theme, "heading needs full usable space"
+    assert "font-size:clamp(1.5rem,6.7vw,1.8rem)!important" in theme, "narrow screens need a fitting headline"
     assert "#homeView .jj-illuminated-deck" in theme, "a drawn suit-card motif is required"
     assert "border-top:5px" in theme, "podium cards must have a rank-specific treatment"
     assert "#rankingView .table-card th" in theme, "ranking header needs a distinctive treatment"
