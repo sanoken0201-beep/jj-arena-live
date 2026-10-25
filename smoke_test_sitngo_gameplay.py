@@ -21,11 +21,17 @@ def main(paid=False):
         with db.connect() as con:
             for uid in users:
                 con.execute("INSERT INTO point_ledger(id,user_id,amount,kind,reason,effective_at,created_by,created_at) VALUES (?,?,?,?,?,?,?,?)",(f'fund-{uid}',uid,'1000.00','credit','test',db.utcnow(),admin,db.utcnow()))
-    # Keep simulated launches away from JST midnight irrespective of CI time.
+    # A tournament simulation can advance the clock across JST midnight.
+    # Start *each* subsequent event at a fresh local noon; otherwise a start
+    # two minutes after midnight can precede that day's registration opening.
     clock=datetime(2026, 1, 1, 3, 0, tzinfo=timezone.utc).timestamp()
     def launch(count):
         nonlocal clock
-        clock+=300
+        local_now=datetime.fromtimestamp(clock,timezone.utc).astimezone(sitngo.JST)
+        next_noon=local_now.replace(hour=12,minute=0,second=0,microsecond=0)
+        if next_noon.timestamp()<=clock:
+            next_noon+=timedelta(days=1)
+        clock=next_noon.timestamp()
         with patch.object(sitngo,'_utcnow',return_value=datetime.fromtimestamp(clock,timezone.utc)):
             event=service.create_event(sitngo.SitNGoCreateIn(name='Gameplay',entry_fee='10.01' if paid else '0',starts_at=datetime.fromtimestamp(clock+120,timezone.utc).isoformat()),admin)
             for uid in users[:count]: service.register(event['id'],uid)
