@@ -37,9 +37,15 @@ try{
  assert(window.__jjRequests.filter(x=>x==='GET /api/home/core').length===1,'one home core');
  assert(window.__jjRequests.includes('GET /api/home/overview?include_points=false'),'overview reuses points');
  report.homeCore=1;
- window.__jjRequests=[];
+ window.__rankDelay=600;window.__jjRequests=[];
  $('.nav[data-view="ranking"]').click();
+ await sleep(20);
+ assert(points()==='10','home standings must paint before ranking API response');
+ assert($('#jjRankRefreshStatus')?.textContent.includes('最新情報'),'provisional standings must be labeled');
+ report.instantHomeStandings=true;
  await wait(()=>$('#jjV1243RankingSummary')?.textContent.includes('TOP 5'),'ranking summary');
+ assert(!$('#jjRankRefreshStatus'),'provisional label must clear on authoritative response');
+ window.__rankDelay=0;
  report.openRequests=counts();assert(counts().length===3,'open = seasons + two distinct rankings '+counts());
  const before=window.__jjRequests.length;
  for(const value of ['ユ','ユー','not found','']){$('#rankSearch').value=value;$('#rankSearch').dispatchEvent(new Event('input'))}
