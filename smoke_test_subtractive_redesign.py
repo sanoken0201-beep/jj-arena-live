@@ -14,7 +14,7 @@ def main() -> None:
     js = build_app_js()
     css = build_styles()
 
-    require(ASSET_VERSION >= 93, "asset version must preserve member point economy isolation")
+    require(ASSET_VERSION >= 94, "asset version must preserve member point economy isolation and the new visual theme")
     require(SUBTRACTIVE_RED282_MARKER in html, "index marker missing")
     require(SUBTRACTIVE_RED282_MARKER in js, "app marker missing")
     require(SUBTRACTIVE_RED282_MARKER in css, "style marker missing")

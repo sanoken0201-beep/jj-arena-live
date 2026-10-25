@@ -75,8 +75,8 @@ def main() -> None:
             assert "v84 mobile poker seat-card clearance 2026-10-08" in compiled_js, (
                 "compiled browser asset must include mobile opponent-card and hand-log repairs"
             )
-            assert served_assets.ASSET_VERSION >= 94, (
-                "browser asset version must advance with HU position view"
+            assert served_assets.ASSET_VERSION >= 95, (
+                "browser asset version must advance with HU position view and the lightweight visual theme"
             )
             assert compiled_js.count('id="jjAnalysisHuPositions"') == 1
             assert "ポジション別（3人以上）" in compiled_js
