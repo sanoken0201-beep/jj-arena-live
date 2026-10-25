@@ -254,9 +254,9 @@ def install(app, server, db, hand_analytics, daily_quiz, learning_content, admin
         return [dict(r) for r in rows]
 
     @app.get("/api/home/overview", include_in_schema=False)
-    def home_overview(user=Depends(server.current_user)):
+    def home_overview(include_points: bool = True, user=Depends(server.current_user)):
         uid = int(user["id"]); ranking_name = str(user.get("ranking_name") or user.get("name") or "")
-        rank = next((r for r in admin_console._rankings(db, server, season="fall") if str(r.get("name")) == ranking_name), None)
+        rank = next((r for r in admin_console._rankings(db, server, season="fall") if str(r.get("name")) == ranking_name), None) if include_points else None
         summary = hand_analytics._summary_payload(uid, "30d", None)
         hands = hand_analytics._hand_list(uid, limit=3, offset=0, range_name="30d", position=None, result="all", showdown="all", street=None, table_id=None, bookmarked=False, query="")
         day = daily_quiz.today_jst()

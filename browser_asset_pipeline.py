@@ -19,7 +19,9 @@ from ux_telemetry_followup import apply_to_build as apply_ux_telemetry_followup
 
 from quiz_request_diagnostics import apply_to_build as apply_quiz_request_diagnostics
 
-PIPELINE_VERSION = 5
+from ranking_read_optimization import apply_to_build as apply_ranking_reads
+
+PIPELINE_VERSION = 6
 POST_BUILD_STAGES = (
     ("oop_check_freshness", apply_oop_check_freshness),
     ("poker_control_safety", apply_poker_control_safety),
@@ -30,6 +32,7 @@ POST_BUILD_STAGES = (
     # Final append-only instrumentation: no UI/gameplay mutation and no polling.
     ("ux_telemetry_followup", apply_ux_telemetry_followup),
     ("quiz_request_diagnostics", apply_quiz_request_diagnostics),
+    ("ranking_read_optimization", apply_ranking_reads),
 )
 
 

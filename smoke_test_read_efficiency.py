@@ -118,6 +118,26 @@ def main():
     def auth_count():
         return sum("FROM sessions s JOIN users" in query for query in queries)
 
+    # New clients reuse core ranking rows; old overview clients keep exact points.
+    import admin_console
+    original_rankings = admin_console._rankings
+    ranking_calls = []
+    def counted_rankings(*args, **kwargs):
+        ranking_calls.append(1)
+        return original_rankings(*args, **kwargs)
+    admin_console._rankings = counted_rankings
+    try:
+        core = get("/api/home/core")
+        overview = get("/api/home/overview?include_points=false")
+        assert len(ranking_calls) == 1, ranking_calls
+        legacy = get("/api/home/overview")
+        assert len(ranking_calls) == 2
+        assert {k:v for k,v in overview.items() if k != "points"} == {k:v for k,v in legacy.items() if k != "points"}
+        assert client.get("/api/home/overview?include_points=false").status_code == 401
+        print("home core + overview: canonical ranking aggregations 2->1; default API/auth preserved")
+    finally:
+        admin_console._rankings = original_rankings
+
     expected_me = server.user_payload(users[0])
     reset()
     assert get("/api/me") == expected_me

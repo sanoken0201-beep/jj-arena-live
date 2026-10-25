@@ -83,6 +83,21 @@ Normal product changes belong in root-level extensions, integration shims, brows
 
 Do not mix poker game-rule changes and UI-only changes in one patch unless the coupling is unavoidable and explicitly justified.
 
+## Ranking and home read orchestration (2026-10-25)
+
+`ranking_read_optimization.py` is the final deterministic browser stage after
+season/runtime transformations. Search filters the completed local snapshot
+without GETs. Table and current-season/month summary share in-flight ranking
+Promises; completed ranking results are not time-cached. Navigation, logout and
+refresh generations reject late responses. Metadata is reused for at most 15
+seconds within a view and refreshed on navigation, explicit refresh and return
+from a hidden tab. The refresh button updates the table and both summary periods.
+
+During a home render, `/home/core` ranking rows supply both leaderboard and
+personal points. `/home/overview?include_points=false` skips its redundant
+ranking aggregation; default `/home/overview` retains its legacy response.
+No accounting, persistence, authentication or game-state contracts change.
+
 ## 5. Browser asset ownership
 
 `materialized_v1244/static` is immutable input.
