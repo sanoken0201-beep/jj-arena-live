@@ -67,6 +67,12 @@ try{
  assert($('#rankBody').innerHTML===last,'no paint after navigation');
  window.__rankDelay=0;window.__points=35;$('.nav[data-view="ranking"]').click();
  await wait(()=>points()==='35','reentry fresh');
+ // A refresh must bypass an older in-flight result, and that result must never repaint.
+ window.__points=40;window.__rankDelay=180;$('[data-jj-v1243-retry="ranking"]').click();await sleep(10);
+ window.__points=50;window.__rankDelay=0;$('[data-jj-v1243-retry="ranking"]').click();
+ await wait(()=>points()==='50','forced refresh bypasses old request');await sleep(220);
+ assert(points()==='50','old refresh cannot overwrite');
+ assert($('#jjV1243RankingSummary').textContent.includes('Renamed'),'summary uses active season label');
  assert(document.documentElement.scrollWidth<=innerWidth+2,'no horizontal overflow');
  const rect=$('#rankSearch').getBoundingClientRect();assert(rect.width>50&&rect.right<=innerWidth+2,'search visible');
  report.viewport=innerWidth;report.ok=true;

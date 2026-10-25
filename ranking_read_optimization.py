@@ -61,6 +61,8 @@ def transform_app_js(js):
     const generation=++jjRankGeneration,nav=jjReadNavigation,user=me,mode=rankMode;
     const valid=()=>generation===jjRankGeneration&&nav===jjReadNavigation&&user===me&&currentView==='ranking';
     const jjSeasons=await jjReadSeasons();if(!valid())return;""")
+    js = replace_once(js, "<span>後期シーズン</span>", "<span>${safe(jjCurrentSeason?.name||'シーズン総合')}</span>")
+    js = replace_once(js, "'あなたの表示名に一致する後期ランキングがまだありません。ポイントが反映されるとここに表示されます。'", "'あなたの表示名に一致するランキングがまだありません。ポイントが反映されるとここに表示されます。','<button class=\"soft\" data-jj-v1243-retry=\"ranking\">更新</button>'")
     # Rendering is a pure operation over the completed display snapshot.
     start = js.index("    await loadRankings(month,season);", js.index('async function renderRanking('))
     end = js.index('\n\n  async function renderPoints()', start)
