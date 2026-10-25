@@ -59,6 +59,7 @@ TEST_SUITES: dict[str, tuple[str, ...]] = {
     ),
     "browser_contract": (
         "smoke_test_quiz_request_diagnostics.py",
+        "smoke_test_ranking_reads.py",
         "smoke_test_prebuilt_assets.py",
         "smoke_test_pwa_update.py",
         "smoke_test_responsive_parity.py",
@@ -122,6 +123,7 @@ RETIRED_TEST_FILES = frozenset(
 BROWSER_ONLY_TESTS = frozenset(
     {
         "smoke_test_quiz_request_diagnostics.py",
+        "smoke_test_ranking_reads.py",
         "smoke_test_poker_simple.py",
         "smoke_test_oop_check_browser.py",
         "smoke_test_poker_control_audit.py",
