@@ -76,8 +76,8 @@ try{
  assert(!counts().some(x=>x.includes('/seasons')),'season reuse');report.fastSwitchRequests=counts();
  window.__rankDelay=0;$('[data-rank-mode="archive"]').click();await wait(()=>points()==='7','archive');
  $('[data-rank-mode="month"]').click();await wait(()=>points()==='3','monthly');
- const last=$('#rankBody').innerHTML;
  window.__rankDelay=150;$('[data-rank-mode="overall"]').click();await sleep(10);
+ const last=$('#rankBody').innerHTML; // optimistic first paint may change it synchronously
  $('.nav[data-view="home"]').click();await sleep(200);
  assert($('#rankBody').innerHTML===last,'no paint after navigation');
  window.__rankDelay=0;window.__points=35;$('.nav[data-view="ranking"]').click();
