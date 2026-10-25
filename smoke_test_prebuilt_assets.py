@@ -75,9 +75,14 @@ def main() -> None:
             assert "v84 mobile poker seat-card clearance 2026-10-08" in compiled_js, (
                 "compiled browser asset must include mobile opponent-card and hand-log repairs"
             )
-            assert served_assets.ASSET_VERSION >= 93, (
-                "browser asset version must advance with hand result trend chart"
+            assert served_assets.ASSET_VERSION >= 94, (
+                "browser asset version must advance with HU position view"
             )
+            assert compiled_js.count('id="jjAnalysisHuPositions"') == 1
+            assert "ポジション別（3人以上）" in compiled_js
+            assert "data.hu_positions||[]" in compiled_js
+            assert "data.hu_overall||{}" in compiled_js
+            assert "/* jj-analysis-hu-section:" in compiled_css
             second = served_assets.build_all(root)
             served_assets.validate_built_assets(root)
             assert first == second, "asset manifest is not deterministic"
