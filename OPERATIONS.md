@@ -260,15 +260,15 @@ runtime performance変更では、少なくとも以下の意味を変えない�
 - 外部取得URLはコード内のallowlistだけを使用し、ユーザー入力URLをサーバーからfetchしない（SSRF防止）。
 - 外部コンテンツ本文を転載せず、タイトル・短い説明・公開日・リンクのみを共有する。
 
-## 13. Admin succession (2026-10-10 proposal)
+## 13. Additive administrator handover (2026-10-25)
 
-Administrator succession is designed for the existing canonical `/admin` account list. To delegate authority, the acting administrator opens a verified and active member's account, changes its role to administrator, and enters **their own** current 6-digit PIN. To retire a former administrator, a different active administrator changes the former admin to member by the same procedure. The target is logged out on every real role change and must sign in again with their existing PIN. Role changes are audited and never change rankings or points.
+Administrator handover in `/admin` → 登録アカウント means **adding another administrator**, not transferring or removing the current administrator's rights. Select an active, approved, JJ-verified member and confirm with the acting administrator's own six-digit PIN. The role API accepts only `role=admin`; an old cached client attempting `role=member` is rejected. Existing administrators remain administrators with their accounts and login sessions unchanged.
 
-- Confirm that the successor can log in, see `/admin`, and perform normal member management before retiring the previous administrator.
-- A sole administrator cannot resign in-app. Never share an administrator PIN to bypass handover.
-- Only verified, active accounts can be elevated. Unverified accounts must first pass the normal JJ member verification workflow.
-- The legacy emergency `JJ_ADMIN_PIN` bootstrap currently demotes other administrators. It is not a routine role-management tool. Keep `JJ_ADMIN_PIN` removed during normal operations; use only as a temporary recovery mechanism, then verify all desired administrator roles afterward.
-- This capability is pending pull-request review, CI, deployment, and production verification until the change is merged.
+- The newly promoted member must log in again with their existing PIN; only that member's pre-elevation sessions are revoked so a pre-existing member session cannot silently acquire administrator rights.
+- No account, Club entry, Ring result, quiz/Sit&Go ledger, points, ranking or other activity history is deleted or reattributed by a grant. The change is recorded in the admin audit log.
+- Elevated users can grant authority to further verified members. A repeat grant is an idempotent no-op.
+- Demoting/removing an administrator is **not** an action in the handover form or role-grant API. If revocation is required, design and authorize a separate explicit, audited workflow.
+- `JJ_ADMIN_PIN` is emergency recovery only. The bootstrap guard protects existing active administrator grants from initialization/restarts; the emergency recovery path is not a routine handover mechanism.
 
 
 ## 14. Season management (phase 2)
