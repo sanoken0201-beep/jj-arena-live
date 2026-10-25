@@ -284,6 +284,8 @@ def run() -> None:
         assert summary["overall"]["hands"] >= 2
         assert "vpip" in summary["overall"] and "positions" in summary and "stack_bands" in summary
         assert summary["overall"]["bb_per_100"] is not None
+        assert round(summary["overall"]["sd_bb"] + summary["overall"]["nsd_bb"], 2) == summary["overall"]["net_bb"]
+        assert all(round(p["cumulative_sd_bb"] + p["cumulative_nsd_bb"], 2) == p["cumulative_bb"] for p in summary["trend"])
 
         for path, method in [
             ("/api/analysis/summary", "GET"), ("/api/analysis/hands", "GET"),

@@ -73,7 +73,7 @@ from ring_buyin_browser import MARKER as RING_BUYIN_MARKER, transform_app_js as 
 ROOT = Path(__file__).resolve().parent
 MATERIALIZED_STATIC = ROOT / "materialized_v1244" / "static"
 BUILD_ROOT = ROOT / ".jj_build"
-ASSET_VERSION = 92
+ASSET_VERSION = 93
 BUILD_FORMAT = 1
 
 _MOBILE_PODIUM_ORDER_MARKER = "v88 mobile podium rank order 2026-10-17"
