@@ -1,0 +1,18 @@
+/* Scoped to MDA; responsive cards instead of a fixed 169-cell matrix. */
+#mdaView{min-width:0;max-width:100%}
+#mdaView .mda-controls{display:flex;align-items:end;flex-wrap:wrap;gap:12px;padding:16px;margin:14px 0}
+#mdaView .mda-controls label{display:flex;flex-direction:column;gap:6px;min-width:0;max-width:100%;font-weight:700}
+#mdaView select{min-height:44px;max-width:100%;padding:8px;border:1px solid #cfdad4;border-radius:8px;background:#fff;color:#142a20}
+#mdaView .mda-controls button{min-height:44px;margin-left:auto}
+#mdaView #mdaMessage{padding:12px;line-height:1.6;overflow-wrap:anywhere}
+#mdaView .mda-metrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,320px),1fr));gap:14px;margin:16px 0}
+#mdaView .mda-metric{padding:16px;min-width:0}
+#mdaView h4{margin:0 0 6px}
+#mdaView .mda-stat{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:6px 12px;padding:12px 0;border-top:1px solid #dce4df;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+#mdaView .mda-rate{font-size:1.35rem;font-weight:800;color:#166448}
+#mdaView .mda-count,#mdaView .mda-muted{grid-column:1/-1;font-size:.85rem}
+#mdaView .mda-muted{color:#59685f}
+@media(max-width:520px){
+#mdaView .mda-controls{display:grid;grid-template-columns:1fr;padding:12px}
+#mdaView .mda-controls button{width:100%;margin:0}
+}

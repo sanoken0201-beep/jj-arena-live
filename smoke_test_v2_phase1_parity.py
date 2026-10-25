@@ -78,6 +78,8 @@ def _strip_phase4c_extensions(payload: dict) -> dict:
         ("http", "/api/admin/console/ring-rake/reset", ("POST",), "reset_ring_rake"),
         ("http", "/api/admin/console/ring-reentries", ("GET",), "admin_reentries"),
         ("http", "/api/admin/console/ring-reentries/{user_id}/reset", ("POST",), "reset_reentries"),
+        # Audited cache-only administrator MDA reader; no schema or gameplay changes.
+        ("http", "/api/admin/mda/grid", ("GET",), "mda_grid"),
         ("http", "/api/tables/{table_id}/seat", ("POST",), "limited_seat"),
         ("http", "/api/tables/{table_id}/join", ("POST",), "limited_join"),
         ("http", "/api/tables/{table_id}/presence", ("POST",), "limited_presence"),

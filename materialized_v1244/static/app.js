@@ -20,7 +20,7 @@
   let handLogSig="";
   let quiz={count:0,score:0,q:null};
 
-  const titles={home:['DASHBOARD','今日のJJ'],ranking:['LEADERBOARD','ランキング'],tables:['REALTIME NLH','オンラインテーブル'],points:['ADMIN','ポイント入力'],members:['ADMIN','ユーザー管理'],schedule:['CLUB CALENDAR','活動予定'],news:['BOARD','お知らせ'],lab:['POKER LAB','学習'],discussion:['OPEN TABLE','戦略議論']};
+  const titles={home:['DASHBOARD','今日のJJ'],ranking:['LEADERBOARD','ランキング'],tables:['REALTIME NLH','オンラインテーブル'],points:['ADMIN','ポイント入力'],members:['ADMIN','ユーザー管理'],schedule:['CLUB CALENDAR','活動予定'],news:['BOARD','お知らせ'],lab:['POKER LAB','学習'],discussion:['OPEN TABLE','戦略議論'],mda:['POPULATION MDA','MDA分析']};
   const fmt=n=>Number(n||0).toLocaleString('ja-JP');
   const bb=(n,state=tableState)=>{const big=Number(state?.big_blind||100);const v=Number(n||0)/big;return `${v.toLocaleString('ja-JP',{maximumFractionDigits:2})}bb`};
   const safe=s=>String(s??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
@@ -40,7 +40,7 @@
   function renderUser(){if(!me)return;$('#userName').textContent=me.name;$('#userRole').textContent=me.role.toUpperCase();$('#wallet').textContent='6MAX · 150BB';$('#homeWallet').textContent='150';$$('.admin-only').forEach(el=>el.classList.toggle('hidden',me.role!=='admin'))}
   async function refreshMe(){me=await api('/me');renderUser()}
 
-  function switchView(v){if((v==='points'||v==='members')&&me?.role!=='admin')v='home';currentView=v;$$('.view').forEach(x=>x.classList.toggle('active-view',x.id===v+'View'));let activeNav=null;$$('.nav').forEach(x=>{const on=x.dataset.view===v;x.classList.toggle('active',on);x.toggleAttribute('aria-current',on);if(on)activeNav=x});if(activeNav&&innerWidth<=760)activeNav.scrollIntoView({block:'nearest',inline:'center',behavior:'smooth'});$('#viewEyebrow').textContent=titles[v]?.[0]||'';$('#viewTitle').textContent=titles[v]?.[1]||'';if(v!=='tables'&&currentTableId)disconnectTable();refreshView(v).catch(e=>toast(e.message))}
+  function switchView(v){if((v==='points'||v==='members')&&me?.role!=='admin')v='home';if(v==='mda'&&me?.role!=='admin')v='home';currentView=v;$$('.view').forEach(x=>x.classList.toggle('active-view',x.id===v+'View'));let activeNav=null;$$('.nav').forEach(x=>{const on=x.dataset.view===v;x.classList.toggle('active',on);x.toggleAttribute('aria-current',on);if(on)activeNav=x});if(activeNav&&innerWidth<=760)activeNav.scrollIntoView({block:'nearest',inline:'center',behavior:'smooth'});$('#viewEyebrow').textContent=titles[v]?.[0]||'';$('#viewTitle').textContent=titles[v]?.[1]||'';if(v!=='tables'&&currentTableId)disconnectTable();refreshView(v).catch(e=>toast(e.message))}
   async function refreshView(v){if(v==='home')return renderHome();if(v==='ranking')return renderRanking();if(v==='tables')return renderLobby();if(v==='points')return renderPoints();if(v==='members')return renderMembers();if(v==='schedule')return renderSchedules();if(v==='news')return renderNews();if(v==='discussion')return renderThreads();if(v==='lab')return renderQuiz()}
   async function refreshAll(){await Promise.all([loadRankings(),renderHome()]);}
 

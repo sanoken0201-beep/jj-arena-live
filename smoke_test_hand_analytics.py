@@ -141,6 +141,13 @@ def run() -> None:
             p2 = dict(con.execute("SELECT * FROM jj_hand_players WHERE hand_id=? AND user_id=?", (hand1, u2)).fetchone())
             actions = [dict(r) for r in con.execute("SELECT * FROM jj_hand_actions WHERE hand_id=? ORDER BY seq", (hand1,)).fetchall()]
             snaps = [dict(r) for r in con.execute("SELECT * FROM jj_hand_snapshots WHERE hand_id=? ORDER BY seq", (hand1,)).fetchall()]
+        with db.connect() as con:
+            eligibility = [dict(r) for r in con.execute(
+                "SELECT seq,can_increase_wager FROM jj_hand_action_eligibility WHERE hand_id=? ORDER BY seq",
+                (hand1,),
+            ).fetchall()]
+        assert [e["seq"] for e in eligibility] == [a["seq"] for a in actions]
+        assert all(e["can_increase_wager"] == 1 for e in eligibility)
         assert h["completed_at"] and h["result_type"] == "uncontested"
         assert int(h["partial_capture"]) == 0
         assert p1["position"] == "BTN"
