@@ -76,7 +76,7 @@ from illuminated_classic_theme import transform_styles as transform_illuminated_
 ROOT = Path(__file__).resolve().parent
 MATERIALIZED_STATIC = ROOT / "materialized_v1244" / "static"
 BUILD_ROOT = ROOT / ".jj_build"
-ASSET_VERSION = 96  # Refresh every client after the illustrated-classic redesign.
+ASSET_VERSION = 97  # Ensure the fixed illustrated hero typography refreshes cached clients.
 BUILD_FORMAT = 1
 
 _MOBILE_PODIUM_ORDER_MARKER = "v88 mobile podium rank order 2026-10-17"
