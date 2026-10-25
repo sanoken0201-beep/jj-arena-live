@@ -12,20 +12,20 @@ HELPERS = r'''
   let jjRankGeneration=0,jjReadNavigation=0,jjRankSnapshot=null;
   let jjSeasonMemo=null,jjSeasonPending=null;
   let jjRankPending=new Map();
-  let jjHomeContext=null,jjHomePending=null;
+  let jjHomeContext=null,jjHomePending=null,jjRecentSeasonRows=null;
   function jjInvalidateReads(){
     jjReadNavigation++;jjRankGeneration++;jjRankSnapshot=null;
     // Season metadata is not user-specific and remains fresh for its short TTL.
     // Preserve it across views so reopening ranking skips a serial GET roundtrip.
-    jjSeasonPending=null;jjRankPending=new Map();
+    jjRankPending=new Map();
     jjHomeContext=null;jjHomePending=null;
+    document.getElementById('jjRankRefreshStatus')?.remove();
   }
   function jjReadSeasons(){
     if(jjSeasonMemo&&Date.now()-jjSeasonMemo.at<15000)return Promise.resolve(jjSeasonMemo.rows);
     if(jjSeasonPending)return jjSeasonPending;
-    const nav=jjReadNavigation;
     const p=api('/seasons').then(rows=>{
-      if(nav===jjReadNavigation&&jjSeasonPending===p)jjSeasonMemo={rows,at:Date.now()};
+      if(jjSeasonPending===p)jjSeasonMemo={rows,at:Date.now()};
       return rows;
     }).finally(()=>{if(jjSeasonPending===p)jjSeasonPending=null});
     jjSeasonPending=p;return p;
@@ -61,7 +61,23 @@ def transform_app_js(js):
     js = replace_once(js, "const jjSeasons=await api('/seasons');", """if(!me||currentView!=='ranking')return;
     if(force){jjSeasonMemo=null;jjSeasonPending=null;jjRankPending=new Map()}
     const generation=++jjRankGeneration,nav=jjReadNavigation,user=me,mode=rankMode;
+    if(force||mode!=='overall')document.getElementById('jjRankRefreshStatus')?.remove();
     const valid=()=>generation===jjRankGeneration&&nav===jjReadNavigation&&user===me&&currentView==='ranking';
+    // First paint reuses the already-settled home overview, clearly marked
+    // as provisional. Authoritative ranking GET always follows.
+    if(!force&&mode==='overall'&&jjRecentSeasonRows?.user===me&&Date.now()-jjRecentSeasonRows.at<300000){
+      jjRankSnapshot={displayRows:jjRecentSeasonRows.rows,jjSeasons:jjSeasonMemo?.rows||[],
+        season:'fall',activeSeason:jjCurrentSeason,mode};
+      jjDrawRanking();
+      const status=document.getElementById('jjRankRefreshStatus')||document.createElement('p');
+      status.id='jjRankRefreshStatus';status.className='hint';status.setAttribute('role','status');
+      status.textContent='前回の順位を表示しています。最新情報を確認中…';
+      if(!status.isConnected)document.getElementById('rankingView')?.prepend(status);
+    }
+    // Fetch the expensive season standings concurrently with the small
+    // season metadata request, avoiding an unnecessary serial roundtrip.
+    const pool=jjRankPending;
+    jjReadRanking(null,'fall',pool).catch(()=>{});
     const jjSeasons=await jjReadSeasons();if(!valid())return;""")
     js = replace_once(js, "<span>後期シーズン</span>", "<span>${safe(jjCurrentSeason?.name||'シーズン総合')}</span>")
     js = replace_once(js, "'あなたの表示名に一致する後期ランキングがまだありません。ポイントが反映されるとここに表示されます。'", "'あなたの表示名に一致するランキングがまだありません。ポイントが反映されるとここに表示されます。','<button class=\"soft\" data-jj-v1243-retry=\"ranking\">更新</button>'")
@@ -72,7 +88,7 @@ def transform_app_js(js):
     draw = draw.replace("rankings.filter", "displayRows.filter").replace('rankMode', 'mode')
     draw = draw.replace('jjCurrentSeason?.name', 'activeSeason?.name')
     js = js[:start] + """
-    const pool=jjRankPending,summaryMonth=jjV1243MonthKey();
+    const summaryMonth=jjV1243MonthKey();
     // Start all consumers together so identical table/summary keys share a Promise.
     const displayPromise=season?jjReadRanking(month,season,pool):Promise.resolve([]);
     const summaryPromise=Promise.all([
@@ -85,6 +101,8 @@ def transform_app_js(js):
       jjRankSnapshot={displayRows,jjSeasons,season,activeSeason:jjCurrentSeason,mode};
       // The detailed table is authoritative and must not wait for monthly cards.
       jjDrawRanking();
+      document.getElementById('jjRankRefreshStatus')?.remove();
+      if(season==='fall'&&!month)jjRecentSeasonRows={rows:displayRows,user:me,at:Date.now()};
       const summary=await summaryPromise;
       if(!valid())return;
       if(summary.error){
@@ -93,7 +111,7 @@ def transform_app_js(js):
         return;
       }
       await jjV1243LoadRanking(...summary.rows);
-    }catch(err){if(valid())toast(err.message)}
+    }catch(err){if(valid()){const status=document.getElementById('jjRankRefreshStatus');if(status)status.textContent='最新情報を取得できませんでした。前回の順位を表示しています。';toast(err.message)}}
   }
   function jjDrawRanking(){
     if(!jjRankSnapshot||currentView!=='ranking'||jjRankSnapshot.mode!==rankMode)return;
@@ -105,7 +123,7 @@ def transform_app_js(js):
     js = replace_once(js, "if(v==='ranking')await jjV1243LoadRanking();", '')
     js = replace_once(js, "else if(target==='ranking')jjV1243LoadRanking();", "else if(target==='ranking')renderRanking(true).catch(e=>toast(e.message));")
     js = replace_once(js, 'function switchView(v){', 'function switchView(v){jjInvalidateReads();')
-    js = replace_once(js, 'async function logout(remote=true){', 'async function logout(remote=true){jjInvalidateReads();')
+    js = replace_once(js, 'async function logout(remote=true){', 'async function logout(remote=true){jjInvalidateReads();jjRecentSeasonRows=null;')
     js = replace_once(js, 'async function refreshAll(){await Promise.all([loadRankings(),renderHome()]);}', 'async function refreshAll(){await renderHome();}')
     js = replace_once(js, "const jjActivePoints=(await api('/seasons')).find", "const jjActivePoints=(await jjReadSeasons()).find")
     # Preserve the existing hub and table layout, reuse the core's ranking rows.
@@ -113,7 +131,7 @@ def transform_app_js(js):
     js = replace_once(js, ");rankings=r;const top=r[0];", ");if(nav!==jjReadNavigation||!me||currentView!=='home')return;if(ctx)ctx.rows=r;const top=r[0];")
     js = replace_once(js, "    await jjSubBaseRenderHome();", "    const nav=jjReadNavigation;await jjSubBaseRenderHome();if(nav!==jjReadNavigation)return;")
     js = replace_once(js, "      const announcements=await api('/announcements'),today=", "      const announcements=jjHomeContext?.announcements||await api('/announcements'),today=")
-    js = js.replace("if(ctx)ctx.rows=r;", "if(ctx){ctx.rows=r;ctx.announcements=n;}")
+    js = js.replace("if(ctx)ctx.rows=r;", "if(ctx){ctx.rows=r;ctx.announcements=n;jjRecentSeasonRows={rows:r,user:me,at:Date.now()};}")
     js = replace_once(js, "    const result=await jjV192BaseRenderHome();", "    const nav=jjReadNavigation;const result=await jjV192BaseRenderHome();if(nav!==jjReadNavigation)return result;")
     js = replace_once(js, "const r=await jjV121OldRenderHome();await jjV121LoadHomeHub();", "const nav=jjReadNavigation;const r=await jjV121OldRenderHome();if(nav===jjReadNavigation)await jjV121LoadHomeHub();")
     # Only the final active home renderer; the earlier compatibility renderer stays intact.
