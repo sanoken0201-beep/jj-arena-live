@@ -98,6 +98,21 @@ personal points. `/home/overview?include_points=false` skips its redundant
 ranking aggregation; default `/home/overview` retains its legacy response.
 No accounting, persistence, authentication or game-state contracts change.
 
+## Point-source history and inflation monitor (2026-10-25)
+
+`point_economy.py` adds an administrator-only, read-only
+`GET /api/admin/point-economy` endpoint. It reports JST daily/cumulative
+official point totals from club input (`entries`), non-voided Ring results
+(`online_hand_results`), daily quiz rewards (`point_ledger.kind=quiz_reward`),
+and all remaining ledger adjustments/Sit&Go settlements separately. Deleted
+account generations and excluded `運営調整` entries follow canonical ranking
+inclusion. Recent transactions support a per-source paginated history. The
+administrator can open the lazy-loaded panel below the ranking table; ordinary
+ranking/home requests are unchanged. This shows the currently valid ranking
+stock *retrospectively*; account deletions and voided hands are excluded for all
+past dates, so it is not a historical reconstruction of deleted balances.
+The point-source panel and API never modify or reclassify stored transactions.
+
 ## 5. Browser asset ownership
 
 `materialized_v1244/static` is immutable input.

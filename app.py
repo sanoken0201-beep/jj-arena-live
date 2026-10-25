@@ -36,7 +36,11 @@ import ring_action_safety
 import ring_inactivity_eviction
 import ring_admin_config
 import read_efficiency
+import point_economy
 from connection_diagnostics import ConnectionDiagnostics
+
+# Read-only, opt-in point history: no extra work on ranking/home requests.
+point_economy.install(app, runtime_server, db)
 
 # Configure the root-level Sit&Go extension before browser transforms bind the
 # Sit&Go UI functions and before the service installs its FastAPI routes. The

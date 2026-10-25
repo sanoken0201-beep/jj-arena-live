@@ -44,6 +44,7 @@ def main() -> None:
             "smoke_test_connection_diagnostics.py",
             "smoke_test_rake_integrity_runtime_audit.py",
             "smoke_test_point_ledger_precision.py",
+            "smoke_test_point_economy.py",
             "smoke_test_season_management.py",
             "smoke_test_season_rollover.py",
             "smoke_test_online_rate_snapshot.py",
@@ -120,7 +121,7 @@ def main() -> None:
             assert runtime_browser_marker in js
             assert telemetry_followup_marker in js
             manifest = served_assets.validate_built_assets(root)
-            assert manifest.get("pipeline_version") == 6
+            assert manifest.get("pipeline_version") == 7
             assert manifest.get("pipeline_stages") == [
                 "oop_check_freshness",
                 "poker_control_safety",
@@ -130,6 +131,7 @@ def main() -> None:
                 "ux_telemetry_followup",
                 "quiz_request_diagnostics",
                 "ranking_read_optimization",
+                "point_economy_ui",
             ]
             assert manifest.get("browser_output_contract") == "canonical-prebuilt-v1"
         print("JJ_PRODUCTION_RELEASE_GATE_CONTRACT_OK")
