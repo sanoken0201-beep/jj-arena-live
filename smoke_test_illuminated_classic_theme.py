@@ -1,10 +1,12 @@
-"""The bright classic visual theme must not change gameplay or point entry."""
+"""The distinctive classic UI must stay accessible and out of poker gameplay."""
 
 from __future__ import annotations
 
 from illuminated_classic_theme import (
     ILLUMINATED_CLASSIC_CSS,
     ILLUMINATED_CLASSIC_MARKER,
+    ILLUMINATED_DECK_MARKER,
+    transform_index,
     transform_styles,
 )
 from served_assets import ASSET_VERSION, build_app_js, build_index, build_styles
@@ -22,19 +24,29 @@ def _contrast(foreground: str, background: str) -> float:
 
 
 def main() -> None:
-    assert ASSET_VERSION >= 95, "the new CSS must invalidate the previous PWA cache"
+    assert ASSET_VERSION >= 96, "the redesign must invalidate the previous PWA cache"
     theme = ILLUMINATED_CLASSIC_CSS
-    assert len(theme.encode("utf-8")) <= 4400, "keep the presentation-only CSS small"
+    assert len(theme.encode("utf-8")) <= 16500, "CSS must stay smaller than an image asset"
     assert all(suit in theme for suit in ("♠", "♥", "♦", "♣"))
     assert all(selector in theme for selector in (
         "#homeView .hero", "#rankingView .podium-card", "#pointsView .panel", "#authView.auth-shell",
+        "#appView .sidebar", "#appView .topbar", "#homeView .top-player", ".jj-analysis-hero",
+        "#appView .mobile-dock", "@media(max-width:760px)",
     ))
     for forbidden in (
         ":root", "#pokerRoom", "#pokerTable", "#actionBar", "#pointForm", "#quickPointForm",
-        "#mobileQuickPointCard", "#homePointShortcut", ".sidebar", "@font-face", "@keyframes",
-        "@import", "url(", "animation:", "grid-template", "min-height:", "padding:",
+        "#mobileQuickPointCard", "#homePointShortcut", "@font-face", "@keyframes",
+        "@import", "url(", "animation:", "backdrop-filter:blur(",
     ):
-        assert forbidden not in theme, f"unexpected gameplay, entry, layout or network styling: {forbidden}"
+        assert forbidden not in theme, f"unexpected gameplay, entry structure or network styling: {forbidden}"
+
+    assert theme.count("::before") >= 3 and theme.count("::after") >= 4
+    assert "#homeView .hero {border:" in theme, "hero must change visually beyond colors"
+    assert "#homeView .jj-illuminated-deck" in theme, "a drawn suit-card motif is required"
+    assert "border-top:5px" in theme, "podium cards must have a rank-specific treatment"
+    assert "#rankingView .table-card th" in theme, "ranking header needs a distinctive treatment"
+    assert "#pointsView .primary" in theme and "#pointsView .calc" in theme
+    assert "#homeView .mobile-quick-point" in theme, "mobile point input must remain visible"
 
     assert transform_styles(theme) == theme, "theme must be idempotent"
     compiled = build_styles()
@@ -43,18 +55,21 @@ def main() -> None:
     assert compiled.find("v88 mobile podium rank order") < compiled.find(ILLUMINATED_CLASSIC_MARKER)
 
     for foreground, background in (
-        ("#FFFFFF", "#315FC5"),
-        ("#FFFFFF", "#244A9E"),
-        ("#FFF0C7", "#315FC5"),
-        ("#EDF2FF", "#315FC5"),
-        ("#28365C", "#FFF9EE"),
-        ("#315FC5", "#FFFDFA"),
-        ("#846012", "#FFF1DB"),
+        ("#FFFFFF", "#284B85"),
+        ("#FFFFFF", "#284D87"),
+        ("#FFF8E6", "#2A4574"),
+        ("#F2F2FF", "#223C71"),
+        ("#232D49", "#FFF0C5"),
+        ("#203352", "#FBF6EA"),
+        ("#1D477C", "#EAF0FA"),
     ):
         assert _contrast(foreground, background) >= 4.5, f"text contrast: {foreground} / {background}"
 
     index = build_index()
     js = build_app_js()
+    assert index.count(ILLUMINATED_DECK_MARKER) == 1
+    assert all(f"<span>{suit}</span>" in index for suit in ("♠", "♥", "♦", "♣"))
+    assert transform_index(index) == index, "markup must be idempotent"
     assert '<button class="nav" data-view="points">＋ <span>ポイント入力</span></button>' in index
     assert 'id="pointForm"' in index
     assert 'id="quickPointForm"' in js
