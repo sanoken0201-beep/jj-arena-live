@@ -15,7 +15,9 @@ HELPERS = r'''
   let jjHomeContext=null,jjHomePending=null;
   function jjInvalidateReads(){
     jjReadNavigation++;jjRankGeneration++;jjRankSnapshot=null;
-    jjSeasonMemo=null;jjSeasonPending=null;jjRankPending=new Map();
+    // Season metadata is not user-specific and remains fresh for its short TTL.
+    // Preserve it across views so reopening ranking skips a serial GET roundtrip.
+    jjSeasonPending=null;jjRankPending=new Map();
     jjHomeContext=null;jjHomePending=null;
   }
   function jjReadSeasons(){
@@ -72,15 +74,25 @@ def transform_app_js(js):
     js = js[:start] + """
     const pool=jjRankPending,summaryMonth=jjV1243MonthKey();
     // Start all consumers together so identical table/summary keys share a Promise.
+    const displayPromise=season?jjReadRanking(month,season,pool):Promise.resolve([]);
+    const summaryPromise=Promise.all([
+      jjReadRanking(null,'fall',pool),
+      summaryMonth?jjReadRanking(summaryMonth,'fall',pool):Promise.resolve([])
+    ]).then(rows=>({rows}),error=>({error}));
     try{
-      const [displayRows,seasonRows,monthRows]=await Promise.all([
-        season?jjReadRanking(month,season,pool):Promise.resolve([]),
-        jjReadRanking(null,'fall',pool),
-        summaryMonth?jjReadRanking(summaryMonth,'fall',pool):Promise.resolve([])
-      ]);
+      const displayRows=await displayPromise;
       if(!valid())return;
       jjRankSnapshot={displayRows,jjSeasons,season,activeSeason:jjCurrentSeason,mode};
-      jjDrawRanking();await jjV1243LoadRanking(seasonRows,monthRows);
+      // The detailed table is authoritative and must not wait for monthly cards.
+      jjDrawRanking();
+      const summary=await summaryPromise;
+      if(!valid())return;
+      if(summary.error){
+        const box=jjV1243EnsureRanking();
+        if(box)box.innerHTML=jjV1243State('error','ランキング詳細を更新できませんでした',summary.error.message||'通信状態を確認してください。','<button class="soft" data-jj-v1243-retry="ranking">再試行</button>');
+        return;
+      }
+      await jjV1243LoadRanking(...summary.rows);
     }catch(err){if(valid())toast(err.message)}
   }
   function jjDrawRanking(){
