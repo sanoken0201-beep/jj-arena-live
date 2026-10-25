@@ -289,6 +289,13 @@ their PINs or revoke their sessions on repeat `init_db()` /
 `seed_if_needed()`. A missing enabled administrator retains the seeded
 recovery route. Canonical source files remain immutable.
 
+As of 2026-10-25, administrator handover is strictly additive: the
+PIN-confirmed `/api/admin/console/users/{uid}/role` endpoint grants only
+`admin` to a verified active member. The current and other administrators
+retain their roles and sessions, and all account/point/history data remains
+unchanged. Only sessions of the newly promoted member are invalidated for
+re-authentication. Demotion is deliberately excluded from this handover flow.
+
 `season_management.utc_bounds` converts active/archived JST dates to UTC
 for Ring results, the manual/quiz/Sit&Go ledger, monthly ranking slices and
 administrator overviews; manually entered naive datetime-local strings are
