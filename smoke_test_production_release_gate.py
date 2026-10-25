@@ -24,6 +24,7 @@ def main() -> None:
             assert env["RENDER"] == "1"
 
         expected = {
+            "smoke_test_illuminated_classic_theme.py",
             "smoke_test_prebuilt_assets.py",
             "smoke_test_pwa_update.py",
             "smoke_test_ux_telemetry.py",
