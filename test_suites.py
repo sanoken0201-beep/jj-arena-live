@@ -24,6 +24,7 @@ TEST_SUITES: dict[str, tuple[str, ...]] = {
         "smoke_test_structure_consolidation.py",
     ),
     "points_integrity": (
+        "smoke_test_point_economy.py",
         "smoke_test_scoped_points.py",
         "smoke_test_season_management.py",
         "smoke_test_season_rollover.py",
@@ -149,6 +150,7 @@ PRODUCTION_RELEASE_SELECTION: tuple[tuple[str, tuple[str, ...]], ...] = (
         "smoke_test_structure_consolidation.py",
     )),
     ("points_integrity", (
+        "smoke_test_point_economy.py",
         "smoke_test_season_management.py",
         "smoke_test_season_rollover.py",
         "smoke_test_online_rate_snapshot.py",
