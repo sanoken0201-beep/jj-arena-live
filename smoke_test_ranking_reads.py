@@ -94,10 +94,10 @@ def main():
         fixture=root/'fixture.html';fixture.write_text(html)
         for width,height in [(1440,900),(390,844)]:
             p=subprocess.run([chrome,'--headless','--no-sandbox','--disable-gpu','--allow-file-access-from-files','--virtual-time-budget=9000',f'--window-size={width},{height}','--dump-dom',fixture.as_uri()],capture_output=True,text=True,timeout=45)
-            result=re.search(r'<pre id="readResult"[^>]*>(.*?)</pre>',p.stdout,re.S)
-            assert result, p.stderr[-2000:]+p.stdout[-2000:]
+            results=re.findall(r'<pre id="readResult"[^>]*>(.*?)</pre>',p.stdout,re.S)
+            assert results, p.stderr[-2000:]+p.stdout[-2000:]
             import html as html_module
-            data=json.loads(html_module.unescape(result[1]));assert data.get('ok'),data
+            data=json.loads(html_module.unescape(results[-1]));assert data.get('ok'),data
             print(json.dumps(data,ensure_ascii=False))
     print('RANKING_READS_BROWSER_OK')
 
