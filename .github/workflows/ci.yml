@@ -72,6 +72,9 @@ jobs:
       - name: Verify deterministic prebuilt asset contract
         run: python smoke_test_prebuilt_assets.py
 
+      - name: Verify automatic browser-cache revision on JS or CSS changes
+        run: python smoke_test_browser_cache_revision.py
+
       - name: Verify explicit PWA update contract
         run: python smoke_test_pwa_update.py
 
