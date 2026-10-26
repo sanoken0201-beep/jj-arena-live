@@ -313,3 +313,28 @@ production integration layer; new club result POSTs continue through the
 existing idempotent, authenticated, validated handler. Historical point
 reversals stay ledger-backed. Cutover must not be activated before the scheduled
 date or by manual DB status edits.
+
+
+## D-030 — Existing PostgreSQL schema must not run no-op ALTER on web startup
+
+**Date:** 2026-10-26
+**Status:** Proposed for isolated CI/PR review; production not deployed
+
+Render PostgreSQL recorded authentication SELECT deadlocks with startup
+`ALTER TABLE sessions ADD COLUMN IF NOT EXISTS expires_at TEXT` during two
+consecutive deploys on 2026-10-25. The legacy initializer had already taken
+schema locks on `users` in the same transaction. The authentication SELECT
+locks `sessions` and then `users`, creating a reverse-order lock cycle.
+
+As a narrowly scoped exception to the canonical-core immutability contract,
+the legacy PostgreSQL migration checks `information_schema` before optional
+ADD COLUMN and before enforcing defaults/NOT NULL on user counters. When the
+schema is already current, `init_db()` and `ensure_profile_columns()` must
+issue no ALTER TABLE commands. A genuinely missing column or constraint must
+still be repaired; initial SQLite bootstrap and existing account/point/hand
+storage semantics remain unchanged. The canonical manifest hashes are updated
+in tandem, and regression tests exercise both no-op and legacy-repair cases.
+
+Do not merge or deploy without PostgreSQL 18 integration gates, backup review,
+and a short maintenance window with no active hands. Do not recreate the
+production database or upload its logical dump to a public CI artifact.
