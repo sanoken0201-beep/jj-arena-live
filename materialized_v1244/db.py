@@ -154,6 +154,29 @@ def _pg_columns(con, table: str) -> set[str]:
     return {r["column_name"] for r in rows}
 
 
+def _ensure_pg_zero_default_not_null(con, column: str) -> None:
+    """Apply legacy constraints only when the installed schema needs them.
+
+    Even a no-op ALTER TABLE takes AccessExclusiveLock on PostgreSQL. Running
+    repeated ALTERs for users before ALTERing sessions on every web startup
+    deadlocks with authentication reads that lock those tables in reverse order.
+    """
+    if column not in {"arena_chips", "xp"}:
+        raise ValueError("unsupported legacy user column")
+    row = con.execute(
+        "SELECT column_default, is_nullable FROM information_schema.columns "
+        "WHERE table_schema='public' AND table_name='users' AND column_name=?",
+        (column,),
+    ).fetchone()
+    if row is None:
+        return
+    default = str(row["column_default"] or "").split("::", 1)[0].strip(" '()")
+    if default != "0":
+        con.execute(f"ALTER TABLE users ALTER COLUMN {column} SET DEFAULT 0")
+    if str(row["is_nullable"]).upper() != "NO":
+        con.execute(f"ALTER TABLE users ALTER COLUMN {column} SET NOT NULL")
+
+
 def _columns(con, table: str) -> set[str]:
     if IS_POSTGRES:
         return _pg_columns(con, table)
@@ -184,7 +207,8 @@ def _migrate_legacy_beta(con):
     cols = _pg_columns(con, "users")
     if cols:
         for col, typ in (("password_hash","TEXT"),("arena_chips","INTEGER NOT NULL DEFAULT 0"),("created_at","TEXT"),("ranking_name","TEXT")):
-            con.execute(f"ALTER TABLE users ADD COLUMN IF NOT EXISTS {col} {typ}")
+            if col not in cols:
+                con.execute(f"ALTER TABLE users ADD COLUMN IF NOT EXISTS {col} {typ}")
         cols = _pg_columns(con, "users")
         if "ph" in cols: con.execute("UPDATE users SET password_hash=ph WHERE password_hash IS NULL")
         if "chips" in cols:
@@ -195,37 +219,40 @@ def _migrate_legacy_beta(con):
             con.execute("UPDATE users SET xp=0 WHERE xp IS NULL")
         if "role" in cols:
             con.execute("UPDATE users SET role='member' WHERE role IS NULL OR role='' ")
-        con.execute("ALTER TABLE users ALTER COLUMN arena_chips SET DEFAULT 0")
-        con.execute("ALTER TABLE users ALTER COLUMN arena_chips SET NOT NULL")
+        _ensure_pg_zero_default_not_null(con, "arena_chips")
         if "xp" in cols:
-            con.execute("ALTER TABLE users ALTER COLUMN xp SET DEFAULT 0")
-            con.execute("ALTER TABLE users ALTER COLUMN xp SET NOT NULL")
+            _ensure_pg_zero_default_not_null(con, "xp")
         con.execute("UPDATE users SET created_at=? WHERE created_at IS NULL", (utcnow(),))
         con.execute("UPDATE users SET ranking_name=name WHERE ranking_name IS NULL OR ranking_name='' ")
     cols = _pg_columns(con, "sessions")
     if cols:
-        con.execute("ALTER TABLE sessions ADD COLUMN IF NOT EXISTS expires_at TEXT")
-        con.execute("ALTER TABLE sessions ADD COLUMN IF NOT EXISTS created_at TEXT")
+        if "expires_at" not in cols:
+            con.execute("ALTER TABLE sessions ADD COLUMN IF NOT EXISTS expires_at TEXT")
+        if "created_at" not in cols:
+            con.execute("ALTER TABLE sessions ADD COLUMN IF NOT EXISTS created_at TEXT")
         cols = _pg_columns(con, "sessions")
         if "expires" in cols: con.execute("UPDATE sessions SET expires_at=expires WHERE expires_at IS NULL")
         con.execute("UPDATE sessions SET created_at=? WHERE created_at IS NULL", (utcnow(),))
     for table in ("schedules", "announcements"):
-        if _pg_columns(con, table):
-            con.execute(f"ALTER TABLE {table} ADD COLUMN IF NOT EXISTS created_by BIGINT")
-            con.execute(f"ALTER TABLE {table} ADD COLUMN IF NOT EXISTS created_at TEXT")
+        table_cols = _pg_columns(con, table)
+        if table_cols:
+            if "created_by" not in table_cols:
+                con.execute(f"ALTER TABLE {table} ADD COLUMN IF NOT EXISTS created_by BIGINT")
+            if "created_at" not in table_cols:
+                con.execute(f"ALTER TABLE {table} ADD COLUMN IF NOT EXISTS created_at TEXT")
             con.execute(f"UPDATE {table} SET created_at=? WHERE created_at IS NULL", (utcnow(),))
     cols = _pg_columns(con, "threads")
     if cols:
-        con.execute("ALTER TABLE threads ADD COLUMN IF NOT EXISTS author_id BIGINT")
-        con.execute("ALTER TABLE threads ADD COLUMN IF NOT EXISTS author_name TEXT")
-        con.execute("ALTER TABLE threads ADD COLUMN IF NOT EXISTS created_at TEXT")
+        for column, type_sql in (("author_id", "BIGINT"), ("author_name", "TEXT"), ("created_at", "TEXT")):
+            if column not in cols:
+                con.execute(f"ALTER TABLE threads ADD COLUMN IF NOT EXISTS {column} {type_sql}")
         if "author" in _pg_columns(con, "threads"): con.execute("UPDATE threads SET author_name=author WHERE author_name IS NULL")
         con.execute("UPDATE threads SET author_name='JJ Arena',created_at=? WHERE created_at IS NULL", (utcnow(),))
     cols = _pg_columns(con, "replies")
     if cols:
-        con.execute("ALTER TABLE replies ADD COLUMN IF NOT EXISTS author_id BIGINT")
-        con.execute("ALTER TABLE replies ADD COLUMN IF NOT EXISTS author_name TEXT")
-        con.execute("ALTER TABLE replies ADD COLUMN IF NOT EXISTS created_at TEXT")
+        for column, type_sql in (("author_id", "BIGINT"), ("author_name", "TEXT"), ("created_at", "TEXT")):
+            if column not in cols:
+                con.execute(f"ALTER TABLE replies ADD COLUMN IF NOT EXISTS {column} {type_sql}")
         if "author" in _pg_columns(con, "replies"): con.execute("UPDATE replies SET author_name=author WHERE author_name IS NULL")
         con.execute("UPDATE replies SET author_name='Member',created_at=? WHERE created_at IS NULL", (utcnow(),))
 
@@ -334,8 +361,10 @@ def ensure_profile_columns() -> None:
     """Add optional member-profile fields without changing existing auth semantics."""
     with connect() as con:
         if IS_POSTGRES:
+            columns = _pg_columns(con, "users")
             for col, typ in PROFILE_COLUMNS:
-                con.execute(f'ALTER TABLE users ADD COLUMN IF NOT EXISTS "{col}" {typ}')
+                if col not in columns:
+                    con.execute(f'ALTER TABLE users ADD COLUMN IF NOT EXISTS "{col}" {typ}')
             con.execute("UPDATE users SET profile_visible=1 WHERE profile_visible IS NULL")
         else:
             cols = {str(r["name"]) for r in con.execute("PRAGMA table_info(users)").fetchall()}

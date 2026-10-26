@@ -58,6 +58,7 @@ def main() -> None:
             "smoke_test_v2_production_cutover.py",
             "smoke_test_root_core_pruned.py",
             "smoke_test_legacy_artifacts_pruned.py",
+            "smoke_test_startup_pg_schema.py",
             "smoke_test_single_public_table.py",
             "smoke_test_spectator_visibility.py",
             "smoke_test_rake_settlement_fix.py",

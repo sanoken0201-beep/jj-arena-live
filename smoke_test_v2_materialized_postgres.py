@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
+from unittest.mock import patch
 
 
 def main() -> None:
@@ -33,6 +34,23 @@ def main() -> None:
         ).fetchone()
         backups = con.execute("SELECT COUNT(*) AS c FROM table_state_backups").fetchone()
         errors = con.execute("SELECT COUNT(*) AS c FROM ops_error_log").fetchone()
+
+    # The production schema now exists. A second legacy migration pass must
+    # be pure DML/metadata reads: no no-op ALTER may take AccessExclusiveLock
+    # while another instance is serving authentication reads during rollout.
+    observed_alters: list[str] = []
+    original_execute = production.db.PgConnection.execute
+
+    def observe_execute(connection, sql, params=()):
+        if sql.strip().upper().startswith("ALTER TABLE"):
+            observed_alters.append(sql)
+        return original_execute(connection, sql, params)
+
+    with patch.object(production.db.PgConnection, "execute", observe_execute):
+        with production.db.connect() as con:
+            production.db._migrate_legacy_beta(con)
+        production.db.ensure_profile_columns()
+    assert not observed_alters, f"repeated startup DDL on current PG schema: {observed_alters}"
 
     assert int(marker["c"] or 0) == 1, "historical migration marker missing on PostgreSQL"
     assert int(backups["c"] or 0) >= 0
