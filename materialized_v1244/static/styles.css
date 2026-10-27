@@ -1095,3 +1095,39 @@ dialog{max-height:min(92dvh,860px);overflow:auto;overscroll-behavior:contain}
   min-height:44px;
 }
 
+/* Expanded, responsive hand-history review. Other dialogs keep their normal size. */
+dialog.jj-hand-review-dialog{
+  box-sizing:border-box;
+  width:min(1440px,calc(100vw - 24px));
+  max-width:none;
+  max-height:calc(100dvh - 24px);
+  padding:clamp(14px,2vw,26px);
+  overflow-x:hidden;
+  overflow-y:auto;
+}
+dialog.jj-hand-review-dialog #modalBody,
+dialog.jj-hand-review-dialog .jj-v122-review{width:100%;max-width:100%;min-width:0}
+dialog.jj-hand-review-dialog .jj-v122-cards-zone{grid-template-columns:minmax(0,1.3fr) minmax(0,.8fr)}
+dialog.jj-hand-review-dialog .jj-v122-cards-zone>div,
+dialog.jj-hand-review-dialog .jj-v122-review-grid>*{min-width:0}
+dialog.jj-hand-review-dialog .jj-v122-review-head{padding-right:24px}
+@media(max-width:1100px){
+  dialog.jj-hand-review-dialog .jj-v122-cards-zone,
+  dialog.jj-hand-review-dialog .jj-v122-review-grid{grid-template-columns:minmax(0,1fr)}
+  dialog.jj-hand-review-dialog .jj-v122-review-side{position:static}
+}
+@media(max-width:760px){
+  dialog.jj-hand-review-dialog{
+    inset:0!important;
+    width:100%!important;
+    max-width:none!important;
+    height:100dvh!important;
+    max-height:100dvh!important;
+    margin:0!important;
+    border-radius:0!important;
+    padding:16px 12px calc(20px + env(safe-area-inset-bottom))!important;
+    animation:none!important;
+  }
+  dialog.jj-hand-review-dialog .jj-v122-cards-zone .card-face{width:clamp(32px,9vw,42px);height:clamp(43px,12vw,57px)}
+}
+

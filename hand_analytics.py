@@ -1155,7 +1155,7 @@ def _hand_list(
                 FROM jj_hand_players p JOIN jj_hand_history h ON h.hand_id=p.hand_id
                 LEFT JOIN jj_hand_reviews rv ON rv.hand_id=p.hand_id AND rv.user_id=p.user_id
                 WHERE {sql_where}
-                ORDER BY h.completed_at DESC LIMIT ? OFFSET ?""",
+                ORDER BY h.completed_at DESC,h.hand_id DESC LIMIT ? OFFSET ?""",
             params + [limit, offset],
         ).fetchall()
     items = []
