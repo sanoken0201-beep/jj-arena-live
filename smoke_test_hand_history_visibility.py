@@ -123,6 +123,15 @@ def run() -> None:
     assert "全プレイヤーのホールカード・全アクション・ボード" in transformed
     assert "相手のホールカードは、ショーダウンで実際に公開された場合だけ表示します。" not in transformed
     assert hand_history_visibility.transform_app_js(transformed) == transformed
+    # The active review renderer hands its existing detail response to the
+    # decision panel; opening one hand must not fetch the same detail twice.
+    v1244 = app_js.split("  function jjV1244PolishReview(data){", 1)[1]
+    assert "api(`/analysis/hands/${encodeURIComponent(handId)}`)" not in v1244
+    assert "jjV1244PolishReview(result)" in v1244
+    assert "return data;\n  };" in app_js
+    assert "new Map((reset?[]:jjAnalysisState.hands)" in app_js
+    assert "jjAnalysisState.nextOffset" in app_js
+    assert "jj-hand-review-dialog" in app_js
 
     styles = hand_history_visibility.transform_styles("")
     assert ".jj-hand-participant-grid" in styles

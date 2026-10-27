@@ -43,6 +43,27 @@ html,body{margin:0;background:#07100d;color:#eef6f2}.fixture{width:100%;max-widt
 <script>addEventListener('load',()=>{const q=s=>document.querySelector(s),all=s=>[...document.querySelectorAll(s)],r=q('.fixture').getBoundingClientRect(),checks={noPageOverflow:document.documentElement.scrollWidth<=innerWidth+2,fixtureContained:r.right<=innerWidth+1,focusButtonsTouch:all('.jj-v1244-focus-card button').every(b=>b.getBoundingClientRect().height>=44),handButtonsTouch:all('.jj-v1244-focus-hand-grid button').every(b=>b.getBoundingClientRect().height>=44),decisionContained:all('.jj-v1244-decision').every(x=>x.getBoundingClientRect().right<=innerWidth+1),detailsTouch:q('.jj-v1244-full-flow summary').getBoundingClientRect().height>=44,focusVisible:q('.jj-v1244-analysis-focus').getBoundingClientRect().height>180,decisionVisible:q('.jj-v1244-decision-panel').getBoundingClientRect().height>140};document.body.insertAdjacentHTML('beforeend',`<pre data-layout-ok="${Object.values(checks).every(Boolean)?'1':'0'}">${JSON.stringify(checks)}</pre>`)});</script></body></html>'''
 
 
+REVIEW_FIXTURE = r'''<!doctype html>
+<html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="stylesheet" href="styles.css"></head>
+<body><dialog id="modal" class="jj-hand-review-dialog" open><button class="modal-close" aria-label="閉じる">×</button><div id="modalBody">
+<div class="jj-review-shell jj-v122-review">
+  <header class="jj-v122-review-head"><div class="jj-v122-title"><div class="eyebrow">HAND REVIEW</div><h3>JJ Table A · #10715</h3><p>10/21 23:45</p></div><div class="jj-v122-result"><span>RESULT</span><strong>+12bb</strong></div></header>
+  <section class="jj-v122-cards-zone">
+    <div class="jj-v122-hero-hand jj-hand-participant-hands"><span>ALL HANDS</span><div class="jj-hand-participant-grid">
+      <article class="jj-hand-participant"><small>PLAYER 1</small><div class="cards"><span class="card-face">5♣</span><span class="card-face">5♥</span></div></article>
+      <article class="jj-hand-participant is-hero"><small>YOU</small><div class="cards"><span class="card-face">Q♦</span><span class="card-face">10♣</span></div></article>
+      <article class="jj-hand-participant"><small>PLAYER 3</small><div class="cards"><span class="card-face">7♥</span><span class="card-face">K♠</span></div></article>
+    </div></div>
+    <div class="jj-v122-board"><span>BOARD</span><div class="cards"><span class="card-face">A♠</span><span class="card-face">K♦</span><span class="card-face">9♣</span><span class="card-face">2♥</span><span class="card-face">4♦</span></div></div>
+  </section>
+  <div class="jj-v122-facts"><div><span>POSITION</span><strong>SB</strong></div><div><span>START</span><strong>191.6bb</strong></div><div><span>EFFECTIVE</span><strong>191.6bb</strong></div></div>
+  <div class="jj-v1244-decision-panel"><div class="jj-v1244-review-heading"><div><span>YOUR DECISIONS</span><h4>自分の意思決定</h4></div></div><div class="jj-v1244-decision-list"><article class="jj-v1244-decision"><div class="jj-v1244-decision-index">01</div><div class="jj-v1244-decision-street"><span>PREFLOP</span></div><div class="jj-v1244-decision-action"><strong>Raise</strong><b>to 3bb</b></div><div class="jj-v1244-decision-context">Facing 1bb</div></article></div></div>
+  <div class="jj-v122-review-grid"><main class="jj-v122-review-main"><section class="jj-v122-timeline-panel"><h4>ACTION FLOW</h4><p>全プレイヤーのアクション</p></section></main><aside class="jj-v122-review-side"><form class="jj-v122-note-card"><h4>YOUR REVIEW</h4><textarea>メモ</textarea></form></aside></div>
+</div></div></dialog>
+<script>addEventListener('load',()=>{const d=document.querySelector('dialog'),body=document.querySelector('#modalBody'),r=d.getBoundingClientRect(),board=document.querySelector('.jj-v122-board').getBoundingClientRect(),checks={reviewUsesScreen:r.width>=innerWidth*.85,reviewInsideViewport:r.left>=-1&&r.right<=innerWidth+1,noHorizontalScroll:d.scrollWidth<=d.clientWidth+2&&body.scrollWidth<=body.clientWidth+2&&document.documentElement.scrollWidth<=innerWidth+2,boardVisible:board.left>=r.left-1&&board.right<=r.right+1,mobileFullscreen:innerWidth>760||r.height>=innerHeight*.95};document.body.insertAdjacentHTML('beforeend',`<pre data-review-ok="${Object.values(checks).every(Boolean)?'1':'0'}">${JSON.stringify(checks)}</pre>`)});</script>
+</body></html>'''
+
+
 def _chrome() -> str:
     for name in ("google-chrome", "google-chrome-stable", "chromium", "chromium-browser"):
         path = shutil.which(name)
@@ -76,6 +97,11 @@ def main() -> None:
         mobile = _run(chrome, fixture, 390, 844)
         assert 'data-layout-ok="1"' in desktop, desktop[-2200:]
         assert 'data-layout-ok="1"' in mobile, mobile[-2200:]
+        review = root / "static" / "v1244-hand-review-layout.html"
+        review.write_text(REVIEW_FIXTURE, encoding="utf-8")
+        for width, height in ((1440, 1000), (815, 920), (390, 844)):
+            output = _run(chrome, review, width, height)
+            assert 'data-review-ok="1"' in output, f"{width}x{height}: {output[-2200:]}"
     print("JJ_V1244_ANALYSIS_LAYOUT_OK")
 
 

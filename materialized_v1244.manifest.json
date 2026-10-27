@@ -25,8 +25,8 @@
       "size": 68460
     },
     "static/app.js": {
-      "sha256": "69371a6fe8bf7de2842f99b332aa5a192e495e6a202d04fefcaa18ff0bff7a5d",
-      "size": 207823
+      "sha256": "4663e894e882a0c3c3f55ee4f544c8a3192d2e0104598f4898f134e893ca175d",
+      "size": 208438
     },
     "static/icon.svg": {
       "sha256": "73881d1c67715e44bbc161814df309affea8dc30096839f21a9235f0375a78f6",
@@ -41,8 +41,8 @@
       "size": 464
     },
     "static/styles.css": {
-      "sha256": "17e9d1419b8f3e14d387e751713c92841d4b436675672a62845877f1a231ac3a",
-      "size": 159882
+      "sha256": "75b78f2e13ee5dc6549ce9dc708029419c4eb4e04a45c2a467ccf1b751a0af08",
+      "size": 161327
     },
     "static/sw.js": {
       "sha256": "f5fa1cf3ad4110065c1ad0e3406c648bfbd4b981255a5b0e3ba40dcecfaf36ee",
