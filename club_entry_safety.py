@@ -18,6 +18,14 @@ from fastapi import HTTPException
 _REQUEST_ID = re.compile(r"^[A-Za-z0-9_-]{16,80}$")
 _DEFAULT_ABS_POINTS_LIMIT = 100_000.0
 
+# Official offline ring starting points. Historical entries store their own
+# initial and result values and must not be recalculated on policy changes.
+RING_INITIALS = {
+    450: "450 / blind 1-3-3",
+    1000: "1000 / blind 2-5",
+    3000: "3000 / blind 5-10",
+}
+
 
 def ensure_schema(db) -> None:
     uid = "BIGINT" if getattr(db, "IS_POSTGRES", False) else "INTEGER"
@@ -74,7 +82,7 @@ def _validate(db, server, payload) -> None:
         raise HTTPException(400, f"入力日時は現在のシーズン期間（{start}〜終了日前日）を指定してください")
 
     game_type = str(payload.game_type or "").strip().lower()
-    ring_initials = {450, 900, 2000}
+    ring_initials = RING_INITIALS
     tournament_initials = {300, 400, 500, 600, 800, 1000}
     allowed = ring_initials if game_type == "ring" else tournament_initials if game_type == "tournament" else set()
     if payload.initial not in allowed:
@@ -109,17 +117,12 @@ def _record_entry(con, db, core, user):
     together or roll back together.
     """
     game_type = core.game_type.strip().lower()
-    ring_initials = {
-        450: "450 / blind 1-3-3",
-        900: "900 / blind 2-5-5",
-        2000: "2000 / blind 5-10-10",
-    }
     tournament_initials = {
         300: "300 / tournament", 400: "400 / tournament",
         500: "500 / tournament", 600: "600 / tournament",
         800: "800 / tournament", 1000: "1000 / tournament",
     }
-    initial_map = ring_initials if game_type == "ring" else tournament_initials
+    initial_map = RING_INITIALS if game_type == "ring" else tournament_initials
     counts = {
         1: core.chip_1, 5: core.chip_5, 10: core.chip_10,
         25: core.chip_25, 100: core.chip_100, 500: core.chip_500,
