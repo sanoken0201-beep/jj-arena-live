@@ -76,7 +76,7 @@ from illuminated_classic_theme import transform_styles as transform_illuminated_
 ROOT = Path(__file__).resolve().parent
 MATERIALIZED_STATIC = ROOT / "materialized_v1244" / "static"
 BUILD_ROOT = ROOT / ".jj_build"
-ASSET_VERSION = 97  # Ensure the fixed illustrated hero typography refreshes cached clients.
+ASSET_VERSION = 98  # Refresh cached clients for offline ring starting point changes.
 BUILD_FORMAT = 1
 
 _MOBILE_PODIUM_ORDER_MARKER = "v88 mobile podium rank order 2026-10-17"
@@ -451,6 +451,20 @@ def build_app_js() -> str:
         raise RuntimeError("Ring buy-in browser transform marker missing")
     js = transform_season_app_js(js)
     js = transform_position_hu_app_js(js)
+
+    # 2026-11-03 official OFFLINE ring point policy. Keep the materialized
+    # v1.24.4 snapshot immutable: patch only the compiled client, including
+    # both the standard entry form and the mobile quick-entry form.
+    ring_initial_replacements = (
+        ("{value:900,label:'900 / blind 2-5-5'}", "{value:1000,label:'1000 / blind 2-5'}"),
+        ("{value:2000,label:'2000 / blind 5-10-10'}", "{value:3000,label:'3000 / blind 5-10'}"),
+        ("{value:900,label:'900 · 2-5-5'}", "{value:1000,label:'1000 · 2-5'}"),
+        ("{value:2000,label:'2000 · 5-10-10'}", "{value:3000,label:'3000 · 5-10'}"),
+    )
+    for old, new in ring_initial_replacements:
+        if js.count(old) != 1:
+            raise RuntimeError(f"offline ring initial option drift: {old}")
+        js = js.replace(old, new, 1)
     return js
 
 

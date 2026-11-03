@@ -167,6 +167,56 @@ def main() -> None:
             assert routes
             assert getattr(routes[0], "endpoint", None).__name__ == "_safe_admin_point_entry"
 
+            # New official ring buy-ins apply to new results only. Re-entry
+            # subtraction is based on the selected starting points, and
+            # historical results (including this session's 450pt entries)
+            # retain their stored totals.
+            for initial, reentries, chip_500, expected, label in (
+                (1000, 1, 5, 500, "1000 / blind 2-5"),
+                (3000, 2, 20, 1000, "3000 / blind 5-10"),
+            ):
+                new_payload = dict(
+                    keyed_admin,
+                    request_id=_request_id(),
+                    initial=initial,
+                    reentries=reentries,
+                    chip_500=chip_500,
+                )
+                result = json_response(client.post("/api/entries", json=new_payload))
+                assert result["remaining"] == chip_500 * 500
+                assert result["points"] == expected
+                with production.db.connect() as con:
+                    row = con.execute(
+                        "SELECT initial,reentries,points,game FROM entries WHERE id=?",
+                        (result["id"],),
+                    ).fetchone()
+                assert row is not None
+                assert int(row["initial"]) == initial
+                assert int(row["reentries"]) == reentries
+                assert int(row["points"]) == expected
+                assert row["game"] == label
+
+            for old_initial in (900, 2000):
+                obsolete = dict(keyed_admin, request_id=_request_id(), initial=old_initial)
+                response = client.post("/api/entries", json=obsolete)
+                assert response.status_code == 400, response.text
+
+            # One initial amount is shared by ring/tournament, but the label
+            # and allowed selection must still depend on the game type.
+            tournament = dict(keyed_admin, request_id=_request_id(),
+                              game_type="tournament", initial=1000, chip_500=2)
+            response = json_response(client.post("/api/entries", json=tournament))
+            assert response["points"] == 0
+            with production.db.connect() as con:
+                tournament_row = con.execute(
+                    "SELECT game FROM entries WHERE id=?", (response["id"],)
+                ).fetchone()
+                original = con.execute(
+                    "SELECT initial,points FROM entries WHERE id=?", (admin_first["id"],)
+                ).fetchone()
+            assert tournament_row["game"] == "1000 / tournament"
+            assert int(original["initial"]) == 450 and int(original["points"]) == 50
+
     print("JJ_CLUB_ENTRY_SAFETY_OK")
 
 
