@@ -44,6 +44,22 @@ def main() -> None:
             compiled_js = (root / "static" / "app.js").read_text(encoding="utf-8")
             compiled_index = (root / "index.html").read_text(encoding="utf-8")
             compiled_css = (root / "static" / "styles.css").read_text(encoding="utf-8")
+            # Both standard and quick-entry UIs must expose the new offline
+            # ring rates, without changing tournament or online-table rules.
+            for label in (
+                "{value:1000,label:'1000 / blind 2-5'}",
+                "{value:3000,label:'3000 / blind 5-10'}",
+                "{value:1000,label:'1000 · 2-5'}",
+                "{value:3000,label:'3000 · 5-10'}",
+            ):
+                assert compiled_js.count(label) == 1, f"new ring option missing: {label}"
+            for old_label in (
+                "{value:900,label:'900 / blind 2-5-5'}",
+                "{value:2000,label:'2000 / blind 5-10-10'}",
+                "{value:900,label:'900 · 2-5-5'}",
+                "{value:2000,label:'2000 · 5-10-10'}",
+            ):
+                assert old_label not in compiled_js, f"old ring option still displayed: {old_label}"
             assert "v88 mobile podium rank order 2026-10-17" in compiled_css
             assert "#podium > .podium-card:first-child { order:1; }" in compiled_css
             assert "#podium > .podium-card:nth-child(2) { order:2; }" in compiled_css
