@@ -20,6 +20,7 @@ const boot = "if(document.readyState==='loading')document.addEventListener('DOMC
 const end = source.indexOf(boot, begin);
 assert.ok(begin >= 0 && end > begin);
 const snippet = source.slice(begin, end + boot.length);
+const FIXED_NOW = Date.parse('2026-11-09T12:00:00+09:00');
 
 function harness(readyState) {
   const nodes = new Map(), events = new Map();
@@ -46,8 +47,9 @@ function harness(readyState) {
     createElement: () => new Element(),
     addEventListener: (name, fn) => events.set(name, fn),
   };
+  class FixedDate extends Date { static now() { return FIXED_NOW; } }
   const ctx = vm.createContext({
-    Date, URL, document,
+    Date: FixedDate, URL, document,
     $: selector => nodes.get(selector.slice(1)) || null,
     safe: value => String(value ?? '').replace(/[&<>"']/g, c => ({
       '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
@@ -74,7 +76,7 @@ for (const readyState of ['complete', 'loading']) {
   const current = pair(monday), next = pair(monday + 7 * 86400000);
   assert.ok(current.every(url => !next.includes(url)), 'Adjacent-week fallback pairs overlap');
 
-  const dynamic = Array.from({length: 10}, (_, i) => ({
+  const dynamic = Array.from({length: 8}, (_, i) => ({
     title: 'ポーカーのレンジ戦略を学ぶ第' + (i + 1) + '回',
     language: 'ja',
     url: 'https://japan.gtowizard.com/blog/weekly-test-' + (i + 1) + '/',
@@ -91,6 +93,7 @@ for (const readyState of ['complete', 'loading']) {
   const pool = api.jjJapaneseStudyArticles([...dynamic, ...fallback]);
   const index = api.studyIndex(pool.length);
   const expected = [pool[index], pool[(index + 1) % pool.length]];
+  assert.ok(expected.every(item => item.url.includes('/weekly-test-')), 'Weekly cards must select fresh RSS candidates');
   const home = nodes.get('weeklyStudyHome'), lab = nodes.get('weeklyStudyLab');
   assert.ok(home && lab);
   const homeGrid = home.querySelector('.study-grid');
@@ -104,7 +107,7 @@ for (const readyState of ['complete', 'loading']) {
   assert.equal(nodes.get('homeView').children.length, 1, 'Home weekly section duplicated');
   assert.equal(nodes.get('labView').children.length, 1, 'Lab weekly section duplicated');
   const fallbackGrid = home.querySelector('.study-grid').innerHTML;
-  const selectedFallback = pair(Date.now());
+  const selectedFallback = pair(FIXED_NOW);
   for (const url of selectedFallback) assert.ok(fallbackGrid.includes(url), 'Offline fallback was not restored');
 }
 
