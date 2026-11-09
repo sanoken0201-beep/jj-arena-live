@@ -435,11 +435,29 @@ for _category, _raw in _CURATED_300_ROWS.items():
         POOLS[_category].append(_question)
 
 
+# 2026-11-09: 20 cue-resistant items (10 categories x 2). The correct
+# answer is not systematically the longest or the recurring 67% label.
+from quiz_bias_balance import ROWS as _BIAS_BALANCE_ROWS
+
+for _category, _raw in _BIAS_BALANCE_ROWS.items():
+    for _line in _raw.strip().splitlines():
+        _slug, _prompt, _correct, _wrong1, _wrong2, _wrong3, _explanation, _source, _difficulty = _line.split("|")
+        _question = _q(
+            f"{_category}-balance-{_slug}", _category, CATEGORY_LABELS[_category],
+            ("【応用】" if _difficulty == "intermediate" else "") + _prompt,
+            [("a", _correct), ("b", _wrong1), ("c", _wrong2), ("d", _wrong3)],
+            "a", _explanation,
+        )
+        _question["difficulty"] = _difficulty
+        _question["source_title"], _question["source_url"] = SOURCES[_source]
+        POOLS[_category].append(_question)
+
+
 for category, pool in POOLS.items():
     for q in pool:
         q["category"] = category
         q["category_label"] = CATEGORY_LABELS[category]
-    assert len(pool) == 30, (category, len(pool))
+    assert len(pool) == 32, (category, len(pool))
 assert len(POOLS) == 10
-assert len({q["key"] for pool in POOLS.values() for q in pool}) == 300
+assert len({q["key"] for pool in POOLS.values() for q in pool}) == 320
 assert len({q["prompt"] for pool in POOLS.values() for q in pool}) == 300
