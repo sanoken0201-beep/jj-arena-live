@@ -111,6 +111,7 @@ jobs:
           node smoke_test_ops_alerts.js
           node --check admin_static/ops_participation.js
           node smoke_test_learning_ui.js "$RUNTIME/static/app.js"
+          node smoke_test_learning_ui.js ".jj_build/static/app.js"
           node smoke_test_daily_quiz_ui.js "$RUNTIME/static/app.js"
 
       - name: Run player UX audit source regression
