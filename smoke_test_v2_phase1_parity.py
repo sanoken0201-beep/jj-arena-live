@@ -64,6 +64,9 @@ def _strip_phase4c_extensions(payload: dict) -> dict:
     # canonical core routes with the same ring paths remain in the comparison.
     extension_routes = {
         ("http", "/api/admin/console/users/{uid}/role", ("POST",), "change_role"),
+        ("http", "/api/admin/console/users/{uid}/permanent-ban", ("POST",), "ban_user"),
+        ("http", "/api/admin/console/permanent-bans", ("GET",), "list_bans"),
+        ("http", "/api/admin/console/permanent-bans/{ban_id}/lift", ("POST",), "lift_ban"),
         ("http", "/api/seasons", ("GET",), "seasons"),
         ("http", "/api/admin/console/seasons", ("GET",), "admin_seasons"),
         ("http", "/api/admin/console/seasons", ("POST",), "create_season"),
@@ -124,9 +127,10 @@ def _strip_phase4c_extensions(payload: dict) -> dict:
         "ring_reentry_resets",
         "ring_rake_settlements",
         "ring_config_audit",
+        "permanent_bans",
     }
     missing_tables = extension_tables - set(columns)
-    assert not missing_tables, f"missing 2026-10-05 extension tables: {sorted(missing_tables)}"
+    assert not missing_tables, f"missing audited extension tables: {sorted(missing_tables)}"
     for table in extension_tables:
         columns.pop(table, None)
     clone["sqlite"]["objects"] = [
