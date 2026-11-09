@@ -50,9 +50,10 @@
       </section>
 
       <section id="usersView" class="view">
-        <div class="section-head"><div><div class="eyebrow">ACCOUNTS</div><h2>登録アカウント</h2><p>通常は一時停止で管理できます。不要なアカウントは管理画面から削除できますが、削除は取り消せません。</p></div><button id="exportUsers" class="soft">CSV出力</button></div>
+        <div class="section-head"><div><div class="eyebrow">ACCOUNTS</div><h2>登録アカウント</h2><p>一時停止・削除・永久BANを分けて管理します。永久BANは削除後も維持され、管理者だけが解除できます。</p></div><button id="exportUsers" class="soft">CSV出力</button></div>
         <div class="toolbar"><label class="search">⌕ <input id="userSearch" placeholder="名前・ランキング名・IDで検索"></label><label class="check"><input id="showDisabled" type="checkbox" checked> 一時停止を含む</label><button id="refreshUsers" class="soft">更新</button></div>
         <div class="table-wrap panel compact"><table class="data-table"><thead><tr><th>アカウント</th><th>状態</th><th>ランキング</th><th>今季Pt</th><th>ログイン</th><th>操作</th></tr></thead><tbody id="usersBody"></tbody></table><div id="usersCards" class="mobile-cards"></div></div>
+        <article class="panel" style="margin-top:16px"><div class="panel-head"><div><h3>永久BAN一覧</h3><p class="field-note">削除後もBAN記録は保持されます。通常の一時停止とは異なり、登録名を再利用できません。</p></div><button class="soft" type="button" id="refreshPermanentBans">更新</button></div><div id="permanentBanList" class="ledger-list"><div class="empty-state">読み込み前</div></div></article>
       </section>
 
       <section id="pointsView" class="view">
@@ -129,6 +130,7 @@
   <script src="/admin-static/admin.js?v=131-point-economy"></script>
   <script src="/admin-static/admin_point_economy.js?v=1"></script>
   <script src="/admin-static/admin_delete.js?v=127"></script>
+  <script src="/admin-static/admin_ban.js?v=1"></script>
   <script src="/admin-static/admin_sitngo.js?sng=12hands-20260921-2"></script>
 <script src="/admin-static/admin_pin_verify.js?v=127"></script>
 <script src="/admin-static/admin_role_delegation.js?v=2"></script>
