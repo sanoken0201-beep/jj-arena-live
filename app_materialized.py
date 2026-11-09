@@ -16,6 +16,7 @@ import sys
 from pathlib import Path
 
 import account_name_safety
+import permanent_ban
 import admin_api_consolidation
 import admin_ledger_stabilization
 import admin_pin_verification
@@ -173,6 +174,7 @@ security_hardening.install(app, runtime_server, db)
 # /api/admin/console. Legacy /api/admin/members remains read-only compatibility.
 admin_api_consolidation.install(app, runtime_server)
 account_name_safety.install(app, runtime_server, db)
+permanent_ban.install(app, runtime_server, db, admin_console)
 learning_content.install(app)
 daily_quiz.install(app, runtime_server, db)
 quiz_admin_ai.install(app, runtime_server, db)
