@@ -32,7 +32,7 @@ function harness(readyState) {
   const nodes = new Map();
   const events = new Map();
   class Element {
-    constructor() { this.dataset = {}; this.children = []; this._html = ''; }
+    constructor() { this.dataset = {}; this.children = []; this._html = ''; this._grid = null; }
     set id(value) { this._id = value; nodes.set(value, this); }
     get id() { return this._id; }
     set innerHTML(value) {
@@ -44,7 +44,11 @@ function harness(readyState) {
     }
     get innerHTML() { return this._html; }
     appendChild(node) { this.children.push(node); return node; }
-    querySelector() { return null; }
+    querySelector(selector) {
+      if (selector !== '.study-grid') return null;
+      if (!this._grid) this._grid = new Element();
+      return this._grid;
+    }
     get firstElementChild() { return null; }
   }
   for (const id of ['homeView', 'labView']) {
@@ -69,7 +73,7 @@ function harness(readyState) {
     },
     renderHome: async () => { state.homeCalls += 1; return 23; },
   });
-  vm.runInContext(weeklySource + '\n' + learningSource + '\nglobalThis.ui = {renderWeeklyStudy, jjV192LearningShell, jjV192RenderArticles, jjV192RenderLearning, jjJapaneseStudyArticles, renderHome, fallback: jjJapaneseArticleFallback};', context);
+  vm.runInContext(weeklySource + '\n' + learningSource + '\nglobalThis.ui = {renderWeeklyStudy, jjV192LearningShell, jjV192RenderArticles, jjV192RenderLearning, jjJapaneseStudyArticles, studyWeekSeed, studyIndex, renderHome, fallback: jjJapaneseArticleFallback};', context);
   if (readyState === 'loading') events.get('DOMContentLoaded')();
   return {nodes, state, ui: context.ui};
 }
@@ -91,6 +95,16 @@ function assertJapaneseLinks(node, minimum = 1) {
   for (const readyState of ['complete', 'loading']) {
     const {nodes, state, ui} = harness(readyState);
     assert.ok(ui.fallback.length >= 2);
+    // JST Monday at 00:00 must change the selected pair, with no overlap.
+    const monday = Date.parse('2026-11-09T00:00:00+09:00');
+    assert.equal(ui.studyWeekSeed(monday) - ui.studyWeekSeed(monday - 1), 1);
+    assert.equal(ui.studyWeekSeed(monday), ui.studyWeekSeed(monday + 6 * 86400000));
+    const pairAt = now => {
+      const offset = ui.studyIndex(ui.fallback.length, now);
+      return [ui.fallback[offset % ui.fallback.length].url, ui.fallback[(offset + 1) % ui.fallback.length].url];
+    };
+    const thisWeek = pairAt(monday), nextWeek = pairAt(monday + 7 * 86400000);
+    assert.ok(thisWeek.every(url => !nextWeek.includes(url)), 'Adjacent weeks must have different fallback articles');
     assertJapaneseLinks(nodes.get('weeklyStudyHome'), 2);
     assertJapaneseLinks(nodes.get('weeklyStudyLab'), 3);
     assert.ok(!nodes.get('weeklyStudyHome').innerHTML.includes('CashとMTTを1本ずつ'));
@@ -124,6 +138,13 @@ function assertJapaneseLinks(node, minimum = 1) {
     assertJapaneseLinks(articles);
     assert.equal([...articles.innerHTML.matchAll(/class="jj-study-card"/g)].length, 1, 'Only accepted, deduplicated article is rendered');
     assert.ok(articles.innerHTML.includes(valid.title));
+    const pool = ui.jjJapaneseStudyArticles([valid, ...ui.fallback]);
+    const offset = ui.studyIndex(pool.length);
+    const expected = [pool[offset], pool[(offset + 1) % pool.length]];
+    const weeklyGrid = nodes.get('weeklyStudyHome').querySelector('.study-grid');
+    for (const item of expected) {
+      assert.ok(weeklyGrid.innerHTML.includes(item.url), 'Weekly cards must use the live feed candidates');
+    }
     assert.ok(!articles.innerHTML.includes('untrusted source label'));
     assert.ok(!articles.innerHTML.includes('English'));
 
