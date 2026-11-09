@@ -49,6 +49,16 @@ def conflict(con, candidate: str, *, exclude_user_id: int | None = None) -> bool
     for row in con.execute(query, args).fetchall():
         if confusable(candidate, row["name"]) or confusable(candidate, row["ranking_name"]):
             return True
+    # Deleted account rows free their names, but permanent bans must not.
+    # This runs inside the same serialized transaction as registration, so a
+    # simultaneous ban cannot race a same-name sign-up.
+    key = identity_key(candidate)
+    if key and con.execute(
+        "SELECT 1 FROM permanent_bans WHERE lifted_at IS NULL "
+        "AND (login_key=? OR ranking_key=?) LIMIT 1",
+        (key, key),
+    ).fetchone():
+        return True
     return False
 
 
