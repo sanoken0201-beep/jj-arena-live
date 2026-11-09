@@ -70,13 +70,14 @@ from read_efficiency import transform_app_js as transform_read_efficiency_app_js
 from season_browser_integration import transform_app_js as transform_season_app_js
 from ring_buyin_browser import MARKER as RING_BUYIN_MARKER, transform_app_js as transform_ring_buyin_app_js
 from position_hu_browser import transform_app_js as transform_position_hu_app_js, transform_styles as transform_position_hu_styles
+from weekly_study_rotation import transform_app_js as transform_weekly_study_app_js
 from illuminated_classic_theme import transform_index as transform_illuminated_classic_index
 from illuminated_classic_theme import transform_styles as transform_illuminated_classic_styles
 
 ROOT = Path(__file__).resolve().parent
 MATERIALIZED_STATIC = ROOT / "materialized_v1244" / "static"
 BUILD_ROOT = ROOT / ".jj_build"
-ASSET_VERSION = 98  # Refresh cached clients for offline ring starting point changes.
+ASSET_VERSION = 99  # Deliver deterministic weekly GTO article cards to cached clients.
 BUILD_FORMAT = 1
 
 _MOBILE_PODIUM_ORDER_MARKER = "v88 mobile podium rank order 2026-10-17"
@@ -451,6 +452,7 @@ def build_app_js() -> str:
         raise RuntimeError("Ring buy-in browser transform marker missing")
     js = transform_season_app_js(js)
     js = transform_position_hu_app_js(js)
+    js = transform_weekly_study_app_js(js)
 
     # 2026-11-03 official OFFLINE ring point policy. Keep the materialized
     # v1.24.4 snapshot immutable: patch only the compiled client, including

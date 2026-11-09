@@ -281,7 +281,8 @@ def _validated_articles(items) -> list[dict]:
         result = dict(item)
         result.update(title=title, summary=summary, url=url, language="ja", source="GTO Wizard Japan")
         results.append(result)
-    return _dedupe(results, "url")[:6]
+    # Keep enough verified Japanese posts for several weekly rotations.
+    return _dedupe(results, "url")[:24]
 
 
 def _declared_languages(node: ET.Element) -> list[str]:
