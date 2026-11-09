@@ -1,6 +1,6 @@
 """Independent, release-gated integrity audit for every authored daily quiz.
 
-This audit is for the 300 static bank items, *not* administrator-generated
+This audit is for the 320 static bank items, *not* administrator-generated
 questions stored in the production database. No network or database writes.
 """
 from __future__ import annotations
@@ -12,12 +12,13 @@ from collections import Counter
 import quiz_bank
 from quiz_advanced_bank import SOURCES
 from quiz_expansion_300 import ROWS, validate as validate_300_source
+from quiz_bias_balance import validate as validate_balance_source
 from quiz_readability import audit_questions, make_readable
 
 EXPECTED_DISTRIBUTION = {
-    "pot_odds": 30, "equity": 30, "mdf": 30, "spr": 30,
-    "combo": 30, "vocabulary": 30, "icm": 30,
-    "bet_sizing": 30, "range": 30, "hand_reasoning": 30,
+    "pot_odds": 32, "equity": 32, "mdf": 32, "spr": 32,
+    "combo": 32, "vocabulary": 32, "icm": 32,
+    "bet_sizing": 32, "range": 32, "hand_reasoning": 32,
 }
 NUMERIC_KEY = re.compile(r"(pot|bluff|mdf|spr|decision)-(\d+)-(\d+)\Z")
 
@@ -55,17 +56,18 @@ def _legacy_numeric_answer(q: dict) -> bool:
 
 def audit() -> dict[str, int]:
     validate_300_source()
+    validate_balance_source()
     pools = quiz_bank.POOLS
     assert {category: len(pool) for category, pool in pools.items()} == EXPECTED_DISTRIBUTION
     original = [question for questions in pools.values() for question in questions]
-    assert len(original) == 300
-    assert len({q["key"] for q in original}) == 300
-    assert len({q["prompt"] for q in original}) == 300
+    assert len(original) == 320
+    assert len({q["key"] for q in original}) == 320
+    assert len({q["prompt"] for q in original}) == 320
     assert not audit_questions(pools), audit_questions(pools)
     sourced_urls = {url for _, url in SOURCES.values()}
     assert all(url.startswith("https://blog.gtowizard.com/") for url in sourced_urls)
 
-    originals = {"legacy": 0, "reviewed_40": 0, "advanced_30": 0, "curated_70": 0}
+    originals = {"legacy": 0, "reviewed_40": 0, "advanced_30": 0, "curated_70": 0, "cue_balanced_20": 0}
     math_checked = 0
     for original_q in original:
         key = original_q["key"]
@@ -83,7 +85,9 @@ def audit() -> dict[str, int]:
         assert q["category_label"], key
         if _legacy_numeric_answer(original_q):
             math_checked += 1
-        if "-curated300-" in key:
+        if "-balance-" in key:
+            originals["cue_balanced_20"] += 1
+        elif "-curated300-" in key:
             originals["curated_70"] += 1
         elif "-advanced-" in key:
             originals["advanced_30"] += 1
@@ -91,13 +95,13 @@ def audit() -> dict[str, int]:
             originals["reviewed_40"] += 1
         else:
             originals["legacy"] += 1
-        if "-advanced-" in key or "-curated300-" in key:
+        if "-advanced-" in key or "-curated300-" in key or "-balance-" in key:
             assert original_q["source_url"] in sourced_urls, key
             assert original_q["source_title"], key
         else:
             assert "source_url" not in original_q, key
 
-    assert originals == {"legacy": 160, "reviewed_40": 40, "advanced_30": 30, "curated_70": 70}, originals
+    assert originals == {"legacy": 160, "reviewed_40": 40, "advanced_30": 30, "curated_70": 70, "cue_balanced_20": 20}, originals
     assert math_checked == 31, math_checked
     new_difficulties = Counter(q["difficulty"] for q in original if "-curated300-" in q["key"])
     assert new_difficulties == Counter({"standard": 30, "intermediate": 40}), new_difficulties
@@ -152,11 +156,41 @@ def audit() -> dict[str, int]:
     assert round(100*(50/100) + 40*second_probability) == 64
     assert (4*0.5)/(4*0.5+12*0.25) == .4
 
+    # Track two observable answer cues across the *entire* published bank.
+    # Tied longest labels are excluded because picking by length gives no clue.
+    def _cue_stats(items):
+        with_67 = [q for q in items if any(c["label"] == "67%" for c in q["choices"])]
+        correct_67 = sum(correct_label(q) == "67%" for q in with_67)
+        clear_longest = [
+            q for q in items
+            if len([c for c in q["choices"] if len(c["label"]) ==
+                    max(len(item["label"]) for item in q["choices"])]) == 1
+        ]
+        longest_correct = sum(
+            len(correct_label(q)) == max(len(c["label"]) for c in q["choices"])
+            for q in clear_longest
+        )
+        return {
+            "67pct_present": len(with_67),
+            "67pct_correct": correct_67,
+            "67pct_incorrect": len(with_67) - correct_67,
+            "unique_longest": len(clear_longest),
+            "longest_correct": longest_correct,
+            "longest_incorrect": len(clear_longest) - longest_correct,
+        }
+
+    baseline = [q for q in original if "-balance-" not in q["key"]]
+    baseline_cues = _cue_stats(baseline)
+    current_cues = _cue_stats(original)
+    assert current_cues["67pct_incorrect"] >= baseline_cues["67pct_incorrect"] + 10
+    assert current_cues["longest_incorrect"] >= baseline_cues["longest_incorrect"] + 6
+    print("JJ_QUIZ_ANSWER_CUE_AUDIT", {"baseline": baseline_cues, "current": current_cues})
+
     # The public user flow uses the same make_readable output, preserving the
     # keyed answer value while avoiding leaked sources before the answer API.
     print("JJ_QUIZ_FULL_AUDIT_OK", {"total": len(original), "categories": len(pools),
                                       "legacy_numeric_checked": math_checked,
-                                      "source_backed": originals["advanced_30"]+originals["curated_70"],
+                                      "source_backed": originals["advanced_30"]+originals["curated_70"]+originals["cue_balanced_20"],
                                       **originals})
     return originals
 
