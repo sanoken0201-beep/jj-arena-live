@@ -460,4 +460,4 @@ for category, pool in POOLS.items():
     assert len(pool) == 32, (category, len(pool))
 assert len(POOLS) == 10
 assert len({q["key"] for pool in POOLS.values() for q in pool}) == 320
-assert len({q["prompt"] for pool in POOLS.values() for q in pool}) == 300
+assert len({q["prompt"] for pool in POOLS.values() for q in pool}) == 320
