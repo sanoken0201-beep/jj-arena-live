@@ -30,13 +30,13 @@ def bank_checks():
     assert "q.reward_awarded NOT IN (5,10)" in audit_sql
     assert "l.amount<>q.reward_awarded" in audit_sql
     assert len(dq.POOLS) == 10
-    assert all(len(pool) == 30 for pool in dq.POOLS.values())
-    assert len({q['key'] for pool in dq.POOLS.values() for q in pool}) == 300
+    assert all(len(pool) == 32 for pool in dq.POOLS.values())
+    assert len({q['key'] for pool in dq.POOLS.values() for q in pool}) == 320
     readability_errors = audit_questions(dq.POOLS)
     assert not readability_errors, readability_errors
     start = datetime(2026, 9, 11)
     seen = {k: set() for k in dq.POOLS}
-    for offset in range(30):
+    for offset in range(32):
         day = (start + timedelta(days=offset)).date().isoformat()
         questions = dq.build_daily_questions(day)
         assert questions == dq.build_daily_questions(day)
@@ -53,7 +53,40 @@ def bank_checks():
                 values = [float(c['label'][:-1]) for c in choices]
                 correct = next(float(c['label'][:-1]) for c in choices if c['value'] == q['correct'])
                 assert all(v == correct or abs(v-correct) >= 10 for v in values), q
-    assert all(len(v) == 30 for v in seen.values())
+    assert all(len(v) == 32 for v in seen.values())
+    # 2026-11-09: counterexamples to guessing 67% or the longest option.
+    from quiz_bias_balance import validate as validate_balance
+    validate_balance()
+    balanced = [q for pool in dq.POOLS.values() for q in pool if "-balance-" in q["key"]]
+    assert len(balanced) == 20
+    assert all(sum("-balance-" in q["key"] for q in pool) == 2 for pool in dq.POOLS.values())
+    assert all(q["source_url"].startswith("https://blog.gtowizard.com/") for q in balanced)
+    assert all(q["prompt"].startswith("【応用】") == (q["difficulty"] == "intermediate") for q in balanced)
+    assert len({
+        q["key"] for q in balanced if any(
+            c["label"] == "67%" and c["value"] != q["correct"]
+            for c in q["choices"]
+        )
+    }) >= 10
+    assert sum(
+        max(len(c["label"]) for c in q["choices"] if c["value"] != q["correct"])
+        > len(next(c["label"] for c in q["choices"] if c["value"] == q["correct"]))
+        for q in balanced
+    ) >= 6
+    expected_balanced = {
+        "pot_odds-balance-call-pot240-120": "25%",
+        "equity-balance-weighted-30-80": "50%",
+        "mdf-balance-alpha-pot200-bet100": "33%",
+        "spr-balance-geometric-half-120": "毎回50%ポット",
+        "combo-balance-weighted-a-three-of-nine": "33%",
+        "icm-balance-bf-equal-gain-loss": "50%",
+        "range-balance-range-bet-a-half": "50%",
+    }
+    for key, expected_label in expected_balanced.items():
+        q = next(q for q in balanced if q["key"] == key)
+        assert next(c["label"] for c in q["choices"] if c["value"] == q["correct"]) == expected_label
+        assert len({c["label"] for c in make_readable(q)["choices"]}) == 4
+
     # Reference examples: regression on independently checked poker arithmetic.
     answer_labels = {
         "pot_odds-multiway-price": "14%",
