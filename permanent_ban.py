@@ -150,9 +150,13 @@ def install(app, server, db, admin_console):
 
     def guarded_update(uid, p, user):
         if getattr(p, "disabled", None) is False:
-            with db.connect() as con:
-                if _active_user(con, uid):
-                    raise HTTPException(409, "永久BAN中のアカウントは通常の利用再開では解除できません")
+            # Serialize with the BAN write so a simultaneous normal resume
+            # cannot clear disabled after the permanent-ban transaction.
+            with account_name_safety._NAME_LOCK:
+                with db.connect() as con:
+                    if _active_user(con, uid):
+                        raise HTTPException(409, "永久BAN中のアカウントは通常の利用再開では解除できません")
+                return original_update(uid=uid, p=p, user=user)
         return original_update(uid=uid, p=p, user=user)
 
     user_update.endpoint = user_update.dependant.call = guarded_update
