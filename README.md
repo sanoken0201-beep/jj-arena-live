@@ -61,12 +61,14 @@ python -m uvicorn app:app --host 0.0.0.0 --port $PORT
 
 現在のユーザー認証は次の方式です。
 
-- カタカナ表示名 + 6桁PIN
+- ひらがな・カタカナ・英字の表示名（2〜20文字）+ 6桁PIN
 - PBKDF2-SHA256 hashing
 - Admin / Member role
 - HttpOnly session cookie
 - 本番では `__Host-` session cookie
 - ログイン / PIN確認の試行回数制限
+- 既存のカタカナアカウントは従来どおりひらがな入力でもログイン可能。新規のひらがな表記は保存され、英字の大文字・小文字やかなの表記違いは既存アカウントと照合されます。
+- 表記を正規化すると同一になる名前の複数登録は許可せず、停止・永久BANの名前保護も維持します。
 - same-origin / Fetch MetadataによるCSRF防御
 
 旧Email + Password認証は廃止済みです。
