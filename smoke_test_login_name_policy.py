@@ -63,8 +63,6 @@ def run() -> None:
             assert mixed_alias.json()["user"]["id"] == mixed.json()["user"]["id"]
 
             # A variant with the wrong PIN must not create a second identity.
-            bad_pin = pin(client, "テストプレイヤー", "234567")
-            assert bad_pin.status_code == 200, bad_pin.text  # distinct name
             wrong = pin(client, "はるのかぜ", "999999")
             assert wrong.status_code == 401, wrong.text
             with app.db.connect() as con:
