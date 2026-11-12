@@ -16,6 +16,7 @@ import sys
 from pathlib import Path
 
 import account_name_safety
+import login_name_policy
 import permanent_ban
 import admin_api_consolidation
 import admin_ledger_stabilization
@@ -173,6 +174,7 @@ security_hardening.install(app, runtime_server, db)
 # From this point onward all user/account mutations are canonical under
 # /api/admin/console. Legacy /api/admin/members remains read-only compatibility.
 admin_api_consolidation.install(app, runtime_server)
+login_name_policy.install(runtime_server, db)
 account_name_safety.install(app, runtime_server, db)
 permanent_ban.install(app, runtime_server, db, admin_console)
 learning_content.install(app)
