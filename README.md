@@ -78,7 +78,7 @@ python -m uvicorn app:app --host 0.0.0.0 --port $PORT
 通常運用では `JJ_ADMIN_PIN` を設定しません。管理者PINを失った場合だけ、Renderの `jj-arena-live` Environmentに一時的に設定します。
 
 ```text
-JJ_ADMIN_NAME=<管理者のカタカナ名>
+JJ_ADMIN_NAME=<管理者の登録名>
 JJ_ADMIN_PIN=<新しい6桁PIN>
 ```
 
