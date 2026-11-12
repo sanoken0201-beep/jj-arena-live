@@ -61,12 +61,14 @@ python -m uvicorn app:app --host 0.0.0.0 --port $PORT
 
 現在のユーザー認証は次の方式です。
 
-- カタカナ表示名 + 6桁PIN
+- ひらがな・カタカナ・英字の表示名（2〜20文字）+ 6桁PIN
 - PBKDF2-SHA256 hashing
 - Admin / Member role
 - HttpOnly session cookie
 - 本番では `__Host-` session cookie
 - ログイン / PIN確認の試行回数制限
+- 既存のカタカナアカウントは従来どおりひらがな入力でもログイン可能。新規のひらがな表記は保存され、英字の大文字・小文字やかなの表記違いは既存アカウントと照合されます。
+- 表記を正規化すると同一になる名前の複数登録は許可せず、停止・永久BANの名前保護も維持します。
 - same-origin / Fetch MetadataによるCSRF防御
 
 旧Email + Password認証は廃止済みです。
@@ -76,7 +78,7 @@ python -m uvicorn app:app --host 0.0.0.0 --port $PORT
 通常運用では `JJ_ADMIN_PIN` を設定しません。管理者PINを失った場合だけ、Renderの `jj-arena-live` Environmentに一時的に設定します。
 
 ```text
-JJ_ADMIN_NAME=<管理者のカタカナ名>
+JJ_ADMIN_NAME=<管理者の登録名>
 JJ_ADMIN_PIN=<新しい6桁PIN>
 ```
 

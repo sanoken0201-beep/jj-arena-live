@@ -263,6 +263,20 @@ def _read(name: str) -> str:
 
 def build_index() -> str:
     html = _read("index.html")
+    # The immutable index.html still describes the historical katakana-only
+    # scheme; update the served sign-in form and privacy copy at build time.
+    auth_copy = (
+        ("名前（カタカナ）", "名前（ひらがな・カタカナ・英字）"),
+        ('placeholder="ケンイチロウ"', 'placeholder="例：たろう / Taro"'),
+        (
+            "ひらがなで入力した場合もカタカナへ自動統一されます。",
+            "ひらがな・カタカナ・英字を利用できます。新しいアカウントでは入力した表記を保存し、既存アカウントと同じ名前の表記違いは同じアカウントとして扱います。",
+        ),
+    )
+    for before, after in auth_copy:
+        if html.count(before) != 1:
+            raise RuntimeError("auth name copy drift: " + before)
+        html = html.replace(before, after, 1)
     html = html.replace('/static/styles.css?v=56', f'/static/styles.css?v={ASSET_VERSION}')
     html = html.replace('/static/app.js?v=56', f'/static/app.js?v={ASSET_VERSION}')
     html = html.replace('← Lobby', '← ロビー')
