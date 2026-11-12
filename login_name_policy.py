@@ -68,20 +68,18 @@ def install(server, db) -> None:
                 if row:
                     return str(row["name"])
 
-            # Latin name matching is case-insensitive for sign-in, but keeps
-            # the originally registered capitalization on the account.
-            if any("A" <= char <= "Z" or "a" <= char <= "z" for char in name):
-                rows = con.execute(
-                    "SELECT name FROM users WHERE deleted_at IS NULL "
-                    "AND LOWER(name)=LOWER(?) LIMIT 3",
-                    (legacy,),
+            # A newly registered hiragana name should likewise be reachable
+            # using katakana, and Latin names should be case-insensitive.
+            # Scan only on a miss: normal logins use the indexed lookup above.
+            aliases = [
+                str(row["name"])
+                for row in con.execute(
+                    "SELECT name FROM users WHERE deleted_at IS NULL"
                 ).fetchall()
-                aliases = [
-                    str(row["name"]) for row in rows
-                    if account_name_safety.confusable(name, row["name"])
-                ]
-                if len(aliases) == 1:
-                    return aliases[0]
+                if account_name_safety.confusable(name, row["name"])
+            ]
+            if len(aliases) == 1:
+                return aliases[0]
 
         # A new hiragana name is stored as hiragana, not converted to katakana.
         # Registration still checks confusable active names and permanent bans.
