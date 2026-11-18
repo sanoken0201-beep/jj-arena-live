@@ -267,6 +267,9 @@ def main():
     bad_policy = audit.audit_rows([bad_table], _hands(), _results(), _history())
     assert bad_policy["checks"]["fixed_table_policy_violation"] == 1
 
+    from smoke_test_rake_historic_conversion import test_reconciliation
+    test_reconciliation()
+
     print("runtime rake integrity audit regression: ok")
 
 
