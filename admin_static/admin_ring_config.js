@@ -27,7 +27,8 @@
     $('#ringRakeCurrentBb').textContent=fmt(cur.rake_bb)+' BB';
     $('#ringRakeAllTimePoints').textContent=fmt(all.rake_points)+' 点';
     $('#ringRakeAllTimeBb').textContent=fmt(all.rake_bb)+' BB';
-    $('#ringRakeMeta').textContent=(last?`最終リセット ${dt(last.created_at)} · ${fmt(last.settled_rake_bb)}BB → ${fmt(last.settled_rake_points)}点で精算`:'まだリセット履歴はありません')+` · 換算 ${fmt(rate)}点/BB · 未精算 ${fmt(cur.hands)}ハンド`;
+    const legacyCount=Number(cur.legacy_rate_hands||0),legacyNote=legacyCount?` · 旧ハンド${fmt(legacyCount)}件は${fmt(d.legacy_points_per_bb||3)}点/BBを適用`:'';
+    $('#ringRakeMeta').textContent=(last?`最終リセット ${dt(last.created_at)} · ${fmt(last.settled_rake_bb)}BB → ${fmt(last.settled_rake_points)}点で精算`:'まだリセット履歴はありません')+` · ハンドごとの換算率で集計（現在の設定: ${fmt(rate)}点/BB） · 未精算 ${fmt(cur.hands)}ハンド`+legacyNote;
     $('#ringRakeReset').disabled=Number(cur.rake_bb||0)<=0;
     return d;
   }
@@ -59,14 +60,14 @@
     $('#ringRakeReset')?.addEventListener('click',async()=>{
       let d;
       try{d=await loadRake()}catch(err){alert(err.message);return}
-      const points=Number(d?.current?.rake_points||0),bb=Number(d?.current?.rake_bb||0),rate=Number(d?.points_per_bb||0);
+      const points=Number(d?.current?.rake_points||0),bb=Number(d?.current?.rake_bb||0),hands=Number(d?.current?.hands||0);
       if(bb<=0)return alert('未精算のレーキはありません');
-      if(!confirm(`未精算レーキ ${fmt(bb)}BB（${fmt(rate)}点/BB = ${fmt(points)}点）をオフラインでレーキバック済みとしてリセットしますか？履歴は保持されます。`))return;
+      if(!confirm(`未精算レーキ ${fmt(bb)}BB（ハンドごとの換算合計 ${fmt(points)}点）をレーキバック済みとしてリセットしますか？履歴は保持されます。`))return;
       const note=prompt('精算メモ','オフライン活動でレーキバック');
       if(note===null)return;
       const button=$('#ringRakeReset');button.disabled=true;
       try{
-        await api('/admin/console/ring-rake/reset',{method:'POST',body:JSON.stringify({note:note.trim()||'オフライン活動でレーキバック'})});
+        await api('/admin/console/ring-rake/reset',{method:'POST',body:JSON.stringify({note:note.trim()||'オフライン活動でレーキバック',expected_rake_bb:bb,expected_rake_points:points,expected_hand_count:hands})});
         await loadRake();
       }catch(err){alert(err.message);await loadRake().catch(()=>{})}
     });

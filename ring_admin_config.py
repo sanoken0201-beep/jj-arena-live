@@ -53,6 +53,10 @@ class ReentryResetIn(BaseModel):
 
 class RakeResetIn(BaseModel):
     note: str = Field(default="オフライン活動でレーキバック", max_length=300)
+    # Optional optimistic guard for modern admin clients; legacy requests still work.
+    expected_rake_bb: Decimal | None = Field(default=None, ge=0, decimal_places=2)
+    expected_rake_points: Decimal | None = Field(default=None, ge=0, decimal_places=2)
+    expected_hand_count: int | None = Field(default=None, ge=0)
 
 
 def _now() -> datetime:
@@ -565,33 +569,101 @@ def _latest_rake_settlement(con) -> dict | None:
     return item
 
 
-def _rake_window(con, boundaries: dict) -> tuple[Decimal, int]:
-    total = Decimal("0")
-    hands = 0
-    rows = con.execute("SELECT DISTINCT table_id FROM online_hands ORDER BY table_id").fetchall()
+# Before the per-hand rate snapshot rollout, Ring always used 3 pt/BB.
+# Historical NULL rates must never be revalued using a newer admin setting.
+LEGACY_RAKE_POINTS_PER_BB = Decimal("3")
+
+
+def _sum_rake_rate_groups(rows) -> tuple[Decimal, Decimal, int, int]:
+    """Aggregate raw BB first within each persisted rate, then convert.
+
+    Postgres retains exact NUMERIC sums, and the small per-rate result set
+    avoids scanning every hand row in Python on each admin GET.
+    """
+    bb_total = Decimal("0")
+    points_total = Decimal("0")
+    hands_total = 0
+    legacy_hands = 0
     for row in rows:
-        table_id = str(row["table_id"])
+        bb = _to_decimal(row["rake_bb"])
+        count = int(row["hands"] or 0)
+        snapshot = row["points_per_bb"]
+        rate = LEGACY_RAKE_POINTS_PER_BB if snapshot is None else _to_decimal(snapshot)
+        if not rate.is_finite() or rate <= 0 or rate > 100:
+            raise RuntimeError("Invalid persisted Ring BB-to-point conversion rate")
+        bb_total += bb
+        points_total += bb * rate
+        hands_total += count
+        if snapshot is None:
+            legacy_hands += count
+    return bb_total, points_total, hands_total, legacy_hands
+
+
+def _settlement_boundaries(raw) -> dict[str, int]:
+    """Decode historical reset boundaries without trusting arbitrary types."""
+    if raw is None:
+        return {}
+    if isinstance(raw, dict) and "boundaries" in raw:
+        value = raw["boundaries"]
+    else:
+        value = raw.get("boundaries_json") if isinstance(raw, dict) else raw["boundaries_json"]
+    if isinstance(value, str):
         try:
-            boundary = int(boundaries.get(table_id, 0) or 0)
-        except (TypeError, ValueError):
-            boundary = 0
-        current = con.execute(
-            """SELECT COALESCE(SUM(rake_bb),0) rake_bb,COUNT(*) hands
-               FROM online_hands
-               WHERE table_id=? AND hand_no>? AND COALESCE(voided,0)=0""",
-            (table_id, boundary),
-        ).fetchone()
-        total += _to_decimal(current["rake_bb"])
-        hands += int(current["hands"] or 0)
-    return total, hands
+            value = json.loads(value)
+        except (ValueError, TypeError):
+            raise RuntimeError("Invalid persisted Ring rake settlement boundaries")
+    if not isinstance(value, dict):
+        raise RuntimeError("Invalid persisted Ring rake settlement boundaries")
+    try:
+        result = {str(key): int(number) for key, number in value.items()}
+    except (ValueError, TypeError):
+        raise RuntimeError("Invalid persisted Ring rake settlement boundary number")
+    if any(number < 0 for number in result.values()):
+        raise RuntimeError("Negative persisted Ring rake settlement boundary")
+    return result
 
 
-def _all_time_rake(con) -> tuple[Decimal, int]:
-    row = con.execute(
-        "SELECT COALESCE(SUM(rake_bb),0) rake_bb,COUNT(*) hands FROM online_hands WHERE COALESCE(voided,0)=0"
-    ).fetchone()
-    return _to_decimal(row["rake_bb"]), int(row["hands"] or 0)
+def _rake_window(con, boundaries: dict, upper_boundaries: dict | None = None) -> tuple[Decimal, Decimal, int, int]:
+    """Sum nonvoided hands after a reset, optionally through a later reset.
 
+    Boundaries are table-specific hand sequence numbers, not wall-clock dates.
+    """
+    rows = con.execute("SELECT DISTINCT table_id FROM online_hands ORDER BY table_id").fetchall()
+    total_bb, total_points, total_hands, total_legacy = Decimal("0"), Decimal("0"), 0, 0
+    for table in rows:
+        table_id = str(table["table_id"])
+        lower = int(boundaries.get(table_id, 0) or 0)
+        if upper_boundaries is None:
+            groups = con.execute(
+                """SELECT points_per_bb,COALESCE(SUM(rake_bb),0) AS rake_bb,COUNT(*) AS hands
+                   FROM online_hands WHERE table_id=? AND hand_no>?
+                   AND COALESCE(voided,0)=0 GROUP BY points_per_bb""",
+                (table_id, lower),
+            ).fetchall()
+        else:
+            upper = int(upper_boundaries.get(table_id, 0) or 0)
+            if upper < lower:
+                raise RuntimeError("Out-of-order Ring rake settlement boundaries")
+            groups = con.execute(
+                """SELECT points_per_bb,COALESCE(SUM(rake_bb),0) AS rake_bb,COUNT(*) AS hands
+                   FROM online_hands WHERE table_id=? AND hand_no>? AND hand_no<=?
+                   AND COALESCE(voided,0)=0 GROUP BY points_per_bb""",
+                (table_id, lower, upper),
+            ).fetchall()
+        bb, points, hands, legacy = _sum_rake_rate_groups(groups)
+        total_bb += bb
+        total_points += points
+        total_hands += hands
+        total_legacy += legacy
+    return total_bb, total_points, total_hands, total_legacy
+
+
+def _all_time_rake(con) -> tuple[Decimal, Decimal, int, int]:
+    rows = con.execute(
+        """SELECT points_per_bb,COALESCE(SUM(rake_bb),0) AS rake_bb,COUNT(*) AS hands
+           FROM online_hands WHERE COALESCE(voided,0)=0 GROUP BY points_per_bb"""
+    ).fetchall()
+    return _sum_rake_rate_groups(rows)
 
 def _current_rake_boundaries(con) -> dict[str, int]:
     rows = con.execute(
@@ -604,50 +676,64 @@ def rake_summary(db) -> dict:
     with db.connect() as con:
         last = _latest_rake_settlement(con)
         boundaries = (last or {}).get("boundaries") or {}
-        current_bb, current_hands = _rake_window(con, boundaries)
-        all_bb, all_hands = _all_time_rake(con)
-        recent = con.execute(
-            """SELECT id,settled_rake_bb,settled_rake_points,points_per_bb,hand_count,note,created_at
-               FROM ring_rake_settlements ORDER BY created_at DESC,id DESC LIMIT 10"""
-        ).fetchall()
-    multiplier = _rake_points_per_bb(db)
+        current_bb, current_points, current_hands, current_legacy = _rake_window(con, boundaries)
+        all_bb, all_points, all_hands, all_legacy = _all_time_rake(con)
 
-    def settlement_public(raw) -> dict:
-        item = dict(raw)
-        rake_bb = _to_decimal(item.get("settled_rake_bb"))
-        stored_rate = item.get("points_per_bb")
-        rate = multiplier if stored_rate is None else _to_decimal(stored_rate)
-        if rate <= 0:
-            rate = multiplier
-        return {
-            "id": item["id"],
-            "settled_rake_bb": _round_amount(rake_bb),
-            # Legacy rows created by the broken 100x conversion may contain an
-            # inflated stored value. Recompute from BB using the snapshotted
-            # conversion rate when available, or the current canonical rate.
-            "settled_rake_points": _round_amount(rake_bb * rate),
-            "points_per_bb": _round_amount(rate),
-            "hand_count": int(item["hand_count"] or 0),
-            "note": str(item["note"] or ""),
-            "created_at": item["created_at"],
-        }
+        # Fetch one extra reset so each visible settlement can be reconstructed
+        # from the prior reset's table boundaries, even after many resets.
+        chronological = [dict(row) for row in reversed(con.execute(
+            """SELECT id,boundaries_json,settled_rake_bb,settled_rake_points,
+                      points_per_bb,hand_count,note,created_at
+               FROM ring_rake_settlements ORDER BY created_at DESC,id DESC LIMIT 11"""
+        ).fetchall())]
+        if len(chronological) > 10:
+            previous = _settlement_boundaries(chronological.pop(0))
+        else:
+            previous = {}
+        recent = []
+        for raw in chronological:
+            ending = _settlement_boundaries(raw)
+            bb, points, hand_count, legacy_count = _rake_window(con, previous, ending)
+            recorded_points = _to_decimal(raw["settled_rake_points"])
+            recent.append({
+                "id": raw["id"],
+                "settled_rake_bb": _round_amount(bb),
+                "settled_rake_points": _round_amount(points),
+                # Historical ledger amounts remain immutable; expose the
+                # original separately if they disagree with hand-rate math.
+                "recorded_settled_rake_points": _round_amount(recorded_points),
+                "points_per_bb": (
+                    _round_amount(_to_decimal(raw["points_per_bb"]))
+                    if raw["points_per_bb"] is not None else None
+                ),
+                "hand_count": hand_count,
+                "legacy_rate_hands": legacy_count,
+                "mixed_or_historical_rate": True,
+                "note": str(raw["note"] or ""),
+                "created_at": raw["created_at"],
+            })
+            previous = ending
+        recent.reverse()
 
     return {
-        "points_per_bb": _round_amount(multiplier),
+        "points_per_bb": _round_amount(_rake_points_per_bb(db)),
+        "legacy_points_per_bb": _round_amount(LEGACY_RAKE_POINTS_PER_BB),
+        "conversion_method": "per_hand_snapshot",
         "current": {
             "rake_bb": _round_amount(current_bb),
-            "rake_points": _round_amount(current_bb * multiplier),
+            "rake_points": _round_amount(current_points),
             "hands": current_hands,
+            "legacy_rate_hands": current_legacy,
         },
         "all_time": {
             "rake_bb": _round_amount(all_bb),
-            "rake_points": _round_amount(all_bb * multiplier),
+            "rake_points": _round_amount(all_points),
             "hands": all_hands,
+            "legacy_rate_hands": all_legacy,
         },
-        "last_reset": settlement_public(last) if last else None,
-        "recent_resets": [settlement_public(row) for row in recent],
+        "last_reset": recent[0] if recent else None,
+        "recent_resets": recent,
     }
-
 
 def _register_routes(app, server, db) -> None:
     @app.post("/api/tables/{table_id}/seat", include_in_schema=False)
@@ -922,11 +1008,24 @@ def _register_routes(app, server, db) -> None:
                 with db.connect() as con:
                     previous = _latest_rake_settlement(con)
                     boundaries = (previous or {}).get("boundaries") or {}
-                    current_bb, hand_count = _rake_window(con, boundaries)
+                    current_bb, current_points, hand_count, _legacy_count = _rake_window(con, boundaries)
                     if current_bb <= 0:
                         raise HTTPException(409, "未精算のレーキはありません")
+                    settled_points = current_points.quantize(Decimal("0.01"))
+                    # Reject a reset if more hands settled after the admin
+                    # confirmed the displayed amount.
+                    if (
+                        payload.expected_rake_bb is not None
+                        and payload.expected_rake_bb != current_bb.quantize(Decimal("0.01"))
+                    ) or (
+                        payload.expected_rake_points is not None
+                        and payload.expected_rake_points != settled_points
+                    ) or (
+                        payload.expected_hand_count is not None
+                        and payload.expected_hand_count != hand_count
+                    ):
+                        raise HTTPException(409, "確認後にレーキが変動しました。再読込して確認してください")
                     multiplier = _rake_points_per_bb(db)
-                    settled_points = current_bb * multiplier
                     new_boundaries = _current_rake_boundaries(con)
                     settlement_id = "ring-rake-" + uuid.uuid4().hex
                     stamp_dt = _now()

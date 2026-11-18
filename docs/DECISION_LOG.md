@@ -338,3 +338,31 @@ in tandem, and regression tests exercise both no-op and legacy-repair cases.
 Do not merge or deploy without PostgreSQL 18 integration gates, backup review,
 and a short maintenance window with no active hands. Do not recreate the
 production database or upload its logical dump to a public CI artifact.
+
+
+## D-031 — Ring rakeback uses the immutable per-hand BB conversion (2026-11-18)
+
+**Status:** Implemented for review and regression validation.
+
+An administrator's `online_points_per_bb` rate applies to hands started at that
+rate. Rakeback and the Ring administrator's total/unsettled point summaries
+are the sum of each nonvoided hand's recorded rake BB multiplied by the
+hand's persisted `online_hands.points_per_bb` snapshot. Pre-snapshot hands
+with a NULL rate retain the original fixed 3 pt/BB historical convention;
+changing the current setting never reprices these records.
+
+Settlement boundaries remain the original per-table monotonically increasing
+hand numbers. The last ten recorded settlements are displayed using their
+original boundaries and per-hand rates; historical rows are **not** rewritten,
+and recorded settlement amounts are exposed separately if they diverge from
+recalculated totals. A new reset stores a two-decimal point total from the
+mixed-rate hand aggregation, with the then-current configured rate retained
+only as backward-compatible metadata, not a settlement multiplier. A modern
+admin client includes the displayed BB, points, and hand count in the reset
+request; mismatches fail with HTTP 409, preventing unnoticed confirmation drift.
+
+As of the read-only production audit on 2026-11-18, 14,535 nonvoided hands
+sum to 6,696.71 BB and 19,369.87 points; 4,785.38 BB and 13,635.88
+points remained unsettled. This is a historical snapshot, not a hardcoded
+balance. Among those hands, 5,368 use the 3 pt/BB legacy assumption. The
+separate historical game-rake anomalies are not automatically repaired.
