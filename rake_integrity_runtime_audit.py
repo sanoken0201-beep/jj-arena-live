@@ -315,16 +315,6 @@ def should_run(db, environ: Any) -> bool:
 def run(db) -> dict[str, Any]:
     report = audit_rows(*_read_rows(db))
     print("JJ_RAKE_AUDIT " + json.dumps(report, ensure_ascii=False, sort_keys=True), flush=True)
-    # Reconcile the BB-to-point policy across historic hands and rake resets
-    # without touching point balances or rake settlement records. Any failure
-    # in supplementary reporting must not break production startup.
-    try:
-        import rake_reconciliation_log
-        rake_reconciliation_log.run(db)
-    except Exception as exc:
-        print("JJ_RAKE_RECALC_ERROR " + json.dumps({
-            "error_type": type(exc).__name__,
-        }), flush=True)
     return report
 
 
