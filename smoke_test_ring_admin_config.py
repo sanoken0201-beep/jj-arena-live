@@ -35,13 +35,13 @@ def _stack(server, table_id: str, user_id: int) -> int:
     return int(player["stack"])
 
 
-def _insert_hand(db, hand_id: str, hand_no: int, rake_bb: float, *, voided: int = 0) -> None:
+def _insert_hand(db, hand_id: str, hand_no: int, rake_bb: float, *, voided: int = 0, points_per_bb=None, table_id="jj-table-a") -> None:
     with db.connect() as con:
         con.execute(
             """INSERT INTO online_hands(
-                 hand_id,table_id,hand_no,gross_pot_bb,rake_bb,played_at,month,voided
-               ) VALUES (?,?,?,?,?,?,?,?)""",
-            (hand_id, "jj-table-a", hand_no, 20, rake_bb, db.utcnow(), "2026-10", voided),
+                 hand_id,table_id,hand_no,gross_pot_bb,rake_bb,played_at,month,voided,points_per_bb
+               ) VALUES (?,?,?,?,?,?,?,?,?)""",
+            (hand_id, table_id, hand_no, 20, rake_bb, db.utcnow(), "2026-10", voided, points_per_bb),
         )
 
 
@@ -281,7 +281,7 @@ def run() -> None:
             _insert_hand(db, "ring-rake-2", 9002, 0.75)
             rake = json_response(_request(client, admin_cookies, "GET", "/api/admin/console/ring-rake"))
             assert rake["points_per_bb"] == 3.0
-            assert rake["current"] == {"rake_bb": 2.0, "rake_points": 6.0, "hands": 2}
+            assert rake["current"] == {"rake_bb": 2.0, "rake_points": 6.0, "hands": 2, "legacy_rate_hands": 2}
             assert rake["all_time"]["rake_points"] == 6.0
 
             settled = json_response(_request(
@@ -308,7 +308,8 @@ def run() -> None:
                 client, admin_cookies, "GET", "/api/admin/console/ring-rake"
             ))
             assert legacy_display["last_reset"]["settled_rake_points"] == 6.0
-            assert legacy_display["last_reset"]["points_per_bb"] == 3.0
+            assert legacy_display["last_reset"]["points_per_bb"] is None
+            assert legacy_display["last_reset"]["recorded_settled_rake_points"] == 200.0
 
             _insert_hand(db, "ring-rake-3", 9003, 0.50)
             _insert_hand(db, "ring-rake-void", 9004, 1.00, voided=1)
@@ -330,6 +331,72 @@ def run() -> None:
                 assert int(con.execute(
                     "SELECT COUNT(*) n FROM ring_config_audit WHERE action='rake_settlement_reset'"
                 ).fetchone()["n"]) == 2
+
+            # Mixed historic rates remain fixed when the *current* online
+            # setting changes, including across a reset boundary.
+            json_response(_request(
+                client, admin_cookies, "PATCH", "/api/admin/console/settings",
+                json={"online_points_per_bb": 2},
+            ))
+            _insert_hand(db, "mixed-5-rate", 9005, 1.25, points_per_bb=5)
+            _insert_hand(db, "mixed-2-rate", 9006, 2.50, points_per_bb=2)
+            _insert_hand(db, "mixed-legacy-3", 9007, 0.25)
+            _insert_hand(db, "mixed-void", 9008, 4.00, points_per_bb=5, voided=1)
+            mixed = json_response(_request(
+                client, admin_cookies, "GET", "/api/admin/console/ring-rake",
+            ))
+            assert mixed["conversion_method"] == "per_hand_snapshot", mixed
+            assert mixed["current"] == {
+                "rake_bb": 4.0, "rake_points": 12.0,
+                "hands": 3, "legacy_rate_hands": 1,
+            }, mixed
+            assert mixed["all_time"]["rake_bb"] == 6.5, mixed
+            assert mixed["all_time"]["rake_points"] == 19.5, mixed
+            assert mixed["last_reset"]["settled_rake_points"] == 1.5, mixed
+
+            # Guard against settling hands not included in the confirmation.
+            stale = _request(
+                client, admin_cookies, "POST", "/api/admin/console/ring-rake/reset",
+                json={"expected_rake_bb": 4, "expected_rake_points": 8, "expected_hand_count": 3},
+            )
+            assert stale.status_code == 409, stale.text
+            with db.connect() as con:
+                assert int(con.execute("SELECT COUNT(*) n FROM ring_rake_settlements").fetchone()["n"]) == 2
+
+            # Changing the current rate must never revalue these saved hands.
+            json_response(_request(
+                client, admin_cookies, "PATCH", "/api/admin/console/settings",
+                json={"online_points_per_bb": 1},
+            ))
+            rate_one = json_response(_request(
+                client, admin_cookies, "GET", "/api/admin/console/ring-rake",
+            ))
+            assert rate_one["points_per_bb"] == 1.0, rate_one
+            assert rate_one["current"]["rake_points"] == 12.0, rate_one
+            assert rate_one["all_time"]["rake_points"] == 19.5, rate_one
+
+            corrected = json_response(_request(
+                client, admin_cookies, "POST", "/api/admin/console/ring-rake/reset",
+                json={"note": "historical mixed-rate",
+                      "expected_rake_bb": 4.0, "expected_rake_points": 12.0,
+                      "expected_hand_count": 3},
+            ))
+            assert corrected["current"]["rake_points"] == 0, corrected
+            assert corrected["last_reset"]["settled_rake_points"] == 12.0, corrected
+            assert corrected["last_reset"]["recorded_settled_rake_points"] == 12.0
+            assert corrected["last_reset"]["legacy_rate_hands"] == 1, corrected
+            assert corrected["all_time"]["rake_points"] == 19.5, corrected
+            assert [x["settled_rake_points"] for x in corrected["recent_resets"]] == [12.0, 1.5, 6.0]
+            with db.connect() as con:
+                last_row = con.execute(
+                    "SELECT settled_rake_bb,settled_rake_points,points_per_bb FROM ring_rake_settlements "
+                    "ORDER BY created_at DESC,id DESC LIMIT 1"
+                ).fetchone()
+                assert float(last_row["settled_rake_bb"]) == 4.0
+                assert float(last_row["settled_rake_points"]) == 12.0
+                # Historical conversion is per hand, but preserve the current
+                # reset-time rate as non-authoritative compatibility metadata.
+                assert float(last_row["points_per_bb"]) == 1.0
 
             # JST calendar rollover starts a fresh daily counter without a cron reset.
             _bust(server, table_id, uid)
