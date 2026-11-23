@@ -63,6 +63,8 @@ def _strip_phase4c_extensions(payload: dict) -> dict:
     # ring policy, and the four guarded buy-in/rebuy route overrides. The
     # canonical core routes with the same ring paths remain in the comparison.
     extension_routes = {
+        ("http", "/api/auth/pin-login", ("POST",), "login_only"),
+        ("http", "/api/auth/register", ("POST",), "register_account"),
         ("http", "/api/admin/console/users/{uid}/role", ("POST",), "change_role"),
         ("http", "/api/admin/console/users/{uid}/permanent-ban", ("POST",), "ban_user"),
         ("http", "/api/admin/console/permanent-bans", ("GET",), "list_bans"),
