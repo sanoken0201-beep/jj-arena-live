@@ -47,6 +47,19 @@ DRIVER = r'''
     await waitFor(() => !document.getElementById('authView').classList.contains('hidden'), 'login screen');
     checks.firstVisitLogin = document.getElementById('appView').classList.contains('hidden');
 
+    // New members explicitly register using the account-creation form.
+    document.getElementById('openRegistration').click();
+    await waitFor(() => !document.getElementById('registrationPanel').classList.contains('hidden'), 'registration form');
+    document.getElementById('registerName').value = 'ブラウザユーザー';
+    document.getElementById('registerPin').value = '123456';
+    document.getElementById('registerPinConfirm').value = '123456';
+    document.getElementById('registerForm').requestSubmit();
+    await waitFor(() => !document.getElementById('appView').classList.contains('hidden') && document.getElementById('userName').textContent === 'ブラウザユーザー', 'registered account');
+    checks.registration = true;
+
+    // Signing back in must use the login-only flow, not implicit account creation.
+    document.getElementById('headerLogoutBtn').click();
+    await waitFor(() => !document.getElementById('authView').classList.contains('hidden'), 'login after registration');
     document.getElementById('loginName').value = 'ブラウザユーザー';
     document.getElementById('loginPin').value = '123456';
     document.getElementById('pinForm').requestSubmit();

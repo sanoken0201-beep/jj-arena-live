@@ -62,6 +62,8 @@ python -m uvicorn app:app --host 0.0.0.0 --port $PORT
 現在のユーザー認証は次の方式です。
 
 - ひらがな・カタカナ・英字の表示名（2〜20文字）+ 6桁PIN
+- ログイン画面から「新規アカウントを作成」を選ぶと名前・6桁PIN・PIN確認で登録でき、直後にログインします。ログイン操作では未登録ユーザーを作成しません。
+- 新しい画面は `/api/auth/pin-login` と `/api/auth/register` を使用します。互換性のため旧 `/api/auth/pin` は維持します。
 - PBKDF2-SHA256 hashing
 - Admin / Member role
 - HttpOnly session cookie

@@ -135,7 +135,7 @@ The current public Ring surface is **one table, `jj-table-a`**. Historical table
 
 ## 7. Authentication and security invariants
 
-Current member authentication is display name + 6-digit PIN. New registrations accept hiragana, katakana, and ASCII alphabetic names (2–20 normalized characters); names keep their kana script, while sign-in recognizes canonical-equivalent existing names (including earlier hiragana-to-katakana logins and case variants). Duplicate-identity and permanent-ban protections remain in force.
+Current member authentication is display name + 6-digit PIN. The login screen has an explicit registration form (display name, PIN, PIN confirmation), using `/api/auth/register`; sign-in uses `/api/auth/pin-login` and never creates a missing account. Legacy `/api/auth/pin` remains temporarily compatible with existing clients and tests. New registrations accept hiragana, katakana, and ASCII alphabetic names (2–20 normalized characters); names keep their kana script, while sign-in recognizes canonical-equivalent existing names (including earlier hiragana-to-katakana logins and case variants). Duplicate-identity and permanent-ban protections remain in force.
 
 Security characteristics include PBKDF2-SHA256 PIN hashing, Admin/Member roles, HttpOnly sessions, production `__Host-` session cookie behavior, rate limiting, same-origin / Fetch Metadata CSRF protection, WebSocket authentication and card-privacy checks.
 
