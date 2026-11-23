@@ -17,6 +17,7 @@ from pathlib import Path
 
 import account_name_safety
 import login_name_policy
+import login_registration
 import permanent_ban
 import admin_api_consolidation
 import admin_ledger_stabilization
@@ -177,6 +178,8 @@ admin_api_consolidation.install(app, runtime_server)
 login_name_policy.install(runtime_server, db)
 account_name_safety.install(app, runtime_server, db)
 permanent_ban.install(app, runtime_server, db, admin_console)
+# Split user-visible sign-in and registration; keep the canonical guarded PIN endpoint for compatibility.
+login_registration.install(app, runtime_server, db)
 learning_content.install(app)
 daily_quiz.install(app, runtime_server, db)
 quiz_admin_ai.install(app, runtime_server, db)
