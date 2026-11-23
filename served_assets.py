@@ -277,6 +277,27 @@ def build_index() -> str:
         if html.count(before) != 1:
             raise RuntimeError("auth name copy drift: " + before)
         html = html.replace(before, after, 1)
+    # Separate existing-member login from intentional account creation.
+    old_login = '<button class="primary full">JJ Arenaへ入る</button>\n      </form>\n      <p id="authMessage" class="hint">初回はそのままアカウントを作成します。管理者の承認は不要です。</p>'
+    new_login = '''<button class="primary full" type="submit">ログイン</button>
+      </form>
+      <div id="registrationEntry"><button id="openRegistration" class="soft full" type="button">新規アカウントを作成</button></div>
+      <p id="authMessage" class="hint">登録済みの名前と6桁PINでログインしてください。初めての方は「新規アカウントを作成」を選んでください。</p>
+      <section id="registrationPanel" class="hidden" aria-label="アカウント新規作成">
+        <h2>新規アカウント作成</h2>
+        <form id="registerForm" class="stack simple-auth">
+          <label>名前（ひらがな・カタカナ・英字）<input id="registerName" type="text" autocomplete="username" maxlength="20" placeholder="例：たろう / Taro" autocapitalize="none" spellcheck="false" required></label>
+          <label>6桁PIN<input id="registerPin" type="password" inputmode="numeric" autocomplete="new-password" pattern="[0-9]{6}" minlength="6" maxlength="6" required></label>
+          <label>6桁PIN（確認）<input id="registerPinConfirm" type="password" inputmode="numeric" autocomplete="new-password" pattern="[0-9]{6}" minlength="6" maxlength="6" required></label>
+          <button class="primary full" type="submit">アカウントを作成</button>
+          <button id="backToLogin" class="ghost full" type="button">ログインに戻る</button>
+        </form>
+        <p class="hint">作成するとそのままログインします。メールアドレス・管理者承認は必要ありません。</p>
+      </section>'''
+    if html.count(old_login) != 1:
+        raise RuntimeError("explicit registration login panel drift")
+    html = html.replace(old_login, new_login, 1)
+
     html = html.replace('/static/styles.css?v=56', f'/static/styles.css?v={ASSET_VERSION}')
     html = html.replace('/static/app.js?v=56', f'/static/app.js?v={ASSET_VERSION}')
     html = html.replace('← Lobby', '← ロビー')
@@ -395,6 +416,52 @@ def build_app_js() -> str:
         if old not in js:
             raise RuntimeError(f"member point browser contract drift: {old[:48]}")
         js = js.replace(old, new)
+
+    # The build-time client calls the login-only endpoint; legacy /auth/pin
+    # remains for compatibility but must never be used by the visible login form.
+    login_call = "post('/auth/pin',{name:$('#loginName').value,pin:$('#loginPin').value})"
+    if js.count(login_call) != 1:
+        raise RuntimeError("explicit registration login call drift")
+    js = js.replace(
+        login_call,
+        "post('/auth/pin-login',{name:$('#loginName').value,pin:$('#loginPin').value})",
+        1,
+    )
+    old_toast = "toast(d.created?'アカウントを作成しました':'ログインしました')"
+    if js.count(old_toast) != 1:
+        raise RuntimeError("explicit registration login toast drift")
+    js = js.replace(old_toast, "toast('ログインしました')", 1)
+    bind_anchor = "    $('#logoutBtn').addEventListener('click',()=>logout(true));"
+    register_events = r"""
+    function jjShowRegistration(show){
+      $('#pinForm').classList.toggle('hidden',show);
+      $('#registrationEntry').classList.toggle('hidden',show);
+      $('#authMessage').classList.toggle('hidden',show);
+      $('#registrationPanel').classList.toggle('hidden',!show);
+      if(show)$('#registerName').focus();else $('#loginName').focus();
+    }
+    $('#openRegistration').addEventListener('click',()=>jjShowRegistration(true));
+    $('#backToLogin').addEventListener('click',()=>jjShowRegistration(false));
+    $('#registerForm').addEventListener('submit',async e=>{
+      e.preventDefault();
+      const form=e.currentTarget,button=form.querySelector('button[type="submit"]');
+      const pin=$('#registerPin').value,confirm_pin=$('#registerPinConfirm').value;
+      if(pin!==confirm_pin){toast('確認用PINが一致しません');return}
+      button.disabled=true;
+      try{
+        const d=await post('/auth/register',{name:$('#registerName').value,pin,confirm_pin});
+        me=d.user;
+        $('#registerPin').value='';
+        $('#registerPinConfirm').value='';
+        showApp();
+        toast('アカウントを作成しました');
+      }catch(err){toast(err.message)}
+      finally{button.disabled=false}
+    });
+"""
+    if js.count(bind_anchor) != 1:
+        raise RuntimeError("explicit registration client handler drift")
+    js = js.replace(bind_anchor, register_events + bind_anchor, 1)
 
     # Club-result idempotency 2026-10-07. Keep one request ID while the user
     # retries an unchanged form; editing either form starts a new intent.
