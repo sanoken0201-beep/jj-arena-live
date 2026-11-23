@@ -4,8 +4,6 @@ The canonical /api/auth/pin endpoint is retained for old clients; its wrapped
 name collision / ban / PIN protections are reused for registrations. The new
 UI uses /api/auth/pin-login so entering an unknown name never creates a user.
 """
-from __future__ import annotations
-
 from fastapi import HTTPException
 from pydantic import BaseModel, Field
 from starlette.requests import Request
