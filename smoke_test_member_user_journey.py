@@ -40,7 +40,9 @@ def run() -> None:
             assert 'id="pinForm"' in root.text
             assert 'id="loginName"' in root.text
             assert 'id="loginPin"' in root.text
-            assert "JJ Arenaへ入る" in root.text
+            assert "新規アカウントを作成" in root.text
+            assert 'id="registerForm"' in root.text
+            assert '>ログイン</button>' in root.text
             json_response(client.get("/api/me"), 401)
 
             alice_login, alice_token = login(client, "ユーザーテスト", "123456")
