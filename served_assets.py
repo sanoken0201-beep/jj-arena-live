@@ -376,6 +376,9 @@ _HAND_LOG_CSS = r"""
 .jj-v122-review .jj-hh-card.is-new{border:2px solid #428263;margin-left:4px}
 .jj-v122-review .jj-hh-card.is-unknown{color:#53675b;background:#f2f5f3}
 .jj-v122-review .jj-hh-summary-cards .jj-hh-card{width:42px;height:50px;flex-direction:column;gap:2px;font-size:19px}
+.jj-v122-review .jj-hh-summary-cards{margin-top:6px}
+.jj-v122-review .jj-hand-participant .jj-hh-summary-cards{margin-top:0;gap:3px}
+.jj-v122-review .jj-hand-participant .jj-hh-card{width:clamp(28px,8vw,40px);height:43px;font-size:16px}
 .jj-v122-review .jj-hh-summary-cards .jj-hh-card>span{color:inherit;font-size:inherit;display:inline;margin:0;line-height:1}
 .jj-v122-review .jj-hh-board .jj-hh-card>span{color:inherit;font-size:inherit;line-height:1}
 @media(max-width:420px){.jj-v122-review .jj-hh-card{width:28px;height:32px;font-size:13px}.jj-v122-review .jj-hh-summary-cards .jj-hh-card{width:38px;height:45px;font-size:17px}}
@@ -405,7 +408,8 @@ def _compact_hand_log(js: str) -> str:
         ("ACTION FLOW</div><h4>アクションの流れ</h4><p>ストリートごとに、ポットとベット額を確認できます。自分の判断は強調表示しています。</p>", "HAND HISTORY</div><h4>ハンドログ</h4><p>ポジション・アクション・サイズを時系列で表示します。</p>"),
         ("details.className='jj-v1244-full-flow';", "details.className='jj-v1244-full-flow';details.open=true;"),
         ("必要なときだけストリート全体を展開", "ストリート別ハンドログ"),
-        ('<div class="jj-v122-hero-hand"><span>YOUR HAND</span><div class="cards">${jjCardSet(hero.cards)}</div></div>', '<div class="jj-v122-hero-hand"><span>YOUR HAND</span><div class="jj-hh-summary-cards">${jjHhCards(hero.cards)||"—"}</div></div>'),
+        # Preserve the ALL HANDS participant view installed by the visibility transform.
+        ('<div class="cards">${jjCardSet(p.cards)}</div></article>', '<div class="jj-hh-summary-cards">${jjHhCards(p.cards)||"—"}</div></article>'),
         ('<div class="jj-v122-board"><span>BOARD</span><div class="cards">${jjCardSet(h.board)}</div></div>', '<div class="jj-v122-board"><span>BOARD</span><div class="jj-hh-summary-cards">${jjHhCards(h.board)||"—"}</div></div>'),
     )
     for old, new in replacements:
