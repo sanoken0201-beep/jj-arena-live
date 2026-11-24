@@ -77,7 +77,7 @@ from illuminated_classic_theme import transform_styles as transform_illuminated_
 ROOT = Path(__file__).resolve().parent
 MATERIALIZED_STATIC = ROOT / "materialized_v1244" / "static"
 BUILD_ROOT = ROOT / ".jj_build"
-ASSET_VERSION = 99  # Deliver deterministic weekly GTO article cards to cached clients.
+ASSET_VERSION = 101  # Four-color cards and compact hand-history log.
 BUILD_FORMAT = 1
 
 _MOBILE_PODIUM_ORDER_MARKER = "v88 mobile podium rank order 2026-10-17"
@@ -332,6 +332,93 @@ def build_index() -> str:
     return transform_illuminated_classic_index(html)
 
 
+_HAND_LOG_JS = r"""
+  // Compact hand history; avoid the global homepage .hero class.
+  function jjHhCards(cards, street=''){
+    const suits={s:['♠','spades'],h:['♥','hearts'],d:['♦','diamonds'],c:['♣','clubs']};
+    const list=Array.isArray(cards)?cards:[];
+    return list.map((raw,i)=>{
+      const code=String(raw||'').trim(),match=/^(10|[2-9TJQKA])([shdc])$/i.exec(code);
+      const fresh=(street==='turn'&&i===3)||(street==='river'&&i===4);
+      if(!match)return '<span class="jj-hh-card is-unknown" aria-label="Unknown card">?</span>';
+      const rank=match[1].toUpperCase().replace('10','T'),suit=suits[match[2].toLowerCase()];
+      return `<span class="jj-hh-card suit-${match[2].toLowerCase()}${fresh?' is-new':''}" aria-label="${rank} of ${suit[1]}"><span>${rank}</span><span>${suit[0]}</span></span>`;
+    }).join('');
+  }
+  function jjV122ActionTimeline(actions,hero,h,players=[]){
+    const groups=new Map(jjV122StreetOrder.map(s=>[s,[]]));
+    (actions||[]).forEach(a=>{const s=String(a.street||'preflop').toLowerCase();if(!groups.has(s))groups.set(s,[]);groups.get(s).push(a)});
+    const positions=new Map(players.map(p=>[String(p.user_id),p.position||'']));
+    const bb=Number(h.big_blind||0),board=h.board||[];
+    const labels={fold:'folds',check:'checks',call:'calls',bet:'bets',raise:'raises',allin_call:'calls',allin_raise:'raises',allin:'all-in'};
+    return [...groups.entries()].filter(([street,rows])=>rows.length||(street==='flop'&&board.length>=3)||(street==='turn'&&board.length>=4)||(street==='river'&&board.length>=5)).map(([street,rows])=>{
+      const cards=jjV122StreetBoard(board,street);
+      const pot=rows.length&&rows[0].pot_before!=null?jjV122Bb(rows[0].pot_before,bb):'';
+      return `<section class="jj-hh-street"><header class="jj-hh-head"><span class="jj-hh-street-name">${safe(jjV122StreetName[street]||street.toUpperCase())}</span>${cards.length?`<span class="jj-hh-board">${jjHhCards(cards,street)}</span>`:''}${pot?`<span class="jj-hh-pot">Pot ${safe(pot)}</span>`:''}</header><div class="jj-hh-lines">${rows.map(a=>{
+        const mine=hero?.user_id!=null&&String(a.user_id)===String(hero.user_id),act=String(a.action||''),amount=jjV122ActionAmount(a),position=positions.get(String(a.user_id))||'—';
+        const action=[labels[act]||act||'—',amount,act==='allin_call'||act==='allin_raise'?'(all-in)':'',a.timed_out?'[timeout]':''].filter(Boolean).join(' ');
+        return `<div class="jj-hh-line${mine?' is-own':''}"><span class="jj-hh-position">${safe(position)}</span><span class="jj-hh-player">${mine?'Hero':safe(a.player_name||'—')}</span><span class="jj-hh-action">${safe(action)}</span></div>`;
+      }).join('')||'<div class="jj-hh-empty">アクション記録なし</div>'}</div></section>`;
+    }).join('')||'<div class="empty">アクション記録なし</div>';
+  }
+"""
+_HAND_LOG_CSS = r"""
+/* jj compact hand history: isolated from home hero and table styles */
+.jj-v122-review .jj-hh-street{margin:0 0 8px;border:1px solid #dfe5e0;border-radius:8px;background:#fff;color:#182820;overflow:hidden;min-width:0}
+.jj-v122-review .jj-hh-head{display:flex;align-items:center;flex-wrap:wrap;gap:4px 8px;padding:7px 9px;background:#f2f5f3;color:#182820;border-bottom:1px solid #dfe5e0}
+.jj-v122-review .jj-hh-street-name{font-size:12px;font-weight:850;letter-spacing:.04em}
+.jj-v122-review .jj-hh-board,.jj-v122-review .jj-hh-summary-cards{display:flex;flex-wrap:wrap;align-items:center;gap:4px;min-width:0}
+.jj-v122-review .jj-hh-card{display:inline-flex;align-items:center;justify-content:center;gap:1px;box-sizing:border-box;width:32px;height:35px;border:1px solid #bfcac4;border-radius:5px;background:#fff;color:#20252b;font-size:14px;font-weight:800;line-height:1;white-space:nowrap;flex:none}
+.jj-v122-review .jj-hh-card.suit-s{color:#20252b}
+.jj-v122-review .jj-hh-card.suit-h{color:#b42030}
+.jj-v122-review .jj-hh-card.suit-d{color:#205ab5}
+.jj-v122-review .jj-hh-card.suit-c{color:#17673f}
+.jj-v122-review .jj-hh-card.is-new{border:2px solid #428263;margin-left:4px}
+.jj-v122-review .jj-hh-card.is-unknown{color:#53675b;background:#f2f5f3}
+.jj-v122-review .jj-hh-summary-cards .jj-hh-card{width:42px;height:50px;flex-direction:column;gap:2px;font-size:19px}
+.jj-v122-review .jj-hh-summary-cards{margin-top:6px}
+.jj-v122-review .jj-hand-participant .jj-hh-summary-cards{margin-top:0;gap:3px}
+.jj-v122-review .jj-hand-participant .jj-hh-card{width:clamp(28px,8vw,40px);height:43px;font-size:16px}
+.jj-v122-review .jj-hh-summary-cards .jj-hh-card>span{color:inherit;font-size:inherit;display:inline;margin:0;line-height:1}
+.jj-v122-review .jj-hh-board .jj-hh-card>span{color:inherit;font-size:inherit;line-height:1}
+@media(max-width:420px){.jj-v122-review .jj-hh-card{width:28px;height:32px;font-size:13px}.jj-v122-review .jj-hh-summary-cards .jj-hh-card{width:38px;height:45px;font-size:17px}}
+.jj-v122-review .jj-hh-pot{margin-left:auto;color:#44584d;font-size:11px;white-space:nowrap}
+.jj-v122-review .jj-hh-line{display:grid;grid-template-columns:3.1em minmax(0,.85fr) minmax(0,1.35fr);gap:7px;align-items:baseline;padding:6px 9px;border-bottom:1px solid #edf0ee;font-size:13px;line-height:1.45;color:#182820;min-height:0}
+.jj-v122-review .jj-hh-line:last-child{border-bottom:0}
+.jj-v122-review .jj-hh-line.is-own{background:#edf6f0;box-shadow:inset 3px 0 0 #287650;color:#154c34;font-weight:750}
+.jj-v122-review .jj-hh-position{color:#53675b;font-size:11px;font-weight:700;overflow-wrap:anywhere}
+.jj-v122-review .jj-hh-player,.jj-v122-review .jj-hh-action{color:inherit;min-width:0;overflow-wrap:anywhere}
+.jj-v122-review .jj-hh-action{font-variant-numeric:tabular-nums}
+.jj-v122-review .jj-hh-empty{padding:6px 9px;font-size:12px;color:#53675b}
+@media(max-width:420px){.jj-v122-review .jj-hh-line{grid-template-columns:2.8em minmax(0,.8fr) minmax(0,1.3fr);gap:5px;padding:6px 7px;font-size:12px}.jj-v122-review .jj-hh-head{padding:7px}}
+"""
+
+
+def _compact_hand_log(js: str) -> str:
+    start = "  function jjV122ActionTimeline(actions,hero,h){"
+    end = "  let jjV122OpenRequestSeq=0;"
+    if js.count(start) != 1 or js.count(end) != 1:
+        raise RuntimeError("hand history renderer drift")
+    left, right = js.index(start), js.index(end)
+    if left >= right:
+        raise RuntimeError("hand history renderer order drift")
+    js = js[:left] + _HAND_LOG_JS + "\n" + js[right:]
+    replacements = (
+        ("jjV122ActionTimeline(actions,hero,h);", "jjV122ActionTimeline(actions,hero,h,players);"),
+        ("ACTION FLOW</div><h4>アクションの流れ</h4><p>ストリートごとに、ポットとベット額を確認できます。自分の判断は強調表示しています。</p>", "HAND HISTORY</div><h4>ハンドログ</h4><p>ポジション・アクション・サイズを時系列で表示します。</p>"),
+        ("details.className='jj-v1244-full-flow';", "details.className='jj-v1244-full-flow';details.open=true;"),
+        ("必要なときだけストリート全体を展開", "ストリート別ハンドログ"),
+        # Preserve the ALL HANDS participant view installed by the visibility transform.
+        ('<div class="cards">${jjCardSet(p.cards)}</div></article>', '<div class="jj-hh-summary-cards">${jjHhCards(p.cards)||"—"}</div></article>'),
+        ('<div class="jj-v122-board"><span>BOARD</span><div class="cards">${jjCardSet(h.board)}</div></div>', '<div class="jj-v122-board"><span>BOARD</span><div class="jj-hh-summary-cards">${jjHhCards(h.board)||"—"}</div></div>'),
+    )
+    for old, new in replacements:
+        if js.count(old) != 1:
+            raise RuntimeError(f"hand history integration drift: {old}")
+        js = js.replace(old, new, 1)
+    return js
+
+
 def build_app_js() -> str:
     js = _read("app.js")
     js = transform_hand_history_app_js(js)
@@ -548,7 +635,7 @@ def build_app_js() -> str:
         if js.count(old) != 1:
             raise RuntimeError(f"offline ring initial option drift: {old}")
         js = js.replace(old, new, 1)
-    return js
+    return _compact_hand_log(js)
 
 
 def build_styles() -> str:
@@ -580,7 +667,7 @@ def build_styles() -> str:
     if _MOBILE_PODIUM_ORDER_MARKER not in css:
         css = css.rstrip() + _MOBILE_PODIUM_ORDER_CSS + "\n"
     css = transform_position_hu_styles(css)
-    return transform_illuminated_classic_styles(css)
+    return transform_illuminated_classic_styles(css.rstrip() + "\n" + _HAND_LOG_CSS)
 
 
 def build_service_worker() -> str:

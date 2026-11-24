@@ -44,6 +44,24 @@ def main() -> None:
             compiled_js = (root / "static" / "app.js").read_text(encoding="utf-8")
             compiled_index = (root / "index.html").read_text(encoding="utf-8")
             compiled_css = (root / "static" / "styles.css").read_text(encoding="utf-8")
+            # Hand-history rows must never inherit the homepage hero banner.
+            log_start = compiled_js.index("  function jjV122ActionTimeline(")
+            log_end = compiled_js.index("  let jjV122OpenRequestSeq=0;", log_start)
+            log_js = compiled_js[log_start:log_end]
+            assert "jj-hh-line" in log_js and "is-own" in log_js
+            assert "jj-v122-action" not in log_js
+            assert "jjV122ActionTimeline(actions,hero,h,players);" in compiled_js
+            assert "details.className='jj-v1244-full-flow';details.open=true;" in compiled_js
+            assert ".jj-v122-review .jj-hh-line.is-own" in compiled_css
+            assert served_assets.ASSET_VERSION >= 101
+            assert 'jjHhCards(cards,street)' in log_js
+            assert 'jjHhCards(p.cards)' in compiled_js
+            assert 'ALL HANDS' in compiled_js
+            assert 'jjHhCards(h.board)' in compiled_js
+            assert all(f".jj-hh-card.suit-{suit}" in compiled_css for suit in "shdc")
+            assert ".jj-hh-card.is-new" in compiled_css
+            assert all(suit in compiled_js for suit in ("♠", "♥", "♦", "♣"))
+            assert "aria-label=\"Unknown card\"" in compiled_js
             # Both standard and quick-entry UIs must expose the new offline
             # ring rates, without changing tournament or online-table rules.
             for label in (
