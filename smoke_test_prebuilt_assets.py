@@ -44,6 +44,16 @@ def main() -> None:
             compiled_js = (root / "static" / "app.js").read_text(encoding="utf-8")
             compiled_index = (root / "index.html").read_text(encoding="utf-8")
             compiled_css = (root / "static" / "styles.css").read_text(encoding="utf-8")
+            # Hand-history rows must never inherit the homepage hero banner.
+            log_start = compiled_js.index("  function jjV122ActionTimeline(")
+            log_end = compiled_js.index("  let jjV122OpenRequestSeq=0;", log_start)
+            log_js = compiled_js[log_start:log_end]
+            assert "jj-hh-line" in log_js and "is-own" in log_js
+            assert "jj-v122-action" not in log_js
+            assert "jjV122ActionTimeline(actions,hero,h,players);" in compiled_js
+            assert "details.className='jj-v1244-full-flow';details.open=true;" in compiled_js
+            assert ".jj-v122-review .jj-hh-line.is-own" in compiled_css
+            assert served_assets.ASSET_VERSION >= 100
             # Both standard and quick-entry UIs must expose the new offline
             # ring rates, without changing tournament or online-table rules.
             for label in (
