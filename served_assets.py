@@ -77,7 +77,7 @@ from illuminated_classic_theme import transform_styles as transform_illuminated_
 ROOT = Path(__file__).resolve().parent
 MATERIALIZED_STATIC = ROOT / "materialized_v1244" / "static"
 BUILD_ROOT = ROOT / ".jj_build"
-ASSET_VERSION = 99  # Deliver deterministic weekly GTO article cards to cached clients.
+ASSET_VERSION = 100  # Compact, readable hand-history log.
 BUILD_FORMAT = 1
 
 _MOBILE_PODIUM_ORDER_MARKER = "v88 mobile podium rank order 2026-10-17"
@@ -332,6 +332,65 @@ def build_index() -> str:
     return transform_illuminated_classic_index(html)
 
 
+_HAND_LOG_JS = r"""
+  // Compact hand history; avoid the global homepage .hero class.
+  function jjV122ActionTimeline(actions,hero,h,players=[]){
+    const groups=new Map(jjV122StreetOrder.map(s=>[s,[]]));
+    (actions||[]).forEach(a=>{const s=String(a.street||'preflop').toLowerCase();if(!groups.has(s))groups.set(s,[]);groups.get(s).push(a)});
+    const positions=new Map(players.map(p=>[String(p.user_id),p.position||'']));
+    const bb=Number(h.big_blind||0),board=h.board||[];
+    const labels={fold:'folds',check:'checks',call:'calls',bet:'bets',raise:'raises',allin_call:'calls',allin_raise:'raises',allin:'all-in'};
+    return [...groups.entries()].filter(([street,rows])=>rows.length||(street==='flop'&&board.length>=3)||(street==='turn'&&board.length>=4)||(street==='river'&&board.length>=5)).map(([street,rows])=>{
+      const cards=jjV122StreetBoard(board,street);
+      const pot=rows.length&&rows[0].pot_before!=null?jjV122Bb(rows[0].pot_before,bb):'';
+      return `<section class="jj-hh-street"><header class="jj-hh-head"><span class="jj-hh-street-name">${safe(jjV122StreetName[street]||street.toUpperCase())}</span>${cards.length?`<span class="jj-hh-board">[${safe(cards.join(' '))}]</span>`:''}${pot?`<span class="jj-hh-pot">Pot ${safe(pot)}</span>`:''}</header><div class="jj-hh-lines">${rows.map(a=>{
+        const mine=hero?.user_id!=null&&String(a.user_id)===String(hero.user_id),act=String(a.action||''),amount=jjV122ActionAmount(a),position=positions.get(String(a.user_id))||'—';
+        const action=[labels[act]||act||'—',amount,act==='allin_call'||act==='allin_raise'?'(all-in)':'',a.timed_out?'[timeout]':''].filter(Boolean).join(' ');
+        return `<div class="jj-hh-line${mine?' is-own':''}"><span class="jj-hh-position">${safe(position)}</span><span class="jj-hh-player">${mine?'Hero':safe(a.player_name||'—')}</span><span class="jj-hh-action">${safe(action)}</span></div>`;
+      }).join('')||'<div class="jj-hh-empty">アクション記録なし</div>'}</div></section>`;
+    }).join('')||'<div class="empty">アクション記録なし</div>';
+  }
+"""
+_HAND_LOG_CSS = r"""
+/* jj compact hand history: isolated from home hero and table styles */
+.jj-v122-review .jj-hh-street{margin:0 0 8px;border:1px solid #dfe5e0;border-radius:8px;background:#fff;color:#182820;overflow:hidden;min-width:0}
+.jj-v122-review .jj-hh-head{display:flex;align-items:center;flex-wrap:wrap;gap:4px 8px;padding:7px 9px;background:#f2f5f3;color:#182820;border-bottom:1px solid #dfe5e0}
+.jj-v122-review .jj-hh-street-name{font-size:12px;font-weight:850;letter-spacing:.04em}
+.jj-v122-review .jj-hh-board{font-size:12px;font-weight:650;overflow-wrap:anywhere}
+.jj-v122-review .jj-hh-pot{margin-left:auto;color:#44584d;font-size:11px;white-space:nowrap}
+.jj-v122-review .jj-hh-line{display:grid;grid-template-columns:3.1em minmax(0,.85fr) minmax(0,1.35fr);gap:7px;align-items:baseline;padding:6px 9px;border-bottom:1px solid #edf0ee;font-size:13px;line-height:1.45;color:#182820;min-height:0}
+.jj-v122-review .jj-hh-line:last-child{border-bottom:0}
+.jj-v122-review .jj-hh-line.is-own{background:#edf6f0;box-shadow:inset 3px 0 0 #287650;color:#154c34;font-weight:750}
+.jj-v122-review .jj-hh-position{color:#53675b;font-size:11px;font-weight:700;overflow-wrap:anywhere}
+.jj-v122-review .jj-hh-player,.jj-v122-review .jj-hh-action{color:inherit;min-width:0;overflow-wrap:anywhere}
+.jj-v122-review .jj-hh-action{font-variant-numeric:tabular-nums}
+.jj-v122-review .jj-hh-empty{padding:6px 9px;font-size:12px;color:#53675b}
+@media(max-width:420px){.jj-v122-review .jj-hh-line{grid-template-columns:2.8em minmax(0,.8fr) minmax(0,1.3fr);gap:5px;padding:6px 7px;font-size:12px}.jj-v122-review .jj-hh-head{padding:7px}}
+"""
+
+
+def _compact_hand_log(js: str) -> str:
+    start = "  function jjV122ActionTimeline(actions,hero,h){"
+    end = "  let jjV122OpenRequestSeq=0;"
+    if js.count(start) != 1 or js.count(end) != 1:
+        raise RuntimeError("hand history renderer drift")
+    left, right = js.index(start), js.index(end)
+    if left >= right:
+        raise RuntimeError("hand history renderer order drift")
+    js = js[:left] + _HAND_LOG_JS + "\n" + js[right:]
+    replacements = (
+        ("jjV122ActionTimeline(actions,hero,h);", "jjV122ActionTimeline(actions,hero,h,players);"),
+        ("ACTION FLOW</div><h4>アクションの流れ</h4><p>ストリートごとに、ポットとベット額を確認できます。自分の判断は強調表示しています。</p>", "HAND HISTORY</div><h4>ハンドログ</h4><p>ポジション・アクション・サイズを時系列で表示します。</p>"),
+        ("details.className='jj-v1244-full-flow';", "details.className='jj-v1244-full-flow';details.open=true;"),
+        ("必要なときだけストリート全体を展開", "ストリート別ハンドログ"),
+    )
+    for old, new in replacements:
+        if js.count(old) != 1:
+            raise RuntimeError(f"hand history integration drift: {old}")
+        js = js.replace(old, new, 1)
+    return js
+
+
 def build_app_js() -> str:
     js = _read("app.js")
     js = transform_hand_history_app_js(js)
@@ -548,7 +607,7 @@ def build_app_js() -> str:
         if js.count(old) != 1:
             raise RuntimeError(f"offline ring initial option drift: {old}")
         js = js.replace(old, new, 1)
-    return js
+    return _compact_hand_log(js)
 
 
 def build_styles() -> str:
@@ -580,7 +639,7 @@ def build_styles() -> str:
     if _MOBILE_PODIUM_ORDER_MARKER not in css:
         css = css.rstrip() + _MOBILE_PODIUM_ORDER_CSS + "\n"
     css = transform_position_hu_styles(css)
-    return transform_illuminated_classic_styles(css)
+    return transform_illuminated_classic_styles(css) + _HAND_LOG_CSS
 
 
 def build_service_worker() -> str:
