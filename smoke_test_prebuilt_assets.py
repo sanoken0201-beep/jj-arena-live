@@ -55,7 +55,8 @@ def main() -> None:
             assert ".jj-v122-review .jj-hh-line.is-own" in compiled_css
             assert served_assets.ASSET_VERSION >= 101
             assert 'jjHhCards(cards,street)' in log_js
-            assert 'jjHhCards(hero.cards)' in compiled_js
+            assert 'jjHhCards(p.cards)' in compiled_js
+            assert 'ALL HANDS' in compiled_js
             assert 'jjHhCards(h.board)' in compiled_js
             assert all(f".jj-hh-card.suit-{suit}" in compiled_css for suit in "shdc")
             assert ".jj-hh-card.is-new" in compiled_css
