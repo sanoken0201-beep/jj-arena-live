@@ -119,9 +119,13 @@ CLIENT = r"""
 
 
 def transform_app_js(js):
-    anchor = "  async function renderPoints(){"
-    if js.count(anchor) != 1:
+    anchor = "  const pointDenoms="
+    render_anchor = "$('#recentEntries').innerHTML=ents.map"
+    if js.count(anchor) != 1 or js.count(render_anchor) != 1:
         raise RuntimeError("offline ring history renderPoints anchor drift")
-    # Re-render on the existing points refresh (including successful submissions).
-    return js.replace(anchor, CLIENT + anchor +
-                      "jjInitRingHistory();$('#jjRingHistory')?.jjRefreshRingHistory?.();", 1)
+    # Keep the ranking/renderPoints boundary and its function prefix intact:
+    # later build transforms rely on those exact source contracts.
+    js = js.replace(anchor, CLIENT + anchor, 1)
+    return js.replace(render_anchor,
+                      "jjInitRingHistory();$('#jjRingHistory')?.jjRefreshRingHistory?.();" +
+                      render_anchor, 1)
