@@ -548,7 +548,8 @@ def build_app_js() -> str:
         if js.count(old) != 1:
             raise RuntimeError(f"offline ring initial option drift: {old}")
         js = js.replace(old, new, 1)
-    return js
+    from offline_ring_history import transform_app_js as transform_offline_ring_history
+    return transform_offline_ring_history(js)
 
 
 def build_styles() -> str:
