@@ -2,6 +2,7 @@
 import sqlite3
 from contextlib import contextmanager
 from types import SimpleNamespace
+from unittest.mock import patch
 
 from fastapi import FastAPI, HTTPException
 from fastapi.testclient import TestClient
@@ -57,8 +58,12 @@ def test_ring_filter_pagination_and_stored_points():
     assert db.con.execute("SELECT COUNT(*) FROM entries").fetchone()[0] == 7
 
 
-def test_route_permissions_and_validation(monkeypatch):
-    monkeypatch.setattr(season_management, "bounds", lambda db, season: ("2026-09-01","2027-04-01"))
+def test_route_permissions_and_validation():
+    with patch.object(season_management, "bounds", lambda db, season: ("2026-09-01","2027-04-01")):
+        _assert_route_permissions_and_validation()
+
+
+def _assert_route_permissions_and_validation():
     db = DB()
     state = {"role": None}
 
@@ -92,3 +97,10 @@ def test_transform_hooks_existing_point_view():
     assert "jjInitRingHistory();" in result
     assert "/points/ring-history?" in result
     assert "URLSearchParams" in result
+
+
+if __name__ == "__main__":
+    test_ring_filter_pagination_and_stored_points()
+    test_route_permissions_and_validation()
+    test_transform_hooks_existing_point_view()
+    print("Offline ring history regression OK")
