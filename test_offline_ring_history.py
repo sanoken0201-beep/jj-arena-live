@@ -86,7 +86,7 @@ def test_route_permissions_and_validation(monkeypatch):
 
 
 def test_transform_hooks_existing_point_view():
-    source = "  async function renderPoints(){return 1}"
+    source = "  async function renderPoints(){$('#recentEntries').innerHTML=ents.map(row)}\n  const pointDenoms=[]"
     result = ring.transform_app_js(source)
     assert ring.MARKER in result
     assert "jjInitRingHistory();" in result
