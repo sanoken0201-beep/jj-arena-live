@@ -90,6 +90,9 @@ jobs:
       - name: Verify club result input safety
         run: python smoke_test_club_entry_safety.py
 
+      - name: Verify offline ring history filtering and permissions
+        run: python test_offline_ring_history.py
+
       - name: Verify materialized import scope
         run: python smoke_test_materialized_import_scope.py
 
