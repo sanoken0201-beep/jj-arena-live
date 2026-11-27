@@ -16,9 +16,9 @@ def main() -> None:
     manifest = validate_built_assets(BUILD_ROOT)
     stages = [name for name, _ in POST_BUILD_STAGES]
 
-    assert PIPELINE_VERSION == 10
-    assert manifest.get("pipeline_version") == 10
-    assert stages[-5:] == ["runtime_browser_consolidation", "ux_telemetry_followup", "quiz_request_diagnostics", "ranking_read_optimization", "hand_result_trends"]
+    assert PIPELINE_VERSION == 11
+    assert manifest.get("pipeline_version") == 11
+    assert stages[-6:] == ["runtime_browser_consolidation", "ux_telemetry_followup", "quiz_request_diagnostics", "ranking_read_optimization", "hand_result_trends", "ring_connection_recovery"]
     assert manifest.get("pipeline_stages") == stages + ["content_addressed_browser_cache"]
 
     js = (BUILD_ROOT / "static/app.js").read_text(encoding="utf-8")
