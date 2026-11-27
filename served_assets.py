@@ -71,7 +71,6 @@ from season_browser_integration import transform_app_js as transform_season_app_
 from ring_buyin_browser import MARKER as RING_BUYIN_MARKER, transform_app_js as transform_ring_buyin_app_js
 from position_hu_browser import transform_app_js as transform_position_hu_app_js, transform_styles as transform_position_hu_styles
 from weekly_study_rotation import transform_app_js as transform_weekly_study_app_js
-from ring_connection_recovery import transform_app_js as transform_ring_connection_recovery
 from illuminated_classic_theme import transform_index as transform_illuminated_classic_index
 from illuminated_classic_theme import transform_styles as transform_illuminated_classic_styles
 
@@ -549,7 +548,7 @@ def build_app_js() -> str:
         if js.count(old) != 1:
             raise RuntimeError(f"offline ring initial option drift: {old}")
         js = js.replace(old, new, 1)
-    return transform_ring_connection_recovery(js)
+    return js
 
 
 def build_styles() -> str:
