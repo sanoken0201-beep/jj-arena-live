@@ -1,5 +1,8 @@
 """Bounded browser Ring connection recovery, applied to compiled assets only."""
 
+import hashlib
+from pathlib import Path
+
 MARKER = "jj-ring-connection-recovery-20261127"
 RECOVERY = r'''
   // jj-ring-connection-recovery-20261127
@@ -10,6 +13,7 @@ RECOVERY = r'''
   }
   function jjRingClearSocket(ctx){
     if(ctx?.deadline){clearTimeout(ctx.deadline);ctx.deadline=null}
+    if(ctx?.initialSync){clearTimeout(ctx.initialSync);ctx.initialSync=null}
     if(tableHeartbeat){clearInterval(tableHeartbeat);tableHeartbeat=null}
     const old=tableWS;tableWS=null;
     if(old){old.onclose=old.onopen=old.onmessage=old.onerror=null;try{old.close()}catch{}}
@@ -31,7 +35,9 @@ RECOVERY = r'''
         if(!jjRingActive(ctx)||ctx.request!==request||request.signal.aborted||ctx.wsReady||jjV121ActionPending||tableState!==before||!d?.state)return;
         tableState=d.state;tableMessages=d.messages||[];
         jjV2AcceptState('poll',before);renderPokerRoom();
-      }catch{}finally{
+      }catch{
+        if(jjRingActive(ctx)&&ctx.request===request&&!ctx.wsReady&&!jjV121ActionPending&&tableState===before){jjV2SetConnection('syncing',false);renderPokerRoom()}
+      }finally{
         clearTimeout(timer);
         if(ctx.request===request)ctx.request=null;
       }
@@ -56,7 +62,7 @@ RECOVERY = r'''
   function connectTable(id){
     if(currentTableId!==id)return;
     if(!jjRingRecovery||jjRingRecovery.id!==id){
-      jjRingStop();jjRingRecovery={id,request:null,deadline:null,attempts:0,wsReady:false};
+      jjRingStop();jjRingRecovery={id,request:null,deadline:null,initialSync:null,attempts:0,wsReady:false};
     }
     const ctx=jjRingRecovery;
     if(tableReconnect){clearTimeout(tableReconnect);tableReconnect=null}
@@ -72,7 +78,10 @@ RECOVERY = r'''
     ctx.deadline=setTimeout(()=>jjRingLost(ctx,socket),5000);
     socket.onopen=()=>{
       if(!jjRingActive(ctx)||tableWS!==socket)return;
-      jjV2SetConnection('syncing',jjV2Connection.fresh);
+      jjV2SetConnection('syncing',!!tableState&&jjV2Connection.fresh);
+      // Preserve the previous 700ms authoritative resync watchdog, but use
+      // the same single-flight fallback rather than a competing request.
+      ctx.initialSync=setTimeout(()=>{ctx.initialSync=null;if(jjRingActive(ctx)&&tableWS===socket&&!ctx.wsReady)jjRingFallback(ctx)},700);
       tableHeartbeat=setInterval(()=>{
         if(jjRingActive(ctx)&&tableWS===socket&&socket.readyState===WebSocket.OPEN){
           try{socket.send('ping')}catch{jjRingLost(ctx,socket)}
@@ -88,6 +97,7 @@ RECOVERY = r'''
           if(!ctx.wsReady){
             ctx.wsReady=true;ctx.attempts=0;
             clearTimeout(ctx.deadline);ctx.deadline=null;
+            if(ctx.initialSync){clearTimeout(ctx.initialSync);ctx.initialSync=null}
             jjRingClearPoll(ctx);jjV6ConnectionOpen();
           }
           tableState=m.state;
@@ -132,8 +142,19 @@ def transform_app_js(source: str) -> str:
     a, b = source.index(start), source.index(end)
     if b <= a or "jjV6ConnectionClosed()" not in source[a:b] or "jjV2AcceptState('poll',previous)" not in source[a:b]:
         raise RuntimeError("Ring recovery compiled contract drift")
+    if "jjV71SocketOpen(id)" not in source[a:b]:
+        raise RuntimeError("Ring recovery must follow existing freshness transform")
     source = source[:a] + RECOVERY + source[b:]
     anchor = "  function disconnectTable(){\n"
     if source.count(anchor) != 1:
         raise RuntimeError("Ring recovery disconnect boundary drift")
     return source.replace(anchor, anchor + "    jjRingStop();\n", 1)
+
+
+def apply_to_build(output_root: Path | str, manifest: dict) -> dict:
+    path = Path(output_root) / "static/app.js"
+    source = transform_app_js(path.read_text(encoding="utf-8"))
+    path.write_text(source, encoding="utf-8", newline="\n")
+    manifest["outputs"]["static/app.js"] = hashlib.sha256(source.encode("utf-8")).hexdigest()
+    manifest.setdefault("post_transforms", {})["ring_connection_recovery"] = MARKER
+    return manifest
