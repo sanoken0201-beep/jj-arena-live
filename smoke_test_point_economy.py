@@ -59,13 +59,13 @@ def main():
         older = user("EconomyReused", deleted="2026-10-21T00:00:00+00:00")
         fresh = user("EconomyReused", created="2026-10-22T00:00:00+00:00")
 
-        def entry(key, name, points, when):
+        def entry(key, name, points, when, game_type="ring", game="450 / blind 1-3-3"):
             con.execute(
                 """INSERT INTO entries(id,date,name,remaining,reentries,initial,points,
                    game,game_type,source,created_by,created_at)
                    VALUES (?,?,?,?,?,?,?,?,?,?,?,?)""",
                 (key, when, name, 450 + points, 0, 450, points,
-                 "ring", "ring", "test", admin, when + "+09:00"),
+                 game, game_type, "test", admin, when + "+09:00"),
             )
 
         entry("econ-club-a", "EconomyA", 50, "2026-10-25T12:00:00")
@@ -73,6 +73,7 @@ def main():
         entry("econ-deleted-entry", "EconomyGone", 100, "2026-10-15T12:00:00")
         entry("econ-prior-generation", "EconomyReused", 200, "2026-10-10T12:00:00")
         entry("econ-new-generation", "EconomyReused", 4, "2026-10-25T12:00:00")
+        entry("econ-tournament", "EconomyA", 0, "2026-10-25T13:00:00", "tournament", "450 / tournament")
         entry("econ-operator", "運営調整", 1000, "2026-10-25T12:00:00")
 
         def hand(key, uid, points, *, voided=0, at="2026-10-24T15:45:00+00:00"):
@@ -153,6 +154,14 @@ def main():
     assert first["history"][0]["id"] != second["history"][0]["id"]
     assert all(row["source"] == "club" for row in first["history"] + second["history"])
     assert [row["id"] for row in client.get(endpoint, params={"source": "quiz"}).json()["history"]] == ["econ-quiz"]
+    ring = client.get(endpoint, params={"source": "ring"}).json()
+    assert ring["totals"] == result["totals"]
+    assert ring["club_counts"] == {"ring": 3, "tournament": 1, "unknown": 0}
+    assert {r["id"] for r in ring["history"]} == {"econ-club-a", "econ-club-b", "econ-new-generation"}
+    assert all(r["game_type"] == "ring" and r["detail"] == "450 / blind 1-3-3" for r in ring["history"])
+    tournament = client.get(endpoint, params={"source": "tournament"}).json()
+    assert [r["id"] for r in tournament["history"]] == ["econ-tournament"]
+    assert tournament["totals"] == result["totals"]
     assert client.get(endpoint, params={"source": "admin"}).status_code == 422
     assert client.get(endpoint, params={"limit": 999}).status_code == 422
 
@@ -165,7 +174,7 @@ def main():
     css = (root / "admin_point_economy.css").read_text(encoding="utf-8")
     admin_js = (root / "admin.js").read_text(encoding="utf-8")
     assert 'data-view="economy"' in html and 'id="economyView"' in html
-    assert '/admin-static/admin_point_economy.js?v=1' in html
+    assert '/admin-static/admin_point_economy.js?v=2' in html
     assert '/admin-static/admin_point_economy.css?v=1' in html
     assert "window.jjLoadPointEconomy" in js and "jjLoadPointEconomy?.()" in admin_js
     assert "/admin/point-economy?" in js and ".economy-numbers" in css
