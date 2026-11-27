@@ -71,13 +71,14 @@ from season_browser_integration import transform_app_js as transform_season_app_
 from ring_buyin_browser import MARKER as RING_BUYIN_MARKER, transform_app_js as transform_ring_buyin_app_js
 from position_hu_browser import transform_app_js as transform_position_hu_app_js, transform_styles as transform_position_hu_styles
 from weekly_study_rotation import transform_app_js as transform_weekly_study_app_js
+from ring_connection_recovery import transform_app_js as transform_ring_connection_recovery
 from illuminated_classic_theme import transform_index as transform_illuminated_classic_index
 from illuminated_classic_theme import transform_styles as transform_illuminated_classic_styles
 
 ROOT = Path(__file__).resolve().parent
 MATERIALIZED_STATIC = ROOT / "materialized_v1244" / "static"
 BUILD_ROOT = ROOT / ".jj_build"
-ASSET_VERSION = 99  # Deliver deterministic weekly GTO article cards to cached clients.
+ASSET_VERSION = 100  # Bound Ring connection recovery and isolate stale responses.
 BUILD_FORMAT = 1
 
 _MOBILE_PODIUM_ORDER_MARKER = "v88 mobile podium rank order 2026-10-17"
@@ -548,7 +549,7 @@ def build_app_js() -> str:
         if js.count(old) != 1:
             raise RuntimeError(f"offline ring initial option drift: {old}")
         js = js.replace(old, new, 1)
-    return js
+    return transform_ring_connection_recovery(js)
 
 
 def build_styles() -> str:
