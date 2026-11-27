@@ -69,9 +69,10 @@ def calculate(db, *, season="fall", source="all", offset=0, limit=50):
     want_all = source == "all"
     need = offset + limit + 1
     events = []
+    club_counts = {"ring": 0, "tournament": 0, "unknown": 0}
 
-    def event(*, id, kind, player, points, occurred_at, detail, day=None):
-        if not (want_all or kind == source):
+    def event(*, id, kind, player, points, occurred_at, detail, day=None, game_type=None):
+        if not (want_all or kind == source or (kind == "club" and game_type == source)):
             return
         item = {
             "id": str(id), "source": kind, "player": str(player),
@@ -80,6 +81,8 @@ def calculate(db, *, season="fall", source="all", offset=0, limit=50):
             "occurred_at": str(occurred_at), "detail": str(detail or ""),
             "_sort": _sort_timestamp(occurred_at, kind),
         }
+        if game_type is not None:
+            item["game_type"] = game_type
         events.append(item)
 
     with db.connect() as con:
@@ -89,7 +92,7 @@ def calculate(db, *, season="fall", source="all", offset=0, limit=50):
         # Club entries are keyed by name, not by user ID. Account-generation
         # filtering must run per row, not after an SQL GROUP BY name/date.
         entries = con.execute(
-            """SELECT id,name,points,date,created_at,game_type
+            """SELECT id,name,points,date,created_at,game_type,game,initial
                FROM entries WHERE name!='運営調整' AND date>=? AND date<?
                ORDER BY date DESC,created_at DESC,id DESC""",
             (start, end),
@@ -98,10 +101,16 @@ def calculate(db, *, season="fall", source="all", offset=0, limit=50):
             if deleted_aware and not admin_console._club_entry_is_current(row, generations):
                 continue
             add(str(row["date"])[:10], "club", row["points"])
-            if want_all or source == "club":
+            game_type = str(row["game_type"] or "").strip().lower()
+            if game_type not in ("ring", "tournament"):
+                game_type = "unknown"
+            club_counts[game_type] += 1
+            if want_all or source in ("club", "ring", "tournament"):
+                game = str(row["game"] or "").strip()
+                detail = game if game and game.lower() not in ("ring", "tournament") else f"初期点 {row['initial']}"
                 event(id=row["id"], kind="club", player=row["name"],
                       points=row["points"], occurred_at=row["date"],
-                      day=str(row["date"])[:10], detail=row["game_type"] or "入力")
+                      day=str(row["date"])[:10], detail=detail, game_type=game_type)
 
         deleted_online = " AND (r.user_id IS NULL OR u.deleted_at IS NULL)" if deleted_aware else ""
         date_online = _jst_date_sql(db, "h.played_at")
@@ -208,6 +217,7 @@ def calculate(db, *, season="fall", source="all", offset=0, limit=50):
         "last_30_days": last30, "daily": timeline,
         "history": page, "next_offset": offset + limit if len(events) > offset + limit else None,
         "source": source,
+        "club_counts": club_counts,
         "definition": "現在のランキング対象データ。削除済みアカウント・無効化ハンド・運営調整入力は対象外。補正とSit&Goはその他。",
     }
 
@@ -220,7 +230,7 @@ def install(app, server, db):
     @app.get("/api/admin/point-economy")
     def economy(
         season: str = "fall",
-        source: str = Query(default="all", pattern="^(all|club|online|quiz|other)$"),
+        source: str = Query(default="all", pattern="^(all|club|ring|tournament|online|quiz|other)$"),
         offset: int = Query(default=0, ge=0, le=100_000),
         limit: int = Query(default=50, ge=1, le=100),
         user=Depends(server.admin_user),
