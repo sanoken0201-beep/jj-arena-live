@@ -14,6 +14,7 @@ and the public API remain unchanged.
 
 import asyncio
 import atexit
+import logging
 import os
 import threading
 import time
@@ -30,6 +31,9 @@ _STATE_EVENT_LOOP: asyncio.AbstractEventLoop | None = None
 _TIMEOUT_EVENT: asyncio.Event | None = None
 _TIMEOUT_EVENT_LOOP: asyncio.AbstractEventLoop | None = None
 _LAST_BROADCAST_STATE: dict[str, tuple[int, Any]] = {}
+_WS_SEND_TIMEOUT_SECONDS = 5.0
+_WS_CLOSE_TIMEOUT_SECONDS = 1.0
+_WS_LOG = logging.getLogger("uvicorn.error")
 
 
 def _database_url(db) -> str:
@@ -448,9 +452,23 @@ def _install_broadcast_coalescing(server, poker_engine) -> None:
                 }
                 if previous is None:
                     payload["messages"] = messages or []
-                await ws.send_json(payload)
             else:
-                await ws.send_json({"type": "chat", "messages": messages or []})
+                payload = {"type": "chat", "messages": messages or []}
+
+            # A slow transport must not keep the entire fanout (and the HTTP
+            # action or lifecycle task that awaits it) pending indefinitely.
+            try:
+                await asyncio.wait_for(ws.send_json(payload), timeout=_WS_SEND_TIMEOUT_SECONDS)
+            except TimeoutError:
+                self.remove(table_id, ws)
+                _WS_LOG.warning("ring_websocket_send_timeout table=%s", table_id)
+                # A detached socket would otherwise receive no more state
+                # while looking connected to its browser. Close best-effort
+                # so the existing reconnect/fallback path can resynchronize.
+                try:
+                    await asyncio.wait_for(ws.close(code=1013), timeout=_WS_CLOSE_TIMEOUT_SECONDS)
+                except Exception:
+                    _WS_LOG.warning("ring_websocket_close_failed table=%s", table_id)
 
         results = await asyncio.gather(
             *(send_one(ws, uid) for ws, uid in connections),
