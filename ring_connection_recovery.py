@@ -78,6 +78,7 @@ RECOVERY = r'''
     ctx.deadline=setTimeout(()=>jjRingLost(ctx,socket),5000);
     socket.onopen=()=>{
       if(!jjRingActive(ctx)||tableWS!==socket)return;
+      jjV6ConnectionOpen();
       jjV2SetConnection('syncing',!!tableState&&jjV2Connection.fresh);
       // Preserve the previous 700ms authoritative resync watchdog, but use
       // the same single-flight fallback rather than a competing request.
@@ -98,7 +99,7 @@ RECOVERY = r'''
             ctx.wsReady=true;ctx.attempts=0;
             clearTimeout(ctx.deadline);ctx.deadline=null;
             if(ctx.initialSync){clearTimeout(ctx.initialSync);ctx.initialSync=null}
-            jjRingClearPoll(ctx);jjV6ConnectionOpen();
+            jjRingClearPoll(ctx);
           }
           tableState=m.state;
           if(Array.isArray(m.messages))tableMessages=m.messages;
@@ -136,7 +137,7 @@ def transform_app_js(source: str) -> str:
     if MARKER in source:
         return source
     start = "  function connectTable(id){"
-    end = "\n  function jjV2HandLogText("
+    end = "\n  function suitChar("
     if source.count(start) != 1 or source.count(end) != 1:
         raise RuntimeError("Ring recovery function boundary drift")
     a, b = source.index(start), source.index(end)
@@ -144,6 +145,8 @@ def transform_app_js(source: str) -> str:
         raise RuntimeError("Ring recovery compiled contract drift")
     if "jjV71SocketOpen(id)" not in source[a:b]:
         raise RuntimeError("Ring recovery must follow existing freshness transform")
+    if "\n  function " in source[a:b][len(start):]:
+        raise RuntimeError("Ring recovery would remove adjacent functions")
     source = source[:a] + RECOVERY + source[b:]
     anchor = "  function disconnectTable(){\n"
     if source.count(anchor) != 1:
