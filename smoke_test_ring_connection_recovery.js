@@ -5,7 +5,7 @@ const fs=require('node:fs');
 const vm=require('node:vm');
 const source=fs.readFileSync(process.argv[2]||'.jj_build/static/app.js','utf8');
 const start=source.indexOf('  // jj-ring-connection-recovery-20261127');
-const end=source.indexOf('\n  function jjV2HandLogText(',start);
+const end=source.indexOf('\n  function suitChar(',start);
 assert(start>=0&&end>start,'compiled recovery block not found');
 assert(source.includes('function disconnectTable(){\n    jjRingStop();'));
 const harness=`
