@@ -2,7 +2,7 @@
 (() => {
   'use strict';
   const $ = selector => document.querySelector(selector);
-  const labels = {club:'入力', online:'オンライン卓', quiz:'今日の問題', other:'その他・補正'};
+  const labels = {club:'通常活動（入力）', ring:'通常リング', tournament:'通常トーナメント', online:'オンライン卓', quiz:'今日の問題', other:'その他・補正'};
   const fmt = value => Number(value || 0).toLocaleString('ja-JP', {maximumFractionDigits:2});
   const signed = value => `${Number(value) >= 0 ? '+' : ''}${fmt(value)}`;
   const safe = value => String(value ?? '').replace(/[&<>"']/g, char => ({'&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;'}[char]));
@@ -48,13 +48,15 @@
     $('#economyDaily').innerHTML = days.map(r => `<tr><td>${safe(r.date)}</td><td>${signed(r.club)}</td><td>${signed(r.online)}</td><td>${signed(r.quiz)}</td><td>${signed(r.other)}</td><td><b>${signed(r.change)}</b></td><td>${fmt(r.cumulative)}</td></tr>`).join('') || '<tr><td colspan="7">まだ記録がありません</td></tr>';
 
     const history = data.history || [];
-    $('#economyHistory').innerHTML = history.map(r => `<div class="economy-event"><div class="economy-event-top"><span><span class="economy-source">${safe(labels[r.source] || r.source)}</span><b>${safe(r.player)}</b></span><strong class="${Number(r.points) >= 0 ? 'economy-plus' : 'economy-minus'}">${signed(r.points)}</strong></div><div class="economy-event-detail">${safe(r.date)} · ${safe(r.detail)}</div></div>`).join('') || '<div class="empty-state">該当する履歴はありません</div>';
+    $('#economyHistory').innerHTML = history.map(r => `<div class="economy-event"><div class="economy-event-top"><span><span class="economy-source">${safe(labels[r.game_type] || labels[r.source] || r.source)}</span><b>${safe(r.player)}</b></span><strong class="${Number(r.points) >= 0 ? 'economy-plus' : 'economy-minus'}">${signed(r.points)}</strong></div><div class="economy-event-detail">${safe(r.date)} · ${safe(r.detail)}</div></div>`).join('') || '<div class="empty-state">該当する履歴はありません</div>';
+    const counts = data.club_counts || {};
+    $('#economyRingCount').textContent = `通常リング ${Number(counts.ring || 0)}件 · 通常トーナメント ${Number(counts.tournament || 0)}件（対象シーズン）`;
     state.offset = offset;
     state.next = data.next_offset;
     $('#economyPrevious').disabled = offset === 0;
     $('#economyNext').disabled = data.next_offset == null;
     $('#economyPageLabel').textContent = history.length ? `${offset+1}〜${offset+history.length}件目` : '0件';
-    $('#economyFootnote').textContent = `入力 ${signed(total.club)} pt / オンライン ${signed(total.online)} pt / 今日の問題 ${signed(total.quiz)} pt / その他 ${signed(total.other)} pt。${data.definition || ''} 日別集計は日本時間で行います。種類の選択は取引履歴のみ絞り込み、総量・グラフは全種類を表示します。`;
+    $('#economyFootnote').textContent = `通常活動（入力） ${signed(total.club)} pt / オンライン ${signed(total.online)} pt / 今日の問題 ${signed(total.quiz)} pt / その他 ${signed(total.other)} pt。${data.definition || ''} 日別集計は日本時間で行います。種類の選択は取引履歴のみ絞り込み、総量・グラフは全種類を表示します。`;
   }
 
   async function load(offset = 0) {
@@ -98,6 +100,7 @@
   };
   $('#economySeason').addEventListener('change', () => load(0));
   $('#economySource').addEventListener('change', () => load(0));
+  $('#economyRingShortcut').addEventListener('click', () => { $('#economySource').value = 'ring'; load(0); });
   $('#economyRefresh').addEventListener('click', () => load(state.offset));
   $('#economyPrevious').addEventListener('click', () => load(Math.max(0, state.offset - 50)));
   $('#economyNext').addEventListener('click', () => { if (state.next != null) load(state.next); });
