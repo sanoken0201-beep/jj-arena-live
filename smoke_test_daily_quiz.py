@@ -236,8 +236,51 @@ def test_app(postgres):
         yield production.app, production.db
 
 
+def progress_query_regression():
+    # Run the actual query against SQLite with fixtures covering both old and
+    # current rewards. The full HTTP suite below also uses PostgreSQL in CI.
+    import sqlite3
+    with sqlite3.connect(":memory:") as con:
+        con.row_factory = sqlite3.Row
+        con.executescript("""
+            CREATE TABLE point_ledger(id TEXT, user_id INTEGER, kind TEXT, amount REAL, effective_at TEXT);
+            CREATE TABLE quiz_daily_answers(user_id INTEGER, quiz_date TEXT, answer TEXT, is_correct INTEGER, reward_awarded INTEGER);
+        """)
+        day = "2026-11-27"
+        class Counted:
+            calls = 0
+            def execute(self, sql, args):
+                self.calls += 1
+                return con.execute(sql, args)
+        counted = Counted()
+        assert dq._progress(counted, 7, day) == dict(answered=0, correct=0, earned=0,
+            remaining=10, total=10, max_daily_reward=100, carried_answers=0)
+        assert counted.calls == 1
+        con.executemany("INSERT INTO point_ledger VALUES (?,?,?,?,?)", [
+            ("legacy-1", 7, "quiz_reward", 10, "2026-11-26T15:00:00+00:00"),
+            ("legacy-2", 7, "quiz_reward", 20, "2026-11-27T14:59:59+00:00"),
+            ("dq3-current", 7, "quiz_reward", 15, "2026-11-27T00:00:00+00:00"),
+            ("other-user", 8, "quiz_reward", 99, "2026-11-27T00:00:00+00:00"),
+            ("previous-day", 7, "quiz_reward", 99, "2026-11-26T14:59:59+00:00"),
+            ("next-day", 7, "quiz_reward", 99, "2026-11-27T15:00:00+00:00"),
+            ("negative", 7, "quiz_reward", -10, "2026-11-27T00:00:00+00:00"),
+            ("manual", 7, "manual", 99, "2026-11-27T00:00:00+00:00"),
+        ])
+        con.executemany("INSERT INTO quiz_daily_answers VALUES (?,?,?,?,?)", [
+            (7, day, "a", 1, 10), (7, day, "b", 0, 5), (7, day, None, None, None),
+            (8, day, "a", 1, 10), (7, "2026-11-26", "a", 1, 10),
+        ])
+        assert dq._progress(counted, 7, day) == dict(answered=5, correct=1, earned=45,
+            remaining=5, total=10, max_daily_reward=100, carried_answers=3)
+        assert counted.calls == 2, "one statement per progress calculation"
+        con.execute("UPDATE quiz_daily_answers SET answer='c',is_correct=1,reward_awarded=10 WHERE user_id=7 AND answer IS NULL")
+        assert dq._progress(counted, 7, day)["earned"] == 55
+        assert counted.calls == 3, "must read current values again after writes"
+
+
 def run(postgres=False):
     bank_checks()
+    progress_query_regression()
     with test_app(postgres) as (app, db), patch.object(dq, 'utc_now') as clock:
         clock.return_value = datetime(2026, 9, 11, 14, 59, 59, tzinfo=timezone.utc)
         suffix = uuid.uuid4().hex[:8]
