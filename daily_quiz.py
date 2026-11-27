@@ -193,13 +193,19 @@ def _progress(con, uid, day):
     end = start + timedelta(days=1)
     # Include rewards issued by the old implementation on deployment day. Existing
     # points are never removed, but switching versions cannot open another 100pt.
-    legacy = con.execute("""SELECT COALESCE(SUM(amount),0) earned FROM point_ledger
-        WHERE user_id=? AND kind='quiz_reward' AND amount>0 AND id NOT LIKE ?
-        AND effective_at>=? AND effective_at<?""", (uid, 'dq3-%', start.isoformat(), end.isoformat())).fetchone()
-    carried = max(0, float(legacy["earned"]))
-    row = con.execute("""SELECT COUNT(*) answered, COALESCE(SUM(is_correct),0) correct,
-        COALESCE(SUM(reward_awarded),0) earned FROM quiz_daily_answers
-        WHERE user_id=? AND quiz_date=? AND answer IS NOT NULL""", (uid, day)).fetchone()
+    # Independent aggregates each return exactly one row. Combine them into one
+    # statement/round trip; never join the underlying rows (would multiply sums).
+    # Both components are still read from the database before and after a write.
+    row = con.execute("""SELECT legacy.earned AS legacy_earned,
+        daily.answered, daily.correct, daily.earned
+        FROM (SELECT COALESCE(SUM(amount),0) earned FROM point_ledger
+            WHERE user_id=? AND kind='quiz_reward' AND amount>0 AND id NOT LIKE ?
+            AND effective_at>=? AND effective_at<?) legacy
+        CROSS JOIN (SELECT COUNT(*) answered, COALESCE(SUM(is_correct),0) correct,
+            COALESCE(SUM(reward_awarded),0) earned FROM quiz_daily_answers
+            WHERE user_id=? AND quiz_date=? AND answer IS NOT NULL) daily""",
+        (uid, 'dq3-%', start.isoformat(), end.isoformat(), uid, day)).fetchone()
+    carried = max(0, float(row["legacy_earned"]))
     carried_answers = min(10, int((carried + 9) // 10))
     answered = min(10, carried_answers + int(row["answered"]))
     return dict(answered=answered, correct=int(row["correct"]), earned=carried + int(row["earned"]),
