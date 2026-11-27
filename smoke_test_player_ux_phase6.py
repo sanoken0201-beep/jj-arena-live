@@ -39,7 +39,9 @@ def main() -> None:
 
     # v67 performance behavior remains in the final compiled client before telemetry.
     assert "m.type==='chat'" in js and "renderTableChat()" in js
-    assert "refreshMe().catch(()=>{})" not in js[js.index("tableWS.onmessage=e=>"):js.index("tableWS.onclose=", js.index("tableWS.onmessage=e=>"))]
+    start = js.index("socket.onmessage=e=>")
+    end = js.index("socket.onclose=", start)
+    assert "refreshMe().catch(()=>{})" not in js[start:end]
 
     compiler = (ROOT / "served_assets.py").read_text(encoding="utf-8")
     app_source = (ROOT / "app.py").read_text(encoding="utf-8")

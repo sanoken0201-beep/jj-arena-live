@@ -126,7 +126,7 @@ def main() -> None:
             assert runtime_browser_marker in js
             assert telemetry_followup_marker in js
             manifest = served_assets.validate_built_assets(root)
-            assert manifest.get("pipeline_version") == 10
+            assert manifest.get("pipeline_version") == 11
             assert manifest.get("pipeline_stages") == [
                 "oop_check_freshness",
                 "poker_control_safety",
@@ -137,6 +137,7 @@ def main() -> None:
                 "quiz_request_diagnostics",
                 "ranking_read_optimization",
                 "hand_result_trends",
+                "ring_connection_recovery",
                 "content_addressed_browser_cache",
             ]
             assert manifest.get("browser_output_contract") == "canonical-prebuilt-v1"

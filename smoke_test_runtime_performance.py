@@ -247,6 +247,67 @@ async def _exercise_broadcast() -> None:
     assert "messages" not in a.messages[-1]
 
 
+
+async def _exercise_slow_broadcast() -> None:
+    """One blocked transport must not hold the healthy fanout indefinitely."""
+    class SlowWS(FakeWS):
+        def __init__(self, slow_close=False):
+            super().__init__()
+            self.send_cancelled = False
+            self.close_code = None
+            self.slow_close = slow_close
+            self.close_cancelled = False
+
+        async def send_json(self, payload):
+            try:
+                await asyncio.Event().wait()
+            finally:
+                self.send_cancelled = True
+
+        async def close(self, code):
+            self.close_code = code
+            if self.slow_close:
+                try:
+                    await asyncio.Event().wait()
+                finally:
+                    self.close_cancelled = True
+
+    old_send = runtime_performance._WS_SEND_TIMEOUT_SECONDS
+    old_close = runtime_performance._WS_CLOSE_TIMEOUT_SECONDS
+    runtime_performance._WS_SEND_TIMEOUT_SECONDS = 0.02
+    runtime_performance._WS_CLOSE_TIMEOUT_SECONDS = 0.02
+    try:
+        runtime_performance._LAST_BROADCAST_STATE.clear()
+        runtime_performance._install_broadcast_coalescing(FakeServer, FakeEngine)
+        FakeServer.state = {"status": "waiting", "seats": [], "hand": None}
+        good, slow, stuck = FakeWS(), SlowWS(), SlowWS(slow_close=True)
+        FakeServer.hub.connections["table-a"] = [(good, 1), (slow, 2), (stuck, 3)]
+        await asyncio.wait_for(FakeServer.hub.broadcast("table-a"), timeout=2)
+        assert good.messages[-1]["state"]["user_id"] == 1
+        assert slow.send_cancelled and stuck.send_cancelled
+        assert slow.close_code == stuck.close_code == 1013
+        assert stuck.close_cancelled
+        assert FakeServer.hub.connections["table-a"] == [(good, 1)]
+
+        # A later state update still reaches the healthy client.
+        FakeServer.state["status"] = "playing"
+        await asyncio.wait_for(FakeServer.hub.broadcast("table-a"), timeout=2)
+        assert good.messages[-1]["state"]["status"] == "playing"
+
+        # Exercise the chat-only path as well.
+        slow_chat = SlowWS()
+        FakeServer.hub.connections["table-a"].append((slow_chat, 4))
+        await asyncio.wait_for(FakeServer.hub.broadcast("table-a"), timeout=2)
+        assert good.messages[-1]["type"] == "chat"
+        assert slow_chat.send_cancelled and slow_chat.close_code == 1013
+        assert FakeServer.hub.connections["table-a"] == [(good, 1)]
+    finally:
+        runtime_performance._WS_SEND_TIMEOUT_SECONDS = old_send
+        runtime_performance._WS_CLOSE_TIMEOUT_SECONDS = old_close
+        FakeServer.hub.connections.clear()
+        runtime_performance._LAST_BROADCAST_STATE.clear()
+
+
 def _guard_client_and_gateway_efficiency() -> None:
     from served_assets import ASSET_VERSION, BUILD_ROOT, validate_built_assets
     from build_served_assets import main as build_production_assets
@@ -286,6 +347,7 @@ def main() -> None:
     asyncio.run(_exercise_scheduler())
     asyncio.run(_exercise_timeout_scheduler())
     asyncio.run(_exercise_broadcast())
+    asyncio.run(_exercise_slow_broadcast())
     _guard_client_and_gateway_efficiency()
     print("runtime performance smoke test passed")
 

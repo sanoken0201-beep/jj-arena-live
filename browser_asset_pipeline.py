@@ -24,8 +24,9 @@ from quiz_request_diagnostics import apply_to_build as apply_quiz_request_diagno
 
 from ranking_read_optimization import apply_to_build as apply_ranking_reads
 from hand_result_trends_ui import apply_to_build as apply_hand_result_trends
+from ring_connection_recovery import apply_to_build as apply_ring_connection_recovery
 
-PIPELINE_VERSION = 10
+PIPELINE_VERSION = 11
 POST_BUILD_STAGES = (
     ("oop_check_freshness", apply_oop_check_freshness),
     ("poker_control_safety", apply_poker_control_safety),
@@ -38,6 +39,7 @@ POST_BUILD_STAGES = (
     ("quiz_request_diagnostics", apply_quiz_request_diagnostics),
     ("ranking_read_optimization", apply_ranking_reads),
     ("hand_result_trends", apply_hand_result_trends),
+    ("ring_connection_recovery", apply_ring_connection_recovery),
 )
 
 
