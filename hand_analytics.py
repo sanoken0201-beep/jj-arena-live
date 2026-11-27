@@ -759,7 +759,22 @@ def _range_start(range_name: str) -> str | None:
     return None
 
 
-def _completed_player_rows(user_id: int, range_name: str = "all", table_id: str | None = None) -> list[dict[str, Any]]:
+# Summary/session calculations do not need hole cards, board JSON, raw chip
+# stacks or player identity fields. Keep the full projection as the default
+# for CSV and other consumers, and use a fixed allowlist for statistical reads.
+_STAT_PLAYER_COLUMNS = (
+    "hand_id", "position", "effective_stack_bb", "net_bb", "vpip", "pfr",
+    "three_bet_opp", "three_bet", "faced_three_bet", "folded_to_three_bet",
+    "steal_opp", "steal_attempt", "bb_vs_steal", "folded_bb_to_steal",
+    "saw_flop", "cbet_opp", "cbet", "faced_cbet", "folded_to_cbet",
+    "went_showdown", "won_showdown", "won_hand", "aggressive_actions",
+    "call_actions", "check_actions", "decision_count", "decision_seconds",
+    "timeout_count",
+)
+
+
+def _completed_player_rows(user_id: int, range_name: str = "all", table_id: str | None = None,
+                           *, statistics_only: bool = False) -> list[dict[str, Any]]:
     where = ["p.user_id=?", "h.completed_at IS NOT NULL", "COALESCE(h.partial_capture,0)=0"]
     params: list[Any] = [user_id]
     start = _range_start(range_name)
@@ -769,10 +784,16 @@ def _completed_player_rows(user_id: int, range_name: str = "all", table_id: str 
     if table_id:
         where.append("h.table_id=?")
         params.append(table_id)
+    projection = (
+        ",".join("p." + column for column in _STAT_PLAYER_COLUMNS)
+        + ",h.completed_at,h.started_at,h.table_id,h.table_name,h.player_count"
+        if statistics_only else
+        "p.*,h.completed_at,h.started_at,h.table_id,h.table_name,h.board_json,"
+        "h.player_count,h.result_type,h.showdown,h.hand_no,h.big_blind"
+    )
     with _DB.connect() as con:
         rows = con.execute(
-            f"""SELECT p.*,h.completed_at,h.started_at,h.table_id,h.table_name,h.board_json,
-                       h.player_count,h.result_type,h.showdown,h.hand_no,h.big_blind
+            f"""SELECT {projection}
                 FROM jj_hand_players p JOIN jj_hand_history h ON h.hand_id=p.hand_id
                 WHERE {' AND '.join(where)}
                 ORDER BY h.completed_at ASC,h.hand_id ASC""",
@@ -926,12 +947,17 @@ def _trend(rows: list[dict[str, Any]], max_points: int = 300) -> list[dict[str, 
     total = 0.0
     showdown_total = 0.0
     points = []
+    stride = math.ceil(len(rows) / max_points) if len(rows) > max_points else 1
     for hand_number, row in enumerate(rows, 1):
         net_bb = _as_float(row.get("net_bb"))
         total += net_bb
         is_showdown = bool(_as_int(row.get("went_showdown")))
         if is_showdown:
             showdown_total += net_bb
+        # Accumulate every hand in the original order; allocate only points
+        # that the previous post-sampling algorithm would have returned.
+        if (hand_number - 1) % stride and hand_number != len(rows):
+            continue
         cumulative_bb = round(total, 2)
         cumulative_sd_bb = round(showdown_total, 2)
         points.append({
@@ -944,16 +970,10 @@ def _trend(rows: list[dict[str, Any]], max_points: int = 300) -> list[dict[str, 
             "cumulative_sd_bb": cumulative_sd_bb,
             "cumulative_nsd_bb": round(cumulative_bb - cumulative_sd_bb, 2),
         })
-    if len(points) <= max_points:
-        return points
-    stride = math.ceil(len(points) / max_points)
-    reduced = [points[i] for i in range(0, len(points), stride)]
-    if reduced[-1] is not points[-1]:
-        reduced.append(points[-1])
-    return reduced
+    return points
 
 
-def _sessions(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+def _sessions(rows: list[dict[str, Any]], *, limit: int | None = None) -> list[dict[str, Any]]:
     if not rows:
         return []
     sessions: list[list[dict[str, Any]]] = []
@@ -971,6 +991,8 @@ def _sessions(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
         sessions.append(current)
     out = []
     for i, items in enumerate(reversed(sessions), 1):
+        if limit is not None and i > limit:
+            break
         data = _aggregate(items)
         out.append({
             "id": f"session-{len(sessions)-i+1}",
@@ -983,7 +1005,7 @@ def _sessions(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
 
 
 def _summary_payload(user_id: int, range_name: str, table_id: str | None) -> dict[str, Any]:
-    rows = _completed_player_rows(user_id, range_name, table_id)
+    rows = _completed_player_rows(user_id, range_name, table_id, statistics_only=True)
     overall = _aggregate(rows)
     # HU and 3+ player positions describe different preflop games. In
     # particular, HU BB must never be mixed into the multiway BB sample.
@@ -1004,7 +1026,7 @@ def _summary_payload(user_id: int, range_name: str, table_id: str | None) -> dic
         "stack_bands": stacks,
         "tables": tables,
         "trend": _trend(rows),
-        "sessions": _sessions(rows)[:20],
+        "sessions": _sessions(rows, limit=20),
         "signals": _leak_signals(rows, overall, positions),
         "definitions": {
             "vpip": "プリフロップでブラインド以外のチップを自発的に投入した割合",
@@ -1334,7 +1356,7 @@ def install(app, server, db) -> None:
         table: str | None = None,
         user=Depends(server.current_user),
     ):
-        return {"sessions": _sessions(_completed_player_rows(int(user["id"]), range, table))}
+        return {"sessions": _sessions(_completed_player_rows(int(user["id"]), range, table, statistics_only=True))}
 
     @app.get("/api/analysis/hands/{hand_id}/export.txt", response_class=PlainTextResponse)
     def analysis_export(hand_id: str, user=Depends(server.current_user)):

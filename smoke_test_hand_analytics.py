@@ -280,6 +280,36 @@ def run() -> None:
         assert "jj-table-b-51" not in {r["hand_id"] for r in complete_rows}
         assert hand1 in {r["hand_id"] for r in complete_rows}
 
+        slim = hand_analytics._completed_player_rows(u1, "all", statistics_only=True)
+        assert slim == [{key: row[key] for key in slim[0]} for row in complete_rows]
+        assert "hole_cards_json" not in slim[0] and "board_json" not in slim[0]
+        assert "hole_cards_json" in complete_rows[0]
+        assert hand_analytics._aggregate(slim) == hand_analytics._aggregate(complete_rows)
+        assert hand_analytics._sessions(slim) == hand_analytics._sessions(complete_rows)
+        assert hand_analytics._trend(slim) == hand_analytics._trend(complete_rows)
+
+        # Compare streaming sampling to the original full-allocation approach
+        # over several edge sizes and nonzero signed/showdown totals.
+        from datetime import datetime, timedelta, timezone
+        origin = datetime(2026, 9, 1, tzinfo=timezone.utc)
+        synthetic = [dict(hand_id=f"sample-{i}", net_bb=(i % 13 - 6) / 10,
+                          went_showdown=i % 3 == 0,
+                          completed_at=(origin + timedelta(days=i)).isoformat(),
+                          table_name="A", position="BTN") for i in range(601)]
+        for size in (0, 1, 299, 300, 301, 600, 601):
+            rows = synthetic[:size]
+            full = hand_analytics._trend(rows, max_points=max(1, size))
+            import math
+            stride = max(1, math.ceil(size / 300))
+            expected = full[::stride]
+            if full and expected[-1] != full[-1]:
+                expected.append(full[-1])
+            assert hand_analytics._trend(rows) == expected, size
+        full_sessions = hand_analytics._sessions(synthetic)
+        assert len(full_sessions) == 601
+        assert hand_analytics._sessions(synthetic, limit=20) == full_sessions[:20]
+        assert hand_analytics._sessions(synthetic, limit=0) == []
+
         summary = hand_analytics._summary_payload(u1, "all", None)
         assert summary["overall"]["hands"] >= 2
         assert "vpip" in summary["overall"] and "positions" in summary and "stack_bands" in summary
