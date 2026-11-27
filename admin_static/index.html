@@ -67,17 +67,17 @@
       </section>
 
       <section id="economyView" class="view">
-        <div class="section-head"><div><div class="eyebrow">POINT ECONOMY · ADMIN ONLY</div><h2>ポイント履歴・インフレ分析</h2><p>公式ランキングに算入されるポイントを「入力」「オンライン卓」「今日の問題」に分け、日別の増減と累積量を確認します。</p></div><button id="economyRefresh" class="soft" type="button">更新</button></div>
+        <div class="section-head"><div><div class="eyebrow">POINT ECONOMY · ADMIN ONLY</div><h2>ポイント履歴・インフレ分析</h2><p>公式ランキングに算入されるポイントを「通常活動」「オンライン卓」「今日の問題」に分け、日別の増減と累積量を確認します。</p></div><button id="economyRefresh" class="soft" type="button">更新</button></div>
         <div class="economy-filters panel">
           <label>対象シーズン<select id="economySeason"><option value="fall">現在のシーズン</option></select></label>
-          <label>履歴の種類<select id="economySource"><option value="all">すべて</option><option value="club">入力</option><option value="online">オンライン卓</option><option value="quiz">今日の問題</option><option value="other">その他・補正</option></select></label>
+          <label>履歴の種類<select id="economySource"><option value="all">すべて</option><option value="ring">通常リング</option><option value="tournament">通常トーナメント</option><option value="club">通常活動（すべての入力）</option><option value="online">オンライン卓</option><option value="quiz">今日の問題</option><option value="other">その他・補正</option></select></label>
           <p id="economyStatus" role="status" aria-live="polite">分析画面を開くと読み込みます。</p>
         </div>
         <div id="economyNumbers" class="economy-numbers" aria-label="ポイントの集計結果"></div>
         <article class="panel economy-chart-panel"><div class="panel-head"><div><div class="eyebrow">TOTAL POINTS</div><h3>累積ポイント総量の推移</h3></div><span class="economy-chart-note">日付は日本時間</span></div><div id="economyChart"></div><div class="economy-legend"><span><i class="economy-line-total"></i>全体の累積</span><span><i class="economy-line-quiz"></i>今日の問題の累積</span></div></article>
         <div class="economy-grid">
-          <article class="panel"><h3>日別の増減</h3><div class="economy-table-wrap"><table class="economy-table"><thead><tr><th>日付</th><th>入力</th><th>オンライン</th><th>今日の問題</th><th>その他</th><th>純増減</th><th>累積</th></tr></thead><tbody id="economyDaily"></tbody></table></div></article>
-          <article class="panel"><h3>ポイント取引履歴</h3><div id="economyHistory" class="economy-history"></div><div class="economy-pages"><button id="economyPrevious" class="soft" type="button" disabled>新しい履歴</button><span id="economyPageLabel"></span><button id="economyNext" class="soft" type="button" disabled>古い履歴</button></div></article>
+          <article class="panel"><h3>日別の増減</h3><div class="economy-table-wrap"><table class="economy-table"><thead><tr><th>日付</th><th>通常活動</th><th>オンライン</th><th>今日の問題</th><th>その他</th><th>純増減</th><th>累積</th></tr></thead><tbody id="economyDaily"></tbody></table></div></article>
+          <article class="panel"><h3>ポイント取引履歴</h3><div class="panel-head"><p id="economyRingCount" class="hint" aria-live="polite"></p><button id="economyRingShortcut" type="button" class="soft">通常リングのみ表示</button></div><div id="economyHistory" class="economy-history"></div><div class="economy-pages"><button id="economyPrevious" class="soft" type="button" disabled>新しい履歴</button><span id="economyPageLabel"></span><button id="economyNext" class="soft" type="button" disabled>古い履歴</button></div></article>
         </div>
         <p id="economyFootnote" class="economy-footnote"></p>
       </section>
@@ -128,7 +128,7 @@
   <dialog id="userDialog"><button class="dialog-close" id="closeUserDialog" aria-label="閉じる">×</button><div id="userDialogBody"></div></dialog>
   <script src="/admin-static/admin_point_requests.js?v=1"></script>
   <script src="/admin-static/admin.js?v=131-point-economy"></script>
-  <script src="/admin-static/admin_point_economy.js?v=1"></script>
+  <script src="/admin-static/admin_point_economy.js?v=2"></script>
   <script src="/admin-static/admin_delete.js?v=127"></script>
   <script src="/admin-static/admin_ban.js?v=1"></script>
   <script src="/admin-static/admin_sitngo.js?sng=12hands-20260921-2"></script>
